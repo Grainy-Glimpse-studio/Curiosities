@@ -1,0 +1,5 @@
+{
+  "name": "Fireworks Flow",
+  "description": "Upload a background video and create interactive fireworks with your cursor.",
+  "requestFramePermissions": []
+}

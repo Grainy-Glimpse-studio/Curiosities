@@ -1,0 +1,7 @@
+{
+  "name": "Twin Peaks Recorder",
+  "description": "A retro-styled voice recorder inspired by Agent Cooper, featuring Gemini-powered transcription, auto-tagging, and a cassette tape archive.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
