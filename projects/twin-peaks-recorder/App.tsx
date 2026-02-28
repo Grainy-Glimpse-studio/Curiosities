@@ -12,6 +12,8 @@ const App: React.FC = () => {
   const [memos, setMemos] = useState<Memo[]>([]);
   const [currentMemoId, setCurrentMemoId] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [titleFont, setTitleFont] = useState("'Permanent Marker', 'Kawaiitegakimoji', cursive");
+  const [contentFont, setContentFont] = useState("'Courier Prime', monospace");
 
   // --- Refs ---
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -334,6 +336,7 @@ const App: React.FC = () => {
             onFastForward={handleFastForward}
             onErase={handleErase}
             onToggleDrawer={() => setIsDrawerOpen(true)}
+            clickSoundUrl="/click.mp3"
           />
         </main>
 
@@ -351,6 +354,10 @@ const App: React.FC = () => {
         onPlay={playMemo}
         onDelete={handleDelete}
         onTogglePermanent={handleTogglePermanent}
+        titleFont={titleFont}
+        contentFont={contentFont}
+        onTitleFontChange={setTitleFont}
+        onContentFontChange={setContentFont}
       />
 
     </div>

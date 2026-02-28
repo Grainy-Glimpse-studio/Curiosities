@@ -14,7 +14,83 @@ interface RecorderUIProps {
   onFastForward: () => void;
   onErase: () => void;
   onToggleDrawer: () => void;
+  clickSoundUrl?: string;
 }
+
+const formatMechanicalCounter = (seconds: number) => {
+  const num = Math.floor(seconds * 0.8);
+  return num.toString().padStart(3, '0').split('');
+};
+
+const MechanicalButton = ({ 
+  onClick, 
+  label, 
+  icon: Icon, 
+  color = "silver", 
+  active = false,
+  soundUrl
+}: any) => {
+  const colorStyles: Record<string, string> = {
+    silver: `bg-gradient-to-b from-[#e0e0e0] via-[#b0b0b0] to-[#888] text-zinc-800`,
+    red: `bg-gradient-to-b from-[#ff4d4d] via-[#d32f2f] to-[#8e0000] text-white`,
+    black: `bg-gradient-to-b from-[#555] via-[#333] to-[#111] text-zinc-400`,
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (soundUrl) {
+      const audio = new Audio(soundUrl);
+      audio.play().catch(err => console.error("Error playing sound:", err));
+    }
+    onClick(e);
+  };
+
+  return (
+    <div className="flex flex-col items-center w-full gap-1.5 relative z-10">
+      <button 
+        className="w-full h-16 relative group outline-none touch-manipulation perspective-500"
+        onClick={handleClick}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <div className={`
+          absolute inset-0 rounded-t-[4px] rounded-b-[6px]
+          flex flex-col items-center justify-center 
+          border-x border-black/50
+          transition-all duration-100 ease-out
+          group-active:translate-y-[4px] group-active:shadow-[0_1px_0_rgba(0,0,0,0.9)]
+          ${active ? 'translate-y-[4px] shadow-[0_1px_0_rgba(0,0,0,0.9)] border-t-black/40 brightness-90' : 'shadow-[0_6px_0_rgba(0,0,0,0.9),0_10px_15px_rgba(0,0,0,0.6)] border-t-white/40'}
+          ${colorStyles[color]}
+        `}>
+           {label === 'PAUSE' ? (
+              <span className={`font-black text-2xl leading-none ${active ? 'opacity-100 text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]' : 'opacity-60'} ${color==='red'?'text-white':'text-zinc-800'}`}>II</span>
+           ) : (
+              <Icon size={20} strokeWidth={2.5} fill={color === 'red' ? 'currentColor' : 'none'} className={active ? "opacity-100 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)] text-amber-400" : "opacity-60"}/>
+           )}
+           
+           {/* Brushed Metal Texture */}
+           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')] opacity-20 pointer-events-none mix-blend-overlay"></div>
+           {/* Highlight */}
+           <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent pointer-events-none"></div>
+        </div>
+      </button>
+      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono-retro">{label}</span>
+    </div>
+  );
+};
+
+const Spool = ({ spinning }: { spinning: boolean }) => (
+  <div className={`w-24 h-24 rounded-full bg-[#111] relative border-[6px] border-[#0a0a0a] shadow-[0_0_15px_rgba(0,0,0,0.8),inset_0_0_10px_black] ${spinning ? 'animate-spin-slow' : ''}`}>
+     <div className="absolute inset-0">
+       {[0, 45, 90, 135].map(deg => (
+         <div key={deg} className="absolute top-1/2 left-1/2 w-[85%] h-1.5 bg-zinc-800/60 rounded-full" style={{ transform: `translate(-50%, -50%) rotate(${deg}deg)` }}></div>
+       ))}
+     </div>
+     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full border-4 border-zinc-800 bg-zinc-900 z-10 shadow-inner flex items-center justify-center">
+        <div className="w-4 h-4 rounded-full bg-zinc-700 border border-black shadow-lg"></div>
+     </div>
+     {/* Tape Texture */}
+     <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,transparent_40%,rgba(0,0,0,0.3)_100%)] pointer-events-none"></div>
+  </div>
+);
 
 const RecorderUI: React.FC<RecorderUIProps> = ({
   state,
@@ -27,7 +103,8 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
   onRewind,
   onFastForward,
   onErase,
-  onToggleDrawer
+  onToggleDrawer,
+  clickSoundUrl
 }) => {
   const [ledOn, setLedOn] = useState(false);
 
@@ -45,72 +122,6 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
   }, [state]);
 
   const isSpinning = state === RecorderState.RECORDING || state === RecorderState.PLAYING;
-
-  const formatMechanicalCounter = (seconds: number) => {
-    const num = Math.floor(seconds * 0.8);
-    return num.toString().padStart(3, '0').split('');
-  };
-
-  const MechanicalButton = ({ 
-    onClick, 
-    label, 
-    icon: Icon, 
-    color = "silver", 
-    active = false,
-  }: any) => {
-    const colorStyles: Record<string, string> = {
-      silver: `bg-gradient-to-b from-[#e0e0e0] via-[#b0b0b0] to-[#888] text-zinc-800`,
-      red: `bg-gradient-to-b from-[#ff4d4d] via-[#d32f2f] to-[#8e0000] text-white`,
-      black: `bg-gradient-to-b from-[#555] via-[#333] to-[#111] text-zinc-400`,
-    };
-
-    return (
-      <div className="flex flex-col items-center w-full gap-1.5 relative z-10">
-        <button 
-          className="w-full h-16 relative group outline-none touch-manipulation perspective-500"
-          onClick={onClick}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <div className={`
-            absolute inset-0 rounded-t-[4px] rounded-b-[6px]
-            flex flex-col items-center justify-center 
-            border-x border-black/50
-            transition-all duration-100 ease-out
-            group-active:translate-y-[4px] group-active:shadow-[0_1px_0_rgba(0,0,0,0.9)]
-            ${active ? 'translate-y-[4px] shadow-[0_1px_0_rgba(0,0,0,0.9)] border-t-black/40 brightness-90' : 'shadow-[0_6px_0_rgba(0,0,0,0.9),0_10px_15px_rgba(0,0,0,0.6)] border-t-white/40'}
-            ${colorStyles[color]}
-          `}>
-             {label === 'PAUSE' ? (
-                <span className={`font-black text-2xl leading-none ${active ? 'opacity-100 text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]' : 'opacity-60'} ${color==='red'?'text-white':'text-zinc-800'}`}>II</span>
-             ) : (
-                <Icon size={20} strokeWidth={2.5} fill={color === 'red' ? 'currentColor' : 'none'} className={active ? "opacity-100 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)] text-amber-400" : "opacity-60"}/>
-             )}
-             
-             {/* Brushed Metal Texture */}
-             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')] opacity-20 pointer-events-none mix-blend-overlay"></div>
-             {/* Highlight */}
-             <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent pointer-events-none"></div>
-          </div>
-        </button>
-        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono-retro">{label}</span>
-      </div>
-    );
-  };
-
-  const Spool = ({ spinning }: { spinning: boolean }) => (
-    <div className={`w-24 h-24 rounded-full bg-[#111] relative flex items-center justify-center border-[6px] border-[#0a0a0a] shadow-[0_0_15px_rgba(0,0,0,0.8),inset_0_0_10px_black] ${spinning ? 'animate-[spin_2s_linear_infinite]' : ''}`}>
-       <div className="absolute w-full h-full">
-         {[0, 45, 90, 135].map(deg => (
-           <div key={deg} className="absolute top-1/2 left-1/2 w-[90%] h-1 bg-zinc-800/40 -translate-x-1/2 -translate-y-1/2" style={{ transform: `translate(-50%, -50%) rotate(${deg}deg)` }}></div>
-         ))}
-       </div>
-       <div className="absolute w-12 h-12 rounded-full border-4 border-zinc-800 bg-zinc-900 z-10 shadow-inner flex items-center justify-center">
-          <div className="w-4 h-4 rounded-full bg-zinc-700 border border-black shadow-lg"></div>
-       </div>
-       {/* Tape Texture */}
-       <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,transparent_40%,rgba(0,0,0,0.3)_100%)]"></div>
-    </div>
-  );
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-6">
@@ -220,12 +231,12 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
            </div>
 
            <div className="grid grid-cols-6 gap-3 p-3 bg-[#151515] rounded-2xl border-t border-white/5 shadow-[inset_0_8px_16px_rgba(0,0,0,0.8)]">
-               <MechanicalButton label="REC" icon={Mic} color="red" onClick={onRecord} active={state === RecorderState.RECORDING} />
-               <MechanicalButton label="PLAY" icon={Play} onClick={onPlay} active={state === RecorderState.PLAYING} />
-               <MechanicalButton label="PAUSE" icon={Pause} onClick={onPause} active={state === RecorderState.PAUSED} />
-               <MechanicalButton label="REW" icon={Rewind} onClick={onRewind} />
-               <MechanicalButton label="F.FWD" icon={FastForward} onClick={onFastForward} />
-               <MechanicalButton label="STOP" icon={Square} onClick={onStop} />
+               <MechanicalButton label="REC" icon={Mic} color="red" onClick={onRecord} active={state === RecorderState.RECORDING} soundUrl={clickSoundUrl} />
+               <MechanicalButton label="PLAY" icon={Play} onClick={onPlay} active={state === RecorderState.PLAYING} soundUrl={clickSoundUrl} />
+               <MechanicalButton label="PAUSE" icon={Pause} onClick={onPause} active={state === RecorderState.PAUSED} soundUrl={clickSoundUrl} />
+               <MechanicalButton label="REW" icon={Rewind} onClick={onRewind} soundUrl={clickSoundUrl} />
+               <MechanicalButton label="F.FWD" icon={FastForward} onClick={onFastForward} soundUrl={clickSoundUrl} />
+               <MechanicalButton label="STOP" icon={Square} onClick={onStop} soundUrl={clickSoundUrl} />
            </div>
            
            <div className="flex justify-between items-center px-2 pt-2 border-t border-white/5">

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Memo } from '../types';
 import CassetteTape from './CassetteTape';
-import { Search, ChevronDown, Filter, Calendar } from 'lucide-react';
+import { Search, ChevronDown, Filter, Calendar, Type } from 'lucide-react';
 
 interface TapeDrawerProps {
   isOpen: boolean;
@@ -10,11 +10,26 @@ interface TapeDrawerProps {
   onPlay: (memo: Memo) => void;
   onDelete: (id: string) => void;
   onTogglePermanent: (id: string) => void;
+  titleFont: string;
+  contentFont: string;
+  onTitleFontChange: (font: string) => void;
+  onContentFontChange: (font: string) => void;
 }
 
 type SortMethod = 'date_desc' | 'date_asc';
 
-const TapeDrawer: React.FC<TapeDrawerProps> = ({ isOpen, onClose, memos, onPlay, onDelete, onTogglePermanent }) => {
+const TapeDrawer: React.FC<TapeDrawerProps> = ({ 
+  isOpen, 
+  onClose, 
+  memos, 
+  onPlay, 
+  onDelete, 
+  onTogglePermanent,
+  titleFont,
+  contentFont,
+  onTitleFontChange,
+  onContentFontChange
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [sortMethod, setSortMethod] = useState<SortMethod>('date_desc');
@@ -94,6 +109,61 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({ isOpen, onClose, memos, onPlay,
           </div>
 
           <div className="flex flex-wrap justify-between items-center gap-4 border-t border-white/5 pt-4">
+             {/* Font Settings */}
+             <div className="flex items-center gap-4">
+               <div className="flex items-center gap-2">
+                 <Type size={14} className="text-amber-200/30" />
+                 <span className="text-[10px] text-amber-100/40 uppercase tracking-widest font-mono-retro mr-1">Title:</span>
+                 <div className="flex bg-black/40 border border-white/5 rounded-md overflow-hidden">
+                   <button 
+                     onClick={() => onTitleFontChange("'Permanent Marker', 'Kawaiitegakimoji', cursive")}
+                     className={`px-3 py-1.5 text-[10px] uppercase tracking-wider transition-colors ${titleFont.includes('Permanent Marker') ? 'bg-amber-600/20 text-amber-400 font-bold' : 'text-amber-100/60 hover:bg-white/5'}`}
+                   >
+                     Marker
+                   </button>
+                   <button 
+                     onClick={() => onTitleFontChange("'Kawaiitegakimoji', sans-serif")}
+                     className={`px-3 py-1.5 text-[10px] uppercase tracking-wider transition-colors border-l border-white/5 ${titleFont === "'Kawaiitegakimoji', sans-serif" ? 'bg-amber-600/20 text-amber-400 font-bold' : 'text-amber-100/60 hover:bg-white/5'}`}
+                   >
+                     Cute
+                   </button>
+                   <button 
+                     onClick={() => onTitleFontChange("'Cormorant Garamond', serif")}
+                     className={`px-3 py-1.5 text-[10px] uppercase tracking-wider transition-colors border-l border-white/5 ${titleFont.includes('Garamond') ? 'bg-amber-600/20 text-amber-400 font-bold' : 'text-amber-100/60 hover:bg-white/5'}`}
+                   >
+                     Serif
+                   </button>
+                 </div>
+               </div>
+               
+               <div className="w-px h-4 bg-white/10 hidden md:block"></div>
+
+               <div className="flex items-center gap-2">
+                 <Type size={14} className="text-amber-200/30" />
+                 <span className="text-[10px] text-amber-100/40 uppercase tracking-widest font-mono-retro mr-1">Text:</span>
+                 <div className="flex bg-black/40 border border-white/5 rounded-md overflow-hidden">
+                   <button 
+                     onClick={() => onContentFontChange("'Courier Prime', monospace")}
+                     className={`px-3 py-1.5 text-[10px] uppercase tracking-wider transition-colors ${contentFont.includes('Courier') ? 'bg-amber-600/20 text-amber-400 font-bold' : 'text-amber-100/60 hover:bg-white/5'}`}
+                   >
+                     Typewriter
+                   </button>
+                   <button 
+                     onClick={() => onContentFontChange("'Inter', sans-serif")}
+                     className={`px-3 py-1.5 text-[10px] uppercase tracking-wider transition-colors border-l border-white/5 ${contentFont.includes('Inter') ? 'bg-amber-600/20 text-amber-400 font-bold' : 'text-amber-100/60 hover:bg-white/5'}`}
+                   >
+                     Clean
+                   </button>
+                   <button 
+                     onClick={() => onContentFontChange("'Kawaiitegakimoji', sans-serif")}
+                     className={`px-3 py-1.5 text-[10px] uppercase tracking-wider transition-colors border-l border-white/5 ${contentFont === "'Kawaiitegakimoji', sans-serif" ? 'bg-amber-600/20 text-amber-400 font-bold' : 'text-amber-100/60 hover:bg-white/5'}`}
+                   >
+                     Cute
+                   </button>
+                 </div>
+               </div>
+             </div>
+
              {/* Sort Toggle */}
              <button 
                onClick={() => setSortMethod(prev => prev === 'date_desc' ? 'date_asc' : 'date_desc')}
@@ -153,6 +223,8 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({ isOpen, onClose, memos, onPlay,
                    onPlay={onPlay} 
                    onDelete={onDelete}
                    onTogglePermanent={onTogglePermanent}
+                   titleFont={titleFont}
+                   contentFont={contentFont}
                  />
                ))
              )}

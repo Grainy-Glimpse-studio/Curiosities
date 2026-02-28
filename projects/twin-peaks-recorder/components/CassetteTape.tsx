@@ -7,9 +7,11 @@ interface CassetteTapeProps {
   onPlay: (memo: Memo) => void;
   onDelete: (id: string) => void;
   onTogglePermanent: (id: string) => void;
+  titleFont: string;
+  contentFont: string;
 }
 
-const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onTogglePermanent }) => {
+const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onTogglePermanent, titleFont, contentFont }) => {
   
   const formatDate = (ts: number) => {
     return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -42,7 +44,7 @@ const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onT
           <div className="flex justify-between items-center border-b-2 border-zinc-200 pb-2">
              <div className="flex flex-col">
                 <span className="text-[8px] text-zinc-400 font-bold tracking-widest uppercase">Date / Time</span>
-                <span className="font-handwriting text-[#1a237e] text-xl leading-none mt-1">
+                <span className="text-[#1a237e] text-xl leading-none mt-1" style={{ fontFamily: titleFont }}>
                   {formatDate(memo.createdAt)} <span className="text-sm opacity-70">{formatTime(memo.createdAt)}</span>
                 </span>
              </div>
@@ -69,7 +71,7 @@ const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onT
                   <div key={i} className="w-full h-px bg-zinc-200"></div>
                 ))}
              </div>
-             <p className="font-serif italic text-zinc-800 text-sm leading-[1.6rem] line-clamp-3 relative z-10 pt-0.5">
+             <p className="italic text-zinc-800 text-sm leading-[1.6rem] line-clamp-3 relative z-10 pt-0.5" style={{ fontFamily: contentFont }}>
                {memo.transcription || "No transcription available..."}
              </p>
           </div>

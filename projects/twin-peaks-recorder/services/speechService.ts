@@ -40,7 +40,7 @@ export class SpeechTranscriber {
   private isListening: boolean = false;
 
   constructor() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
       console.warn('Web Speech API not supported in this browser');
@@ -52,16 +52,13 @@ export class SpeechTranscriber {
     this.recognition.interimResults = true;
     this.recognition.lang = 'zh-CN'; // 默认中文，也能识别英文
 
-    this.recognition.onresult = (event) => {
+    this.recognition.onresult = (event: any) => {
       let finalTranscript = '';
-      let interimTranscript = '';
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
           finalTranscript += transcript;
-        } else {
-          interimTranscript += transcript;
         }
       }
 
@@ -70,7 +67,7 @@ export class SpeechTranscriber {
       }
     };
 
-    this.recognition.onerror = (event) => {
+    this.recognition.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error);
       // 不要在 no-speech 时停止，继续监听
       if (event.error !== 'no-speech') {
