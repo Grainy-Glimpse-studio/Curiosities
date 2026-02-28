@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Curiosities</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #fff;
+      min-height: 100vh;
+      padding: 60px 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 300;
+      letter-spacing: 0.2em;
+      margin-bottom: 10px;
+      background: linear-gradient(135deg, #fff 0%, #888 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: 0.9rem;
+      letter-spacing: 0.1em;
+    }
+
+    .projects {
+      display: grid;
+      gap: 20px;
+    }
+
+    .project-card {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 12px;
+      padding: 30px;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.3s ease;
+      display: block;
+    }
+
+    .project-card:hover {
+      border-color: #444;
+      transform: translateY(-2px);
+      background: #151515;
+    }
+
+    .project-title {
+      font-size: 1.3rem;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .project-desc {
+      color: #888;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin-bottom: 15px;
+    }
+
+    .project-tag {
+      display: inline-block;
+      background: #222;
+      color: #666;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    .project-tag.live {
+      background: #0a2f1a;
+      color: #4ade80;
+    }
+
+    .project-tag.wip {
+      background: #2f2a0a;
+      color: #facc15;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 80px;
+      color: #444;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>CURIOSITIES</h1>
+      <p class="subtitle">A collection of small experiments</p>
+    </header>
+
+    <div class="projects">
+      <a href="https://curiosities-twin-peaks-recorder.vercel.app" target="_blank" class="project-card">
+        <h2 class="project-title">Twin Peaks Recorder</h2>
+        <p class="project-desc">
+          A voice memo app inspired by Agent Cooper's tape recorder.
+          Record your thoughts and let the browser transcribe them.
+        </p>
+        <span class="project-tag live">Live</span>
+      </a>
+
+      <div class="project-card" style="opacity: 0.6; cursor: not-allowed;">
+        <h2 class="project-title">Fireworks Flow</h2>
+        <p class="project-desc">
+          Interactive particle system with multiplayer support.
+          Create explosions and force fields in a shared canvas.
+        </p>
+        <span class="project-tag wip">Coming Soon</span>
+      </div>
+    </div>
+
+    <footer>
+      <p>Side projects by Yuxi Wang</p>
+    </footer>
+  </div>
+</body>
+</html>
