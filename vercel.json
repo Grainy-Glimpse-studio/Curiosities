@@ -1,8 +1,4 @@
 {
-  "framework": "vite",
-  "installCommand": "cd projects/twin-peaks-recorder && npm install",
-  "buildCommand": "cd projects/twin-peaks-recorder && npm run build",
-  "outputDirectory": "projects/twin-peaks-recorder/dist",
   "headers": [
     {
       "source": "/(.*)",
