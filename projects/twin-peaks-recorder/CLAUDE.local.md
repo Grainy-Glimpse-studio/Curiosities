@@ -126,65 +126,106 @@ Key line numbers in log:
 
 ---
 
-## TODO List (2026-03-01)
+## 2026-03-01 Session Summary（会话总结）
 
-### 1. 文本处理 API（免费版）
-- **服务**：阿里云 Qwen 3.5-flash
-- **额度**：100万 tokens 免费，3个月有效
-- **模式**：
-  - 游客模式：用开发者的 API（有额度限制）
-  - 用户模式：用户填自己的 API key
-- **功能**：
-  - ✨ 润色文本 - 修正语法、让转写更通顺
-  - 📝 生成摘要 - 长录音总结成几句话
-  - 🏷️ 自动标签 - 根据内容生成标签
-  - 🌐 翻译 - 中英互译
-  - 💡 提取要点 - 列出关键信息
-  - 📌 生成标题 - 自动起名
+### ✅ 已完成的功能
 
-### 2. 录音转文字（仅注册用户）
-- 用户自己填 API key（Groq / OpenAI）
-- 我们只部署 API portal
-- 暂不做免费版
+#### 1. HD 语音识别 - Deepgram 集成
+- **单路模式**：EN 用 `language=en`，中文用 `language=zh-TW`
+- **双路并行 AUTO 模式**：同时开中英两路连接，比较 confidence 取高的
+- **文件**：
+  - `services/hdService.ts` - 统一入口
+  - `services/deepgramService.ts` - 单路转写
+  - `services/deepgramDualService.ts` - 双路并行转写
+  - `api/deepgram-key.ts` - 后端 API key 分发
 
-### 3. 首页 UX 改动
-- ❌ 移除 API Settings 入口
-- ✅ 改成 **登录/注册** 按钮
-- ✅ 显示游客说明（每周10分钟免费）
+#### 2. 游客配额系统
+- **Upstash Redis** 追踪每个用户的使用时长
+- **每人每周 10 分钟**免费 HD 额度
+- **配额 key 格式**：`visitor:{fingerprint}`
+- **清空配额**：去 Upstash Console → Data Browser → 删除 `visitor:xxx` 的 key
 
-### 4. 默认 HD 模式（简化流程）
-- ✅ **所有人默认 HD 模式**（不分游客/登录用户）
-- ❌ 移除 HD / Standard 切换按钮
-- ✅ 每人每周 10 分钟免费额度
-- ✅ **额度用完 → 静默切换到 Standard**（不弹窗）
-- 流程：`打开网页 → 自动 HD 模式 → 用完额度 → 静默降级到 Standard`
+#### 3. 语言切换
+- **顺序**：EN → 中文 → AUTO（点击循环）
+- **默认**：EN（因为 Auto 消耗双倍配额）
+- **录音中切换**：调用 `switchLanguage()` 方法重启连接
 
-### 5. 中文浮动文字竖排
-- ✅ 已实现：检测中文 → flex-col 竖排显示
+#### 4. 中文浮动文字竖排
+- 检测文本 >30% 中文字符 → 使用 `flex-col` 竖排显示
 - 文件：`components/FloatingWords.tsx`
 
----
+### ⏳ 待完成的功能
 
-## Bug List (2026-03-01)
+#### 1. 文本处理 API（免费版）
+- **服务**：阿里云 Qwen 3.5-flash（100万 tokens 免费，3个月）
+- **功能**：润色、摘要、标签、翻译、提取要点、生成标题
+- **模式**：游客用开发者 API，注册用户填自己的 key
 
-### Bug 1: 录音中切换语言 → 乱码
-- **复现**：录音中说中文 → 切换到英文按钮 → 说英文 → 显示乱码
-- **原因**：切换语言时没有重新创建 Deepgram 连接，还在用中文识别英文
-- **修复**：切换语言时关闭旧连接 → 用新语言重新连接
+#### 2. 录音转文字 Refine（仅注册用户）
+- 用户自己填 API key（Groq / OpenAI）
+- 用于重新处理识别不好的录音
 
-### Bug 2: 新录音继承上一次的语言
-- **复现**：录完中文 → 停止 → 不刷新 → 开始新录音 → 切换语言 → 还是用上次的语言
-- **原因**：语言状态没有正确重置/更新
-- **修复**：新录音开始时重置语言状态，用当前选择的语言
+#### 3. 首页 UX 改动
+- [ ] 移除 API Settings 入口
+- [ ] 改成**登录/注册**按钮
+- [ ] 显示游客说明（每周10分钟免费）
 
-### Bug 3: HD 中文识别不稳定 ⚠️ 高优先级
-- **现象**：中文有时能显示，有时不能，刷新后也不稳定
-- **严重程度**：高 - 核心功能不可用
-- **可能原因**：
-  - Deepgram 中文支持本身不稳定（官方文档说 zh-CN 有 bug，zh-TW 也不稳定）
-  - 双路连接管理有问题（Auto 模式）
-  - WebSocket 连接没有正确关闭/重建
-- **建议方案**：
-  1. **短期**：中文模式暂时用 Standard（Web Speech API），稳定
-  2. **长期**：换成 Gladia（10小时/月免费，支持100+语言）或 Soniox
-  3. **备选**：修好阿里云配置，用阿里云做中文
+#### 4. 默认 HD 模式（简化流程）
+- [ ] 所有人默认 HD 模式
+- [ ] 移除 HD / Standard 切换按钮
+- [ ] 额度用完 → 静默切换到 Standard（不弹窗）
+
+### 🐛 已知问题
+
+#### Bug 1: 录音中切换语言
+- **状态**：✅ 已修复（`switchLanguage` 方法）
+- **验证**：需要测试确认
+
+#### Bug 2: Deepgram 中文识别偶尔不稳定
+- **现象**：有时中文能识别，有时不能
+- **原因**：Deepgram `zh-TW` 支持可能不稳定
+- **备选方案**：
+  1. 换成 Gladia（10小时/月免费，支持100+语言）
+  2. 换成 Soniox（支持中英混合自动检测）
+  3. 用阿里云（需要完成配置）
+
+### 🔧 Environment Variables（环境变量）
+
+在 Vercel Dashboard 配置：
+```
+UPSTASH_REDIS_REST_URL      # Redis URL
+UPSTASH_REDIS_REST_TOKEN    # Redis Token
+DEEPGRAM_API_KEY            # Deepgram API Key
+```
+
+阿里云相关（暂时不用）：
+```
+ALIYUN_ACCESS_KEY_ID
+ALIYUN_ACCESS_KEY_SECRET
+ALIYUN_APP_KEY
+```
+
+### 📁 关键文件
+
+| 文件 | 作用 |
+|-----|-----|
+| `pages/HomePage.tsx` | 主页面，录音逻辑 |
+| `services/hdService.ts` | HD 模式统一入口 |
+| `services/deepgramService.ts` | Deepgram 单路转写 |
+| `services/deepgramDualService.ts` | Deepgram 双路并行（AUTO） |
+| `api/deepgram-key.ts` | 后端：分发 key，追踪配额 |
+| `components/FloatingWords.tsx` | 浮动文字（含竖排中文） |
+| `components/ApiSettings.tsx` | API 设置弹窗 |
+
+### 🔍 调试技巧
+
+Console 会显示：
+```
+[HomePage] Starting HD with speechLang: zh
+[HDService] Language mode: zh, Selected service: deepgram
+[HDService] Creating DeepgramTranscriber with language: zh-TW
+[HomePage] Language toggle: en → zh
+[HDService] Switching language from en to zh
+```
+
+如果语言不对，检查这些 log。
