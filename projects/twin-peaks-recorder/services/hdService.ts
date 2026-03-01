@@ -99,21 +99,28 @@ export class HDService {
   }
 
   // 选择使用哪个 API
+  // 现在统一使用 Deepgram，支持 language=multi 多语言自动识别
   private selectTranscriber(): 'aliyun' | 'deepgram' {
-    // 用户模式：看用户配置了什么
-    if (this.config.aliyun && this.config.deepgram) {
-      // 两个都有，根据语言选择
-      return this.languageMode === 'en' ? 'deepgram' : 'aliyun';
-    } else if (this.config.aliyun) {
+    // 用户模式：如果只配置了阿里云，用阿里云
+    if (this.config.aliyun && !this.config.deepgram) {
       return 'aliyun';
-    } else if (this.config.deepgram) {
-      return 'deepgram';
     }
+    // 其他情况统一用 Deepgram
+    return 'deepgram';
+  }
 
-    // 游客模式：根据语言选择
-    // Auto / 中文 → 阿里云（支持中英混合）
-    // English → Deepgram
-    return this.languageMode === 'en' ? 'deepgram' : 'aliyun';
+  // 根据语言模式获取 Deepgram 的语言参数
+  private getDeepgramLanguage(): string {
+    switch (this.languageMode) {
+      case 'auto':
+        return 'multi'; // 多语言自动识别
+      case 'zh':
+        return 'zh-TW'; // 繁体中文
+      case 'en':
+        return 'en';
+      default:
+        return 'multi';
+    }
   }
 
   // 开始录音
@@ -144,7 +151,7 @@ export class HDService {
       if (!this.deepgramTranscriber) {
         this.deepgramTranscriber = new DeepgramTranscriber();
       }
-      this.deepgramTranscriber.setLanguage(this.languageMode === 'zh' ? 'zh-TW' : 'en');
+      this.deepgramTranscriber.setLanguage(this.getDeepgramLanguage());
       this.deepgramTranscriber.onNewText(this.onNewTextCallback);
       this.activeTranscriber = this.deepgramTranscriber;
 

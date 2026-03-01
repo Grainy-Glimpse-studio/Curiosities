@@ -311,7 +311,9 @@ export class DeepgramTranscriber {
   }
 
   setLanguage(lang: string): void {
-    if (lang === 'zh-TW' || lang === 'zh-CN' || lang === 'zh') {
+    if (lang === 'multi' || lang === 'auto') {
+      this.language = 'multi'; // 多语言自动识别
+    } else if (lang === 'zh-TW' || lang === 'zh-CN' || lang === 'zh') {
       this.language = 'zh-TW';
     } else if (lang === 'en-US' || lang === 'en') {
       this.language = 'en';
