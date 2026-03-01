@@ -22,18 +22,24 @@ const formatMechanicalCounter = (seconds: number) => {
   return num.toString().padStart(3, '0').split('');
 };
 
-const MechanicalButton = ({ 
-  onClick, 
-  label, 
-  icon: Icon, 
-  color = "silver", 
+const MechanicalButton = ({
+  onClick,
+  label,
+  icon: Icon,
+  color = "silver",
   active = false,
   soundUrl
 }: any) => {
   const colorStyles: Record<string, string> = {
-    silver: `bg-gradient-to-b from-[#e0e0e0] via-[#b0b0b0] to-[#888] text-zinc-800`,
-    red: `bg-gradient-to-b from-[#ff4d4d] via-[#d32f2f] to-[#8e0000] text-white`,
-    black: `bg-gradient-to-b from-[#555] via-[#333] to-[#111] text-zinc-400`,
+    silver: `bg-gradient-to-b from-white/90 via-white/60 to-white/40 text-zinc-700 backdrop-blur-md`,
+    red: `bg-gradient-to-b from-[#b85a6a]/90 via-[#903e4f]/80 to-[#5a2832]/70 text-white backdrop-blur-md`,
+    black: `bg-gradient-to-b from-white/30 via-white/15 to-white/5 text-zinc-300 backdrop-blur-md`,
+  };
+
+  const glowStyles: Record<string, string> = {
+    silver: `group-hover:shadow-[0_6px_0_rgba(0,0,0,0.9),0_10px_15px_rgba(0,0,0,0.6),0_0_20px_rgba(255,255,255,0.3),inset_0_0_10px_rgba(255,255,255,0.2)]`,
+    red: `group-hover:shadow-[0_6px_0_rgba(0,0,0,0.9),0_10px_15px_rgba(0,0,0,0.6),0_0_20px_rgba(144,62,79,0.5),inset_0_0_10px_rgba(255,255,255,0.1)]`,
+    black: `group-hover:shadow-[0_6px_0_rgba(0,0,0,0.9),0_10px_15px_rgba(0,0,0,0.6),0_0_20px_rgba(255,255,255,0.2),inset_0_0_10px_rgba(255,255,255,0.1)]`,
   };
 
   const handleClick = (e: React.MouseEvent) => {
@@ -46,33 +52,34 @@ const MechanicalButton = ({
 
   return (
     <div className="flex flex-col items-center w-full gap-1.5 relative z-10">
-      <button 
+      <button
         className="w-full h-16 relative group outline-none touch-manipulation perspective-500"
         onClick={handleClick}
         onContextMenu={(e) => e.preventDefault()}
       >
         <div className={`
           absolute inset-0 rounded-t-[4px] rounded-b-[6px]
-          flex flex-col items-center justify-center 
-          border-x border-black/50
-          transition-all duration-100 ease-out
+          flex flex-col items-center justify-center
+          border border-white/20
+          transition-all duration-200 ease-out
+          group-hover:border-white/40 group-hover:brightness-110
           group-active:translate-y-[4px] group-active:shadow-[0_1px_0_rgba(0,0,0,0.9)]
-          ${active ? 'translate-y-[4px] shadow-[0_1px_0_rgba(0,0,0,0.9)] border-t-black/40 brightness-90' : 'shadow-[0_6px_0_rgba(0,0,0,0.9),0_10px_15px_rgba(0,0,0,0.6)] border-t-white/40'}
+          ${active ? 'translate-y-[4px] shadow-[0_1px_0_rgba(0,0,0,0.9)] brightness-90' : `shadow-[0_6px_0_rgba(0,0,0,0.9),0_10px_15px_rgba(0,0,0,0.6)] ${glowStyles[color]}`}
           ${colorStyles[color]}
         `}>
            {label === 'PAUSE' ? (
-              <span className={`font-black text-2xl leading-none ${active ? 'opacity-100 text-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,0.5)]' : 'opacity-60'} ${color==='red'?'text-white':'text-zinc-800'}`}>II</span>
+              <span className={`font-black text-2xl leading-none transition-all duration-200 group-hover:opacity-100 ${active ? 'opacity-100 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]' : 'opacity-70'} ${color==='red'?'text-white':'text-zinc-700'}`}>II</span>
            ) : (
-              <Icon size={20} strokeWidth={2.5} fill={color === 'red' ? 'currentColor' : 'none'} className={active ? "opacity-100 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)] text-amber-400" : "opacity-60"}/>
+              <Icon size={20} strokeWidth={2.5} fill={color === 'red' ? 'currentColor' : 'none'} className={`transition-all duration-200 group-hover:opacity-100 ${active ? "opacity-100 drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]" : "opacity-70"}`}/>
            )}
-           
-           {/* Brushed Metal Texture */}
-           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/brushed-alum.png')] opacity-20 pointer-events-none mix-blend-overlay"></div>
-           {/* Highlight */}
-           <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent pointer-events-none"></div>
+
+           {/* Glass highlight */}
+           <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/30 to-transparent pointer-events-none rounded-t-[4px] transition-all duration-200 group-hover:from-white/50"></div>
+           {/* Bottom edge shadow */}
+           <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-black/20 to-transparent pointer-events-none rounded-b-[6px]"></div>
         </div>
       </button>
-      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-mono-retro">{label}</span>
+      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest font-recorder transition-colors duration-200 group-hover:text-zinc-400">{label}</span>
     </div>
   );
 };
@@ -126,31 +133,37 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
   return (
     <div className="w-full h-full flex flex-col items-center justify-center p-6">
       
-      <div className="w-[400px] bg-[#222] rounded-[32px] p-8 shadow-[0_50px_100px_-20px_rgba(0,0,0,1),inset_0_2px_4px_rgba(255,255,255,0.1)] border-r-[12px] border-b-[12px] border-[#111] relative flex flex-col gap-8 overflow-hidden">
+      <div className="w-[420px] bg-[#222]/80 backdrop-blur-xl rounded-[32px] p-8 shadow-[20px_20px_60px_rgba(0,0,0,0.8),-10px_-10px_30px_rgba(60,60,60,0.15),0_50px_100px_-20px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.15),inset_0_-2px_10px_rgba(0,0,0,0.3)] border-t border-l border-white/15 border-r-[16px] border-b-[16px] border-r-black/70 border-b-black/70 relative flex flex-col gap-8 overflow-hidden">
         
-        {/* Textures */}
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-leather.png')] opacity-40 pointer-events-none z-0"></div>
-        <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-black/80 pointer-events-none z-0"></div>
+        {/* Glass Textures */}
+        <div className="absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-black/40 pointer-events-none z-0"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-white/[0.05] pointer-events-none z-0"></div>
+        {/* Subtle noise for glass texture */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none z-0" style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+        }}></div>
 
         {/* --- Top Section --- */}
         <div className="flex justify-between items-start px-2 relative z-10">
            <div className="flex flex-col gap-2">
-             <div className="text-[10px] text-zinc-500 font-bold tracking-[0.2em] font-mono-retro">INPUT LEVEL</div>
-             <div className="flex gap-1 bg-[#0a0a0a] p-2 rounded-md border border-zinc-800 shadow-inner">
-               {[...Array(12)].map((_, i) => (
-                 <div key={i} className={`w-1.5 h-4 rounded-sm ${i > 9 ? 'bg-red-900/50' : i > 7 ? 'bg-amber-900/50' : 'bg-zinc-900'} transition-colors duration-300 ${state === RecorderState.RECORDING && i < (elapsedTime % 8 + 4) ? (i > 9 ? 'bg-red-500 shadow-[0_0_8px_red]' : i > 7 ? 'bg-amber-500 shadow-[0_0_8px_orange]' : 'bg-zinc-400') : ''}`}></div>
+             <div className="text-[10px] text-zinc-500 font-bold tracking-[0.2em] font-recorder">INPUT LEVEL</div>
+             <div className="flex gap-1 bg-black/40 backdrop-blur-md p-2 rounded-md border border-white/10 shadow-inner">
+               {[...Array(9)].map((_, i) => (
+                 <div key={i} className={`w-1.5 h-4 rounded-sm ${i > 6 ? 'bg-[#5a2832]/50' : i > 4 ? 'bg-zinc-900/50' : 'bg-zinc-900'} transition-colors duration-300 ${state === RecorderState.RECORDING && i < (elapsedTime % 6 + 3) ? (i > 6 ? 'bg-[#903e4f] shadow-[0_0_8px_#903e4f]' : i > 4 ? 'bg-zinc-500 shadow-[0_0_8px_#666]' : 'bg-zinc-400') : ''}`}></div>
                ))}
              </div>
            </div>
 
-           <div className="flex flex-col items-center">
-             <div className="text-zinc-400 font-serif italic text-xl tracking-widest mb-1 drop-shadow-lg">Twin Peaks</div>
-             <div className="text-[10px] text-zinc-600 font-bold tracking-[0.3em] uppercase">Professional TP-119</div>
+           <div className="flex flex-col items-center text-center">
+             <div className="text-zinc-400 font-recorder italic text-base tracking-widest drop-shadow-lg leading-tight">Twin</div>
+             <div className="text-zinc-400 font-recorder italic text-base tracking-widest drop-shadow-lg leading-tight">Peaks</div>
+             <div className="text-[8px] text-zinc-600 font-bold tracking-[0.2em] uppercase font-recorder mt-1">Professional</div>
+             <div className="text-[8px] text-zinc-600 font-bold tracking-[0.2em] uppercase font-recorder">TP-119</div>
            </div>
 
            <div className="flex flex-col items-end">
-              <div className="text-[10px] text-zinc-500 font-bold tracking-widest mb-1">INDEX</div>
-              <div className="flex items-center bg-[#050505] p-2 rounded-lg border-2 border-zinc-800 shadow-[inset_0_4px_8px_rgba(0,0,0,1)]">
+              <div className="text-[10px] text-zinc-500 font-bold tracking-widest mb-1 font-recorder">INDEX</div>
+              <div className="flex items-center bg-black/50 backdrop-blur-md p-2 rounded-lg border border-white/10 shadow-[inset_0_4px_8px_rgba(0,0,0,0.5)]">
                   {formatMechanicalCounter(elapsedTime).map((digit, i) => (
                     <div key={i} className="w-6 h-9 bg-[#eee] text-[#111] font-mono font-bold text-2xl flex items-center justify-center mx-[1px] rounded-sm relative overflow-hidden shadow-inner">
                       {digit}
@@ -172,8 +185,8 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
             {state === RecorderState.PROCESSING && (
                <div className="absolute inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center">
                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin"></div>
-                    <div className="text-amber-500 font-mono-retro text-xs tracking-[0.4em] animate-pulse">ANALYZING TAPE...</div>
+                    <div className="w-12 h-12 border-4 border-zinc-500/20 border-t-zinc-500 rounded-full animate-spin"></div>
+                    <div className="text-zinc-500 font-recorder text-xs tracking-[0.4em] animate-pulse">ANALYZING TAPE...</div>
                  </div>
                </div>
             )}
@@ -192,7 +205,7 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
 
                {/* Label */}
                <div className="absolute inset-3 bg-[#fdfcf8] rounded-md border border-zinc-300 shadow-sm overflow-hidden">
-                  <div className="w-full h-4 bg-[#c62828] mt-3 shadow-sm"></div>
+                  <div className="w-full h-4 bg-[#903e4f] mt-3 shadow-sm"></div>
                   <div className="w-full h-1 bg-zinc-900 mt-1"></div>
                   
                   {/* Title Area */}
@@ -224,10 +237,10 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
            
            <div className="flex justify-between items-center px-1">
              <div className="flex items-center gap-3 bg-[#111] px-4 py-2 rounded-full border border-white/5 shadow-inner">
-                <div className={`w-3.5 h-3.5 rounded-full border-2 border-black transition-all duration-300 ${ledOn ? 'bg-red-500 shadow-[0_0_12px_#f00]' : 'bg-[#300]'}`}></div>
-                <span className="text-[10px] text-zinc-500 font-bold tracking-[0.2em] uppercase">RECORD / POWER</span>
+                <div className={`w-3.5 h-3.5 rounded-full border-2 border-black transition-all duration-300 ${ledOn ? 'bg-[#903e4f] shadow-[0_0_12px_#903e4f]' : 'bg-[#3a1a20]'}`}></div>
+                <span className="text-[10px] text-zinc-500 font-bold tracking-[0.2em] uppercase font-recorder">RECORD / POWER</span>
              </div>
-             <div className="text-[10px] text-zinc-600 font-bold tracking-widest font-mono-retro">AUTO STOP</div>
+             <div className="text-[10px] text-zinc-600 font-bold tracking-widest font-recorder">AUTO STOP</div>
            </div>
 
            <div className="grid grid-cols-6 gap-3 p-3 bg-[#151515] rounded-2xl border-t border-white/5 shadow-[inset_0_8px_16px_rgba(0,0,0,0.8)]">
@@ -240,15 +253,15 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
            </div>
            
            <div className="flex justify-between items-center px-2 pt-2 border-t border-white/5">
-              <button onClick={onErase} className="group flex items-center gap-2 text-zinc-600 hover:text-red-500 transition-colors">
-                <div className="p-1.5 rounded-full bg-zinc-900 border border-zinc-800 group-hover:border-red-900/50">
+              <button onClick={onErase} className="group flex items-center gap-2 text-zinc-600 hover:text-[#903e4f] transition-colors">
+                <div className="p-1.5 rounded-full bg-zinc-900 border border-zinc-800 group-hover:border-[#903e4f]/50">
                   <Trash size={12} />
                 </div>
-                <span className="text-[10px] font-bold tracking-widest uppercase">Erase Tape</span>
+                <span className="text-[10px] font-bold tracking-widest uppercase font-recorder">Erase Tape</span>
               </button>
 
               <div className="flex flex-col items-end gap-1.5">
-                 <div className="text-[9px] text-zinc-700 font-bold tracking-widest uppercase">Monitor Speaker</div>
+                 <div className="text-[9px] text-zinc-700 font-bold tracking-widest uppercase font-recorder">Monitor Speaker</div>
                  <div className="grid grid-cols-6 gap-1 bg-[#0a0a0a] p-1.5 rounded-md border border-zinc-900 shadow-inner">
                     {[...Array(18)].map((_, i) => (
                       <div key={i} className="w-1.5 h-1.5 bg-black rounded-full shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]"></div>
@@ -270,9 +283,9 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
           <div className="w-32 h-2.5 bg-[#1a1a1a] rounded-full border border-zinc-800 shadow-2xl group-hover:w-40 transition-all duration-500 overflow-hidden">
              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
           </div>
-          <div className="absolute -top-1 -right-1 w-2 h-2 bg-amber-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>
+          <div className="absolute -top-1 -right-1 w-2 h-2 bg-[#903e4f] rounded-full animate-pulse shadow-[0_0_8px_rgba(144,62,79,0.6)]"></div>
         </div>
-        <div className="text-zinc-500 font-mono-retro text-[10px] tracking-[0.4em] uppercase group-hover:text-amber-600 transition-colors">
+        <div className="text-zinc-500 font-journal text-[10px] tracking-[0.4em] uppercase group-hover:text-[#903e4f] transition-colors">
           Access Archive
         </div>
       </button>
