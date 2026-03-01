@@ -102,13 +102,132 @@
 - Vite build tool
 - Framer Motion for animations
 - Tiptap for rich text editing
-- Web Speech API for transcription
+- Web Speech API for transcription (Standard mode)
+- Alibaba Cloud Speech API for transcription (HD mode)
 - EmailJS for email sending
 - React Router for navigation
+- Vercel for deployment (frontend + backend)
+- Vercel KV for usage tracking
+- Supabase for user authentication and data storage
 
 ### Routes
 - `/` - Home page (recorder)
 - `/about` - About/Ephemera page (standalone)
+
+---
+
+## Architecture (v2)
+
+### User Types
+
+| User Type | Experience | Registration |
+|-----------|------------|--------------|
+| **Visitor (游客)** | Free HD mode (10 min/week), uses developer's API | Not required |
+| **Registered User (深度用户)** | Unlimited HD, uses own API keys | Required |
+
+### Backend Architecture
+
+```
+Curiosities/
+├── api/                          ← Vercel Serverless Functions
+│   ├── aliyun-token.ts           ← Get Alibaba Cloud token
+│   └── ...
+│
+├── Vercel Environment Variables  ← Developer's API keys (secure)
+│   ├── ALIYUN_ACCESS_KEY_ID
+│   ├── ALIYUN_ACCESS_KEY_SECRET
+│   └── ALIYUN_APP_KEY
+│
+├── Vercel KV                     ← Visitor usage tracking
+│   └── fingerprint → minutes_used
+│
+└── Supabase                      ← User data
+    ├── User accounts (email + password)
+    └── User API keys (encrypted)
+```
+
+### Data Storage
+
+| Data | Storage Location | Who Pays |
+|------|------------------|----------|
+| Developer's API keys | Vercel Environment Variables | Free |
+| Visitor usage records | Vercel KV | Free |
+| User accounts + API keys | Supabase | Free (500MB) |
+| Recordings + transcripts | User's localStorage | User's device |
+
+### Speech Recognition Modes
+
+| Mode | API | Features | Limit |
+|------|-----|----------|-------|
+| **Standard** | Browser Web Speech API | Free, single language | Unlimited |
+| **HD** | Alibaba Cloud | Chinese-English mixed, higher accuracy | 10 min/week (visitors) or unlimited (registered) |
+
+### HD Mode Flow
+
+```
+User starts recording
+       ↓
+Check: Is user registered with own API?
+       ↓
+  YES → Use user's API key (unlimited)
+  NO  → Check visitor quota in Vercel KV
+              ↓
+         < 10 min → Use developer's API key
+         ≥ 10 min → Silent switch to Standard mode
+```
+
+### Security
+
+| Item | How It's Protected |
+|------|-------------------|
+| Developer's API keys | Stored in Vercel environment variables, never exposed to frontend |
+| Registered user's API keys | Encrypted in Supabase database |
+| Visitor tracking | Only stores anonymous fingerprint + usage time |
+| Recordings | Stored only in user's browser, never uploaded |
+
+---
+
+## Features To Build (v2)
+
+### Phase 1: HD Mode (Priority: High)
+- [ ] Complete Alibaba Cloud backend API
+- [ ] Alibaba Cloud WebSocket real-time transcription
+- [ ] Test Chinese-English mixed recognition
+- [ ] Vercel KV usage tracking for visitors
+- [ ] Silent mode switching when quota exceeded
+
+### Phase 2: Data Persistence (Priority: Medium)
+- [ ] Save recordings to localStorage
+- [ ] Auto-restore recordings on page refresh
+- [ ] Optional: Auto-clear recordings on browser close
+
+### Phase 3: User System (Priority: Low)
+- [ ] Login/Register pages (Supabase Auth)
+- [ ] User panel in Archive
+  - [ ] Manage API keys (view/edit/delete)
+  - [ ] View usage statistics
+  - [ ] Storage settings
+- [ ] Encrypted API key storage
+
+---
+
+## Cost Estimation
+
+| Service | Free Tier | Estimated Monthly Cost |
+|---------|-----------|----------------------|
+| Vercel Hosting | Unlimited | $0 |
+| Vercel Serverless Functions | 150k invocations/month | $0 |
+| Vercel KV | 30k requests/month | $0 |
+| Supabase | 500MB storage | $0 |
+| Alibaba Cloud (developer pays) | 3 months free trial | ~¥100-500/month after trial |
+
+### Alibaba Cloud Usage Estimate
+
+| Visitors/Month | Avg Usage | Total Hours | Cost |
+|----------------|-----------|-------------|------|
+| 500 | 5 min each | ~42 hours | ~¥147 |
+| 1000 | 5 min each | ~83 hours | ~¥290 |
+| 2000 | 5 min each | ~167 hours | ~¥500 |
 
 ---
 
@@ -161,3 +280,25 @@
 - Focus on the ephemeral nature of speech
 - Participatory art project (submissions become physical works)
 - Unique visual language (darkroom, starfield, floating words)
+
+---
+
+## UI Notes (v2)
+
+### HD Mode Indicator
+- Small text near record button: "Standard" or "HD"
+- No intrusive popups when quota exceeded
+- Silent switch to Standard mode
+
+### User Panel (in Archive)
+- Only visible to registered users
+- Manage API keys
+- View HD usage statistics
+- Storage preferences:
+  - [ ] Keep recordings (default)
+  - [ ] Auto-clear on browser close
+
+### Notes for Users (hidden in Archive)
+- Explain: "Recordings are stored in your browser only"
+- Explain: "HD mode provides better Chinese-English recognition"
+- Explain: "Clear browser cache = recordings lost"
