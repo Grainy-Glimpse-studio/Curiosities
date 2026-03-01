@@ -80,6 +80,41 @@ export class HDService {
     this.languageMode = mode;
   }
 
+  // 录音中切换语言（重启连接）
+  async switchLanguage(newMode: LanguageMode): Promise<boolean> {
+    if (!this.activeTranscriber) {
+      // 没在录音，只更新模式
+      this.languageMode = newMode;
+      return true;
+    }
+
+    console.log(`[HDService] Switching language from ${this.languageMode} to ${newMode}`);
+
+    // 保存当前已识别的文本
+    const currentTranscript = this.activeTranscriber.getCurrentTranscript();
+
+    // 停止当前连接（不报告用量，因为还要继续）
+    if (this.activeTranscriber) {
+      this.activeTranscriber.stop();
+    }
+
+    // 更新语言模式
+    this.languageMode = newMode;
+
+    // 用新语言重新开始
+    const result = await this.start();
+
+    if (result.success && this.activeTranscriber) {
+      // 恢复之前的文本（插入分隔符）
+      if (currentTranscript.trim()) {
+        this.activeTranscriber.insertParagraphBreak();
+      }
+      console.log(`[HDService] Language switched successfully to ${newMode}`);
+    }
+
+    return result.success;
+  }
+
   // 设置回调
   onNewText(callback: ((text: string, isFinal: boolean) => void) | null): void {
     this.onNewTextCallback = callback;

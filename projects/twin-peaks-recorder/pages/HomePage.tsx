@@ -677,30 +677,33 @@ const HomePage: React.FC = () => {
 
               <span
                 onClick={() => {
-                  setSpeechLang(prev => {
-                    // 顺序: EN → 中文 → AUTO (Auto 消耗双倍配额，放最后)
-                    const next = prev === 'en' ? 'zh' : prev === 'zh' ? 'auto' : 'en';
-                    console.log(`[HomePage] Language toggle: ${prev} → ${next}`);
-                    if (transcriberRef.current) {
-                      // Check if it's the HD service or regular transcriber
-                      if ('setLanguageMode' in transcriberRef.current) {
-                        // HD service
-                        (transcriberRef.current as ReturnType<typeof getHDService>).setLanguageMode(next as LanguageMode);
-                      } else if ('setLanguage' in transcriberRef.current) {
-                        // Regular transcriber (Web Speech or Deepgram)
-                        const langMap = { 'auto': '', 'zh': 'zh-TW', 'en': 'en-US' };
-                        (transcriberRef.current as SpeechTranscriber | DeepgramTranscriber).setLanguage(langMap[next]);
-                      }
+                  // 顺序: EN → 中文 → AUTO (Auto 消耗双倍配额，放最后)
+                  const next = speechLang === 'en' ? 'zh' : speechLang === 'zh' ? 'auto' : 'en';
+                  console.log(`[HomePage] Language toggle: ${speechLang} → ${next}`);
+
+                  // 先更新状态
+                  setSpeechLang(next);
+
+                  // 如果正在录音，重启连接用新语言
+                  if (recorderState === RecorderState.RECORDING && transcriberRef.current) {
+                    if ('switchLanguage' in transcriberRef.current) {
+                      // HD service - 切换语言并重启连接
+                      (transcriberRef.current as ReturnType<typeof getHDService>).switchLanguage(next as LanguageMode);
+                    } else if ('setLanguage' in transcriberRef.current) {
+                      // Regular transcriber (Web Speech) - 只更新语言
+                      const langMap = { 'auto': '', 'zh': 'zh-TW', 'en': 'en-US' };
+                      (transcriberRef.current as SpeechTranscriber | DeepgramTranscriber).setLanguage(langMap[next]);
                     }
-                    if (next === 'zh') {
-                      setTitleFont("'HuiWen', serif");
-                      setContentFont("'HuiWen', serif");
-                    } else {
-                      setTitleFont("'Consulate', monospace");
-                      setContentFont("'Consulate', monospace");
-                    }
-                    return next;
-                  });
+                  }
+
+                  // 更新字体
+                  if (next === 'zh') {
+                    setTitleFont("'HuiWen', serif");
+                    setContentFont("'HuiWen', serif");
+                  } else {
+                    setTitleFont("'Consulate', monospace");
+                    setContentFont("'Consulate', monospace");
+                  }
                 }}
                 className="cursor-pointer font-recorder text-[11px] tracking-[0.3em] uppercase transition-all duration-300 text-white/50 hover:text-white/70"
               >
