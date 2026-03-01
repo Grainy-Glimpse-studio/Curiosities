@@ -12,7 +12,14 @@ interface FloatingWord {
   pinnedAt?: number; // 固定的时间
   maxWidth: number; // 随机宽度
   displayDuration: number; // 显示时长（毫秒）
+  isVertical: boolean; // 是否竖排（中文）
 }
+
+// 检测文本是否主要是中文
+const isMostlyChinese = (text: string): boolean => {
+  const chineseChars = text.match(/[\u4e00-\u9fa5]/g) || [];
+  return chineseChars.length > text.length * 0.3; // 超过30%是中文字符
+};
 
 interface RecorderBounds {
   x: number;
@@ -185,9 +192,12 @@ const FloatingWords: React.FC<FloatingWordsProps> = ({ isRecording, onPinWord, r
       // 显示时长：4-6秒，给足显影和停留时间
       const displayDuration = Math.min(6000, 4000 + textLength * 50);
 
+      const trimmedText = text.trim();
+      const isVertical = isMostlyChinese(trimmedText);
+
       const newWord: FloatingWord = {
         id: `${Date.now()}-${Math.random()}`,
-        text: text.trim(),
+        text: trimmedText,
         x: position.x,
         y: position.y,
         isFinal,
@@ -195,6 +205,7 @@ const FloatingWords: React.FC<FloatingWordsProps> = ({ isRecording, onPinWord, r
         createdAt: Date.now(),
         maxWidth,
         displayDuration,
+        isVertical,
       };
 
       // 限制最多显示5个词
@@ -267,9 +278,12 @@ const FloatingWords: React.FC<FloatingWordsProps> = ({ isRecording, onPinWord, r
               textShadow: word.isPinned
                 ? '0 0 15px rgba(255,255,255,0.8), 0 0 30px rgba(255,255,255,0.4)'
                 : '0 0 20px rgba(0,0,0,0.8)',
-              maxWidth: `${word.maxWidth}px`,
-              lineHeight: '1.4',
+              maxWidth: word.isVertical ? 'none' : `${word.maxWidth}px`,
+              maxHeight: word.isVertical ? '300px' : 'none',
+              lineHeight: word.isVertical ? '1.8' : '1.4',
               wordWrap: 'break-word',
+              writingMode: word.isVertical ? 'vertical-rl' : 'horizontal-tb',
+              letterSpacing: word.isVertical ? '0.1em' : 'normal',
             }}
             initial={{
               opacity: 0,
