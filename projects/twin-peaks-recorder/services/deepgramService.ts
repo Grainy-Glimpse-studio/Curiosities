@@ -311,6 +311,7 @@ export class DeepgramTranscriber {
   }
 
   setLanguage(lang: string): void {
+    console.log(`[DeepgramTranscriber] setLanguage called with: ${lang}`);
     if (lang === 'multi' || lang === 'auto') {
       this.language = 'multi'; // 多语言自动识别
     } else if (lang === 'zh-TW' || lang === 'zh-CN' || lang === 'zh') {
@@ -320,6 +321,7 @@ export class DeepgramTranscriber {
     } else {
       this.language = 'en';
     }
+    console.log(`[DeepgramTranscriber] language set to: ${this.language}`);
   }
 
   isSupported(): boolean {

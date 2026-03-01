@@ -148,10 +148,11 @@ export class HDService {
 
     } else {
       // 使用 Deepgram
-      if (!this.deepgramTranscriber) {
-        this.deepgramTranscriber = new DeepgramTranscriber();
-      }
-      this.deepgramTranscriber.setLanguage(this.getDeepgramLanguage());
+      // 每次都创建新实例，确保语言设置生效
+      const deepgramLang = this.getDeepgramLanguage();
+      console.log(`[HDService] Creating DeepgramTranscriber with language: ${deepgramLang}`);
+      this.deepgramTranscriber = new DeepgramTranscriber();
+      this.deepgramTranscriber.setLanguage(deepgramLang);
       this.deepgramTranscriber.onNewText(this.onNewTextCallback);
       this.activeTranscriber = this.deepgramTranscriber;
 
