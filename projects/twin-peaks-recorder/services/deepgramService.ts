@@ -2,6 +2,10 @@
  * Deepgram 实时语音转写服务
  * HD 模式，更高精度
  * 使用官方 SDK
+ *
+ * 支持：
+ * - 游客模式：用开发者的 Key，有用量限制
+ * - 用户模式：用用户自己的 Key，无限制
  */
 
 import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
@@ -10,6 +14,38 @@ export interface TranscriptionResult {
   text: string;
   tags: string[];
 }
+
+// API base URL
+const API_BASE = '/api';
+
+// 生成浏览器指纹（简单版本）
+const generateFingerprint = (): string => {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.textBaseline = 'top';
+    ctx.font = '14px Arial';
+    ctx.fillText('fingerprint', 2, 2);
+  }
+  const canvasData = canvas.toDataURL();
+
+  const data = [
+    navigator.userAgent,
+    navigator.language,
+    screen.width,
+    screen.height,
+    new Date().getTimezoneOffset(),
+    canvasData,
+  ].join('|');
+
+  let hash = 0;
+  for (let i = 0; i < data.length; i++) {
+    const char = data.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+};
 
 // 简单的关键词提取作为标签
 const extractTags = (text: string): string[] => {
@@ -34,7 +70,7 @@ const extractTags = (text: string): string[] => {
 };
 
 export class DeepgramTranscriber {
-  private apiKey: string;
+  private apiKey: string = '';
   private connection: any = null;
   private transcript: string = '';
   private isListening: boolean = false;
@@ -43,21 +79,43 @@ export class DeepgramTranscriber {
   private stream: MediaStream | null = null;
   private lastFinalTimestamp: number = 0;
   private paragraphBreakThreshold: number = 4000;
-  private language: string = 'en'; // 默认英文，可切换
+  private language: string = 'en';
+  private fingerprint: string = '';
+  private startTime: number = 0;
+  private mode: 'visitor' | 'user' = 'visitor';
 
-  constructor(apiKey: string) {
-    this.apiKey = apiKey;
+  // 用户自己的 Key（可选）
+  private userApiKey: string = '';
+
+  constructor(apiKey?: string) {
+    this.fingerprint = generateFingerprint();
+    if (apiKey) {
+      this.userApiKey = apiKey;
+      this.apiKey = apiKey;
+      this.mode = 'user';
+    }
   }
 
-  // 在 start 之前设置语言
+  // 设置用户自己的 Key（注册用户）
+  setUserApiKey(apiKey: string): void {
+    this.userApiKey = apiKey;
+    this.apiKey = apiKey;
+    this.mode = 'user';
+  }
+
+  // 清除用户 Key（切换到游客模式）
+  clearUserApiKey(): void {
+    this.userApiKey = '';
+    this.mode = 'visitor';
+  }
+
   setLanguageBeforeStart(lang: string): void {
-    // 转换语言代码
     if (lang === 'zh-TW' || lang === 'zh-CN' || lang === 'zh') {
-      this.language = 'zh';
+      this.language = 'zh-TW'; // Deepgram 用 zh-TW
     } else if (lang === 'en-US' || lang === 'en') {
       this.language = 'en';
     } else {
-      this.language = 'en'; // 默认英文
+      this.language = 'en';
     }
   }
 
@@ -76,10 +134,72 @@ export class DeepgramTranscriber {
     return this.transcript;
   }
 
-  async start(): Promise<void> {
+  // 获取 API Key（游客模式从后端获取）
+  private async getApiKey(): Promise<boolean> {
+    if (this.mode === 'user' && this.userApiKey) {
+      this.apiKey = this.userApiKey;
+      return true;
+    }
+
+    // 游客模式：从后端获取
+    try {
+      const response = await fetch(`${API_BASE}/deepgram-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fingerprint: this.fingerprint,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.error === 'quota_exceeded') {
+        console.warn('HD quota exceeded');
+        return false;
+      }
+
+      if (data.apiKey) {
+        this.apiKey = data.apiKey;
+        return true;
+      }
+
+      console.error('Failed to get API key:', data.error);
+      return false;
+    } catch (error) {
+      console.error('Error getting API key:', error);
+      return false;
+    }
+  }
+
+  // 报告使用时长
+  private async reportUsage(seconds: number): Promise<void> {
+    if (this.mode !== 'visitor') return;
+
+    try {
+      await fetch(`${API_BASE}/deepgram-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fingerprint: this.fingerprint,
+          usedSeconds: Math.ceil(seconds),
+        }),
+      });
+    } catch (error) {
+      console.error('Error reporting usage:', error);
+    }
+  }
+
+  async start(): Promise<boolean> {
     this.transcript = '';
     this.isListening = true;
     this.lastFinalTimestamp = 0;
+    this.startTime = Date.now();
+
+    // 获取 API Key
+    const keyOk = await this.getApiKey();
+    if (!keyOk) {
+      return false;
+    }
 
     try {
       // Get microphone access
@@ -88,12 +208,11 @@ export class DeepgramTranscriber {
       // Create Deepgram client
       const deepgram = createClient(this.apiKey);
 
-      // Create live transcription connection - 繁体中文 (Nova-2)
-      // 注意：Nova-3 不支持中文，必须用 Nova-2
-      console.log('Creating Deepgram connection with Nova-2 Traditional Chinese...');
+      // Create live transcription connection
+      console.log(`Creating Deepgram connection with language: ${this.language}`);
       this.connection = deepgram.listen.live({
         model: 'nova-2',
-        language: 'zh-TW',         // 繁体中文
+        language: this.language,
         punctuate: true,
         smart_format: true,
         interim_results: true,
@@ -101,14 +220,12 @@ export class DeepgramTranscriber {
 
       // Handle transcription results
       this.connection.on(LiveTranscriptionEvents.Transcript, (data: any) => {
-        console.log('Deepgram transcript received:', data);
         const text = data.channel?.alternatives?.[0]?.transcript;
         const isFinal = data.is_final;
 
         if (text && text.trim()) {
           if (isFinal) {
             const now = Date.now();
-            // Auto-paragraph
             if (this.lastFinalTimestamp > 0 && (now - this.lastFinalTimestamp) > this.paragraphBreakThreshold && this.transcript.length > 0) {
               this.transcript += '\n\n';
             }
@@ -129,27 +246,22 @@ export class DeepgramTranscriber {
       this.connection.on(LiveTranscriptionEvents.Open, () => {
         console.log('Deepgram connection opened');
 
-        // Check supported mime types
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
           ? 'audio/webm;codecs=opus'
           : MediaRecorder.isTypeSupported('audio/webm')
             ? 'audio/webm'
             : '';
 
-        console.log('Using mimeType:', mimeType);
-
-        // Start sending audio
         const options = mimeType ? { mimeType } : undefined;
         this.mediaRecorder = new MediaRecorder(this.stream!, options);
 
         this.mediaRecorder.ondataavailable = (event) => {
           if (event.data.size > 0 && this.connection) {
-            console.log('Sending audio chunk, size:', event.data.size);
             this.connection.send(event.data);
           }
         };
 
-        this.mediaRecorder.start(250); // Send chunks every 250ms
+        this.mediaRecorder.start(250);
         console.log('MediaRecorder started');
       });
 
@@ -162,6 +274,7 @@ export class DeepgramTranscriber {
         this.isListening = false;
       });
 
+      return true;
     } catch (error) {
       console.error('Failed to start Deepgram transcription:', error);
       throw error;
@@ -170,6 +283,10 @@ export class DeepgramTranscriber {
 
   stop(): TranscriptionResult {
     this.isListening = false;
+
+    // 计算使用时长并报告
+    const usedSeconds = (Date.now() - this.startTime) / 1000;
+    this.reportUsage(usedSeconds);
 
     // Stop media recorder
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
@@ -194,15 +311,13 @@ export class DeepgramTranscriber {
   }
 
   setLanguage(lang: string): void {
-    // 转换语言代码，下次录音时生效
     if (lang === 'zh-TW' || lang === 'zh-CN' || lang === 'zh') {
-      this.language = 'zh';
+      this.language = 'zh-TW';
     } else if (lang === 'en-US' || lang === 'en') {
       this.language = 'en';
     } else {
       this.language = 'en';
     }
-    // 注意：Deepgram 不支持录音中切换语言，需要重新开始录音
   }
 
   isSupported(): boolean {
@@ -210,7 +325,7 @@ export class DeepgramTranscriber {
   }
 }
 
-// Validate API key by making a test request
+// Validate API key
 export const validateDeepgramKey = async (apiKey: string): Promise<boolean> => {
   try {
     const response = await fetch('https://api.deepgram.com/v1/projects', {
@@ -223,3 +338,34 @@ export const validateDeepgramKey = async (apiKey: string): Promise<boolean> => {
     return false;
   }
 };
+
+// 检查游客配额
+export async function checkDeepgramQuota(): Promise<{ allowed: boolean; usedSeconds: number; remainingSeconds: number }> {
+  const fingerprint = generateFingerprint();
+
+  try {
+    const response = await fetch(`${API_BASE}/deepgram-key`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint }),
+    });
+
+    const data = await response.json();
+
+    if (data.error === 'quota_exceeded') {
+      return {
+        allowed: false,
+        usedSeconds: data.usedSeconds || 600,
+        remainingSeconds: 0,
+      };
+    }
+
+    return {
+      allowed: true,
+      usedSeconds: data.usedSeconds || 0,
+      remainingSeconds: data.remainingSeconds || 600,
+    };
+  } catch {
+    return { allowed: false, usedSeconds: 0, remainingSeconds: 0 };
+  }
+}

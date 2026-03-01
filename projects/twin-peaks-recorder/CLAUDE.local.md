@@ -57,6 +57,37 @@
 - **EN**: Forces English (en-US) + Consulate (typewriter) font
 - Can switch language while recording without stopping
 
+## HD Mode Speech Recognition (2026-03-01)
+- **Two modes**: Standard (Web Speech API) and HD (cloud APIs)
+- **HD mode auto-selects API based on language**:
+  - AUTO / 中文 → Alibaba Cloud (supports Chinese-English mixed)
+  - EN → Deepgram (optimized for English)
+- **Visitor mode**: Free 10 min/week, uses developer's API keys
+- **User mode**: Unlimited, user provides their own API keys
+
+### HD Service Files
+- `services/hdService.ts` - Unified HD service, auto-selects Aliyun or Deepgram
+- `services/aliyunService.ts` - Alibaba Cloud WebSocket transcription
+- `services/deepgramService.ts` - Deepgram real-time transcription (updated with visitor mode)
+- `api/aliyun-token.ts` - Backend: get Aliyun token, track visitor usage
+- `api/deepgram-key.ts` - Backend: distribute Deepgram key, track visitor usage
+
+### Environment Variables (Vercel Dashboard)
+```
+UPSTASH_REDIS_REST_URL      # Redis for visitor quota tracking
+UPSTASH_REDIS_REST_TOKEN
+ALIYUN_ACCESS_KEY_ID        # Alibaba Cloud credentials
+ALIYUN_ACCESS_KEY_SECRET
+ALIYUN_APP_KEY
+DEEPGRAM_API_KEY            # Deepgram API key
+```
+
+### API Settings Component
+- `components/ApiSettings.tsx` - Modal for configuring API keys
+- Two tabs: Speech Recognition, Text Processing
+- Speech mode toggle: Standard / HD
+- Supports both Deepgram and Aliyun (3 keys) inputs
+
 ## FloatingWords Animation Settings
 - **Enter/Exit duration**: 2.0 seconds (darkroom developing effect)
 - **Display duration**: 4-6 seconds (based on text length)

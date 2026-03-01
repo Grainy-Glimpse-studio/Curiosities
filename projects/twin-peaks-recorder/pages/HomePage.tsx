@@ -8,10 +8,11 @@ import FloatingWords from '../components/FloatingWords';
 import FocusMode from '../components/FocusMode';
 import FloatingTranscript from '../components/FloatingTranscript';
 import ShootingStar from '../components/ShootingStar';
-import ApiSettings, { loadApiKey } from '../components/ApiSettings';
+import ApiSettings, { loadApiKeys, loadSpeechMode, ApiKeys } from '../components/ApiSettings';
 import { Memo, RecorderState } from '../types';
 import { getTranscriber, SpeechTranscriber } from '../services/speechService';
 import { DeepgramTranscriber } from '../services/deepgramService';
+import { getHDService, LanguageMode } from '../services/hdService';
 
 // Detect if text is primarily Chinese
 const isChinese = (text: string): boolean => {
@@ -65,7 +66,9 @@ const HomePage: React.FC = () => {
   const [openTranscripts, setOpenTranscripts] = useState<Memo[]>([]);
   const [starVisible, setStarVisible] = useState(false);
   const [showApiSettings, setShowApiSettings] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [apiKeys, setApiKeys] = useState<ApiKeys>({ deepgram: null, aliyun: { accessKeyId: null, accessKeySecret: null, appKey: null }, openai: null });
+  const [speechMode, setSpeechMode] = useState<'standard' | 'hd'>('standard');
+  const [activeService, setActiveService] = useState<string | null>(null); // Track which service is being used
 
   // --- Check if returning from About page with archive open ---
   useEffect(() => {
@@ -77,12 +80,11 @@ const HomePage: React.FC = () => {
     }
   }, [location.state]);
 
-  // --- Load API key on mount ---
+  // --- Load API keys and speech mode on mount ---
   useEffect(() => {
-    const storedKey = loadApiKey();
-    if (storedKey) {
-      setApiKey(storedKey);
-    }
+    const storedKeys = loadApiKeys();
+    setApiKeys(storedKeys);
+    setSpeechMode(loadSpeechMode());
   }, []);
 
   // --- Refs ---
@@ -91,7 +93,7 @@ const HomePage: React.FC = () => {
   const timerRef = useRef<number | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const mimeTypeRef = useRef<string>('');
-  const transcriberRef = useRef<SpeechTranscriber | DeepgramTranscriber | null>(null);
+  const transcriberRef = useRef<SpeechTranscriber | DeepgramTranscriber | ReturnType<typeof getHDService> | null>(null);
   const pinnedWordsRef = useRef<string[]>([]);
   const recorderContainerRef = useRef<HTMLDivElement | null>(null);
   const [recorderBounds, setRecorderBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -238,14 +240,34 @@ const HomePage: React.FC = () => {
 
       mediaRecorder.start();
 
-      // Start transcription - use Deepgram if API key available, otherwise Web Speech
-      if (apiKey) {
-        console.log('Using Deepgram HD mode');
-        const deepgramTranscriber = new DeepgramTranscriber(apiKey);
-        // 根据当前语言设置
-        const langMap: Record<string, string> = { 'auto': 'en', 'zh': 'zh', 'en': 'en' };
-        deepgramTranscriber.setLanguage(langMap[speechLang] || 'en');
-        transcriberRef.current = deepgramTranscriber;
+      // Start transcription based on speech mode
+      if (speechMode === 'hd') {
+        console.log('Using HD mode');
+        const hdService = getHDService();
+
+        // Configure with user's API keys if available
+        const hasAliyunKeys = apiKeys.aliyun.accessKeyId && apiKeys.aliyun.accessKeySecret && apiKeys.aliyun.appKey;
+        const hasDeepgramKey = apiKeys.deepgram;
+
+        if (hasAliyunKeys || hasDeepgramKey) {
+          hdService.setConfig({
+            aliyun: hasAliyunKeys ? {
+              accessKeyId: apiKeys.aliyun.accessKeyId!,
+              accessKeySecret: apiKeys.aliyun.accessKeySecret!,
+              appKey: apiKeys.aliyun.appKey!,
+            } : undefined,
+            deepgram: hasDeepgramKey ? {
+              apiKey: apiKeys.deepgram!,
+            } : undefined,
+          });
+        } else {
+          // Visitor mode - clear any previous config
+          hdService.clearConfig();
+        }
+
+        // Set language mode
+        hdService.setLanguageMode(speechLang as LanguageMode);
+        transcriberRef.current = hdService;
       } else {
         console.log('Using Web Speech API (standard mode)');
         transcriberRef.current = getTranscriber();
@@ -293,7 +315,27 @@ const HomePage: React.FC = () => {
       setPinnedWords([]);
       pinnedWordsRef.current = [];
 
-      transcriberRef.current.start();
+      // Start the transcriber
+      if (speechMode === 'hd') {
+        const hdService = transcriberRef.current as ReturnType<typeof getHDService>;
+        const result = await hdService.start();
+        if (!result.success) {
+          if (result.quotaExceeded) {
+            alert(`HD quota exceeded for ${result.service}. Your weekly free HD minutes have been used. Please add your own API keys in Settings, or try again next week.`);
+            // Stop the media recorder since we can't transcribe
+            mediaRecorder.stop();
+            return;
+          }
+          alert(`Failed to start ${result.service} transcription. Please check your settings.`);
+          mediaRecorder.stop();
+          return;
+        }
+        setActiveService(result.service);
+        console.log(`HD mode started with ${result.service}`);
+      } else {
+        transcriberRef.current.start();
+        setActiveService('web-speech');
+      }
 
       setRecorderState(RecorderState.RECORDING);
     } catch (err) {
@@ -586,8 +628,10 @@ const HomePage: React.FC = () => {
       <ApiSettings
         isOpen={showApiSettings}
         onClose={() => setShowApiSettings(false)}
-        onApiKeyChange={setApiKey}
-        currentApiKey={apiKey}
+        onApiKeysChange={setApiKeys}
+        onSpeechModeChange={setSpeechMode}
+        currentKeys={apiKeys}
+        currentSpeechMode={speechMode}
       />
 
       {/* Top Left Controls */}
@@ -597,12 +641,12 @@ const HomePage: React.FC = () => {
           <span
             onClick={() => setShowApiSettings(true)}
             className={`cursor-pointer font-recorder text-[11px] tracking-[0.3em] uppercase transition-all duration-300 ${
-              apiKey
+              speechMode === 'hd'
                 ? 'text-green-400/70 hover:text-green-400'
                 : 'text-white/50 hover:text-white/70'
             }`}
           >
-            {apiKey ? 'HD' : 'API'}
+            {speechMode === 'hd' ? 'HD' : 'API'}
           </span>
 
           {/* Recording controls - only when recording */}
@@ -635,8 +679,15 @@ const HomePage: React.FC = () => {
                   setSpeechLang(prev => {
                     const next = prev === 'auto' ? 'zh' : prev === 'zh' ? 'en' : 'auto';
                     if (transcriberRef.current) {
-                      const langMap = { 'auto': '', 'zh': 'zh-TW', 'en': 'en-US' };
-                      transcriberRef.current.setLanguage(langMap[next]);
+                      // Check if it's the HD service or regular transcriber
+                      if ('setLanguageMode' in transcriberRef.current) {
+                        // HD service
+                        (transcriberRef.current as ReturnType<typeof getHDService>).setLanguageMode(next as LanguageMode);
+                      } else if ('setLanguage' in transcriberRef.current) {
+                        // Regular transcriber (Web Speech or Deepgram)
+                        const langMap = { 'auto': '', 'zh': 'zh-TW', 'en': 'en-US' };
+                        (transcriberRef.current as SpeechTranscriber | DeepgramTranscriber).setLanguage(langMap[next]);
+                      }
                     }
                     if (next === 'zh') {
                       setTitleFont("'HuiWen', serif");

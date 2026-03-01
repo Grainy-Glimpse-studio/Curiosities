@@ -103,12 +103,13 @@
 - Framer Motion for animations
 - Tiptap for rich text editing
 - Web Speech API for transcription (Standard mode)
-- Alibaba Cloud Speech API for transcription (HD mode)
+- Alibaba Cloud Speech API for transcription (HD mode - Chinese/Auto)
+- Deepgram API for transcription (HD mode - English)
 - EmailJS for email sending
 - React Router for navigation
-- Vercel for deployment (frontend + backend)
-- Vercel KV for usage tracking
-- Supabase for user authentication and data storage
+- Vercel for deployment (frontend + serverless backend)
+- Upstash Redis for usage tracking (visitor quota)
+- Supabase for user authentication and data storage (future)
 
 ### Routes
 - `/` - Home page (recorder)
@@ -130,18 +131,26 @@
 ```
 Curiosities/
 ├── api/                          ← Vercel Serverless Functions
-│   ├── aliyun-token.ts           ← Get Alibaba Cloud token
-│   └── ...
+│   ├── aliyun-token.ts           ← Get Alibaba Cloud token (visitor + user mode)
+│   └── deepgram-key.ts           ← Get Deepgram API key (visitor mode)
+│
+├── projects/twin-peaks-recorder/services/
+│   ├── hdService.ts              ← Unified HD service (auto-selects Aliyun or Deepgram)
+│   ├── aliyunService.ts          ← Alibaba Cloud WebSocket transcription
+│   └── deepgramService.ts        ← Deepgram real-time transcription
 │
 ├── Vercel Environment Variables  ← Developer's API keys (secure)
 │   ├── ALIYUN_ACCESS_KEY_ID
 │   ├── ALIYUN_ACCESS_KEY_SECRET
-│   └── ALIYUN_APP_KEY
+│   ├── ALIYUN_APP_KEY
+│   ├── DEEPGRAM_API_KEY
+│   ├── UPSTASH_REDIS_REST_URL
+│   └── UPSTASH_REDIS_REST_TOKEN
 │
-├── Vercel KV                     ← Visitor usage tracking
-│   └── fingerprint → minutes_used
+├── Upstash Redis                 ← Visitor usage tracking
+│   └── visitor:{fingerprint} → seconds_used (expires in 1 week)
 │
-└── Supabase                      ← User data
+└── Supabase (future)             ← User data
     ├── User accounts (email + password)
     └── User API keys (encrypted)
 ```
@@ -151,29 +160,37 @@ Curiosities/
 | Data | Storage Location | Who Pays |
 |------|------------------|----------|
 | Developer's API keys | Vercel Environment Variables | Free |
-| Visitor usage records | Vercel KV | Free |
-| User accounts + API keys | Supabase | Free (500MB) |
+| Visitor usage records | Upstash Redis | Free (10k commands/day) |
+| User accounts + API keys | Supabase (future) | Free (500MB) |
 | Recordings + transcripts | User's localStorage | User's device |
 
 ### Speech Recognition Modes
 
-| Mode | API | Features | Limit |
-|------|-----|----------|-------|
-| **Standard** | Browser Web Speech API | Free, single language | Unlimited |
-| **HD** | Alibaba Cloud | Chinese-English mixed, higher accuracy | 10 min/week (visitors) or unlimited (registered) |
+| Mode | Language | API | Features | Limit |
+|------|----------|-----|----------|-------|
+| **Standard** | Any | Browser Web Speech API | Free, single language | Unlimited |
+| **HD (Auto/中文)** | Chinese/Mixed | Alibaba Cloud | Chinese-English mixed, high accuracy | 10 min/week (visitors) |
+| **HD (English)** | English | Deepgram | Low latency, high accuracy | 10 min/week (visitors) |
+
+Note: Visitors share 10 min/week quota across both HD APIs. Users with their own API keys have unlimited usage.
 
 ### HD Mode Flow
 
 ```
-User starts recording
+User starts recording (HD mode)
        ↓
-Check: Is user registered with own API?
+Check: What language is selected?
+       ↓
+  Auto/中文 → Use Alibaba Cloud (Chinese-English mixed)
+  English  → Use Deepgram (optimized for English)
+       ↓
+Check: Does user have their own API keys?
        ↓
   YES → Use user's API key (unlimited)
-  NO  → Check visitor quota in Vercel KV
+  NO  → Check visitor quota in Upstash Redis
               ↓
-         < 10 min → Use developer's API key
-         ≥ 10 min → Silent switch to Standard mode
+         < 600 sec → Use developer's API key
+         ≥ 600 sec → Show quota exceeded message
 ```
 
 ### Security
@@ -189,12 +206,15 @@ Check: Is user registered with own API?
 
 ## Features To Build (v2)
 
-### Phase 1: HD Mode (Priority: High)
-- [ ] Complete Alibaba Cloud backend API
-- [ ] Alibaba Cloud WebSocket real-time transcription
-- [ ] Test Chinese-English mixed recognition
-- [ ] Vercel KV usage tracking for visitors
-- [ ] Silent mode switching when quota exceeded
+### Phase 1: HD Mode (Priority: High) ✅ COMPLETE
+- [x] Complete Alibaba Cloud backend API (`api/aliyun-token.ts`)
+- [x] Alibaba Cloud WebSocket real-time transcription (`services/aliyunService.ts`)
+- [x] Deepgram backend API (`api/deepgram-key.ts`)
+- [x] Deepgram real-time transcription with visitor mode (`services/deepgramService.ts`)
+- [x] Unified HD service with auto API selection (`services/hdService.ts`)
+- [x] Upstash Redis usage tracking for visitors
+- [x] Quota exceeded handling with user notification
+- [ ] Test Chinese-English mixed recognition (pending deployment)
 
 ### Phase 2: Data Persistence (Priority: Medium)
 - [ ] Save recordings to localStorage
@@ -217,9 +237,10 @@ Check: Is user registered with own API?
 |---------|-----------|----------------------|
 | Vercel Hosting | Unlimited | $0 |
 | Vercel Serverless Functions | 150k invocations/month | $0 |
-| Vercel KV | 30k requests/month | $0 |
+| Upstash Redis | 10k commands/day | $0 |
 | Supabase | 500MB storage | $0 |
 | Alibaba Cloud (developer pays) | 3 months free trial | ~¥100-500/month after trial |
+| Deepgram (developer pays) | $200 free credits (~435 hours) | $0.46/hour after credits |
 
 ### Alibaba Cloud Usage Estimate
 
