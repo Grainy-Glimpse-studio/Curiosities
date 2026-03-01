@@ -303,12 +303,38 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     setShowExportMenu(false);
   };
 
+  // 从编辑器中提取所有下划线文本
+  const extractUnderlinedText = (): string[] => {
+    const editor = editorRef.current?.editor;
+    if (!editor) return [];
+
+    const underlinedTexts: string[] = [];
+    const json = editor.getJSON();
+
+    // 递归遍历文档结构
+    const traverse = (node: any) => {
+      if (node.type === 'text' && node.marks) {
+        const hasUnderline = node.marks.some((mark: any) => mark.type === 'underline');
+        if (hasUnderline && node.text) {
+          underlinedTexts.push(node.text.trim());
+        }
+      }
+      if (node.content) {
+        node.content.forEach(traverse);
+      }
+    };
+
+    traverse(json);
+    return underlinedTexts.filter(t => t.length > 0);
+  };
+
   // 发送邮件给创作者 (EmailJS + mailto fallback)
   const sendToCreator = async () => {
     if (!memo) return;
 
-    // 提取下划线内容（highlightedWords）
-    const highlights = memo.highlightedWords?.join(' · ') || '(none)';
+    // 从编辑器中提取下划线文本
+    const underlinedTexts = extractUnderlinedText();
+    const highlights = underlinedTexts.length > 0 ? underlinedTexts.join(' · ') : '(none)';
     const dateStr = new Date(memo.createdAt).toLocaleString();
 
     setSendStatus('sending');

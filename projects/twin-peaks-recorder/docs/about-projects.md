@@ -12,4 +12,6 @@ What you catch will be saved, printed, pressed into something real — breath ma
 
 The most private words become the most collective ones. And the things we murmur to no one — those are the ones worth keeping.
 
+To share your words, click Send your ephemera below. If you'd like your voice to be part of this project too, export your recording and send it to grainyglimpsestudio@gmail.com — with Ephemera in the subject line.
+
 → [link]
