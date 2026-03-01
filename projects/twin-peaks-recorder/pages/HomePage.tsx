@@ -322,11 +322,11 @@ const HomePage: React.FC = () => {
         if (!result.success) {
           if (result.quotaExceeded) {
             alert(`HD quota exceeded for ${result.service}. Your weekly free HD minutes have been used. Please add your own API keys in Settings, or try again next week.`);
-            // Stop the media recorder since we can't transcribe
-            mediaRecorder.stop();
-            return;
+          } else {
+            const errorMsg = (result as any).error || 'Unknown error';
+            alert(`Failed to start ${result.service}: ${errorMsg}`);
           }
-          alert(`Failed to start ${result.service} transcription. Please check your settings.`);
+          // Stop the media recorder since we can't transcribe
           mediaRecorder.stop();
           return;
         }

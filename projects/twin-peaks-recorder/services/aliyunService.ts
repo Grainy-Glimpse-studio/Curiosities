@@ -125,8 +125,15 @@ export class AliyunTranscriber {
     return this.transcript;
   }
 
+  // 错误状态
+  public lastError: string = '';
+  public isQuotaExceeded: boolean = false;
+
   // 获取 Token
   private async getToken(): Promise<boolean> {
+    this.lastError = '';
+    this.isQuotaExceeded = false;
+
     try {
       let response: Response;
 
@@ -153,6 +160,7 @@ export class AliyunTranscriber {
       }
 
       const data = await response.json();
+      console.log('[AliyunService] Token response:', { status: response.status, error: data.error, hasToken: !!data.token });
 
       // 游客模式从 API 响应获取 AppKey
       if (this.mode === 'visitor' && data.appKey) {
@@ -160,19 +168,24 @@ export class AliyunTranscriber {
       }
 
       if (data.error === 'quota_exceeded') {
-        console.warn('HD quota exceeded, will fallback to standard mode');
+        console.warn('HD quota exceeded');
+        this.lastError = 'quota_exceeded';
+        this.isQuotaExceeded = true;
         return false;
       }
 
       if (data.token) {
         this.token = data.token;
         this.tokenExpireTime = data.expireTime;
+        console.log('[AliyunService] Token obtained successfully');
         return true;
       }
 
-      console.error('Failed to get token:', data.error);
+      this.lastError = data.error || 'Unknown error getting token';
+      console.error('Failed to get token:', this.lastError);
       return false;
     } catch (error) {
+      this.lastError = `Network error: ${error}`;
       console.error('Error getting token:', error);
       return false;
     }

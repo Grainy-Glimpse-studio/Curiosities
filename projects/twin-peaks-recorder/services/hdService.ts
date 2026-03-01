@@ -117,11 +117,13 @@ export class HDService {
   }
 
   // 开始录音
-  async start(): Promise<{ success: boolean; service: string; quotaExceeded?: boolean }> {
+  async start(): Promise<{ success: boolean; service: string; quotaExceeded?: boolean; error?: string }> {
     const service = this.selectTranscriber();
+    console.log(`[HDService] Language mode: ${this.languageMode}, Selected service: ${service}`);
 
     if (service === 'aliyun') {
       // 使用阿里云
+      console.log('[HDService] Creating/using AliyunTranscriber');
       if (!this.aliyunTranscriber) {
         this.aliyunTranscriber = new AliyunTranscriber();
       }
@@ -130,7 +132,10 @@ export class HDService {
 
       const success = await this.aliyunTranscriber.start();
       if (!success) {
-        return { success: false, service: 'aliyun', quotaExceeded: true };
+        const isQuota = this.aliyunTranscriber.isQuotaExceeded;
+        const error = this.aliyunTranscriber.lastError;
+        console.error('[HDService] Aliyun start failed:', { isQuota, error });
+        return { success: false, service: 'aliyun', quotaExceeded: isQuota, error };
       }
       return { success: true, service: 'aliyun' };
 
