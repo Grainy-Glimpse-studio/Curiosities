@@ -269,7 +269,7 @@ const FloatingWords: React.FC<FloatingWordsProps> = ({ isRecording, onPinWord, r
               word.isPinned
                 ? 'text-white'
                 : 'text-white/90 hover:text-white'
-            }`}
+            } ${word.isVertical ? 'flex flex-col items-center' : ''}`}
             style={{
               left: word.x,
               top: word.y,
@@ -279,11 +279,8 @@ const FloatingWords: React.FC<FloatingWordsProps> = ({ isRecording, onPinWord, r
                 ? '0 0 15px rgba(255,255,255,0.8), 0 0 30px rgba(255,255,255,0.4)'
                 : '0 0 20px rgba(0,0,0,0.8)',
               maxWidth: word.isVertical ? 'none' : `${word.maxWidth}px`,
-              maxHeight: word.isVertical ? '300px' : 'none',
-              lineHeight: word.isVertical ? '1.8' : '1.4',
+              lineHeight: word.isVertical ? '1.2' : '1.4',
               wordWrap: 'break-word',
-              writingMode: word.isVertical ? 'vertical-rl' : 'horizontal-tb',
-              letterSpacing: word.isVertical ? '0.1em' : 'normal',
             }}
             initial={{
               opacity: 0,
@@ -323,7 +320,15 @@ const FloatingWords: React.FC<FloatingWordsProps> = ({ isRecording, onPinWord, r
             }}
             onClick={() => !word.isPinned && pinWord(word.id)}
           >
-            {word.text}
+            {word.isVertical ? (
+              // 竖排：每个字一行，像 ARCHIVE 那样
+              word.text.split('').map((char, i) => (
+                <span key={i} className="block">{char}</span>
+              ))
+            ) : (
+              // 横排：正常显示
+              word.text
+            )}
           </motion.div>
         ))}
       </AnimatePresence>
