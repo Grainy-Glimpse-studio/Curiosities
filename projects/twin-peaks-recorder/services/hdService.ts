@@ -12,6 +12,7 @@
 
 import { AliyunTranscriber, checkVisitorQuota as checkAliyunQuota } from './aliyunService';
 import { DeepgramTranscriber, checkDeepgramQuota } from './deepgramService';
+import { DeepgramDualTranscriber } from './deepgramDualService';
 
 export interface TranscriptionResult {
   text: string;
@@ -35,7 +36,8 @@ export interface HDServiceConfig {
 export class HDService {
   private aliyunTranscriber: AliyunTranscriber | null = null;
   private deepgramTranscriber: DeepgramTranscriber | null = null;
-  private activeTranscriber: AliyunTranscriber | DeepgramTranscriber | null = null;
+  private deepgramDualTranscriber: DeepgramDualTranscriber | null = null;
+  private activeTranscriber: AliyunTranscriber | DeepgramTranscriber | DeepgramDualTranscriber | null = null;
   private languageMode: LanguageMode = 'auto';
   private config: HDServiceConfig = {};
   private onNewTextCallback: ((text: string, isFinal: boolean) => void) | null = null;
@@ -99,27 +101,30 @@ export class HDService {
   }
 
   // 选择使用哪个 API
-  // 现在统一使用 Deepgram，支持 language=multi 多语言自动识别
-  private selectTranscriber(): 'aliyun' | 'deepgram' {
+  // Auto 模式使用双路并行 Deepgram（中英同时识别，比较 confidence）
+  // 中文/英文模式使用单路 Deepgram
+  private selectTranscriber(): 'aliyun' | 'deepgram' | 'deepgram-dual' {
     // 用户模式：如果只配置了阿里云，用阿里云
     if (this.config.aliyun && !this.config.deepgram) {
       return 'aliyun';
     }
-    // 其他情况统一用 Deepgram
+    // Auto 模式使用双路并行
+    if (this.languageMode === 'auto') {
+      return 'deepgram-dual';
+    }
+    // 中文/英文模式使用单路
     return 'deepgram';
   }
 
   // 根据语言模式获取 Deepgram 的语言参数
   private getDeepgramLanguage(): string {
     switch (this.languageMode) {
-      case 'auto':
-        return 'multi'; // 多语言自动识别
       case 'zh':
         return 'zh-TW'; // 繁体中文
       case 'en':
         return 'en';
       default:
-        return 'multi';
+        return 'en';
     }
   }
 
@@ -146,9 +151,21 @@ export class HDService {
       }
       return { success: true, service: 'aliyun' };
 
+    } else if (service === 'deepgram-dual') {
+      // Auto 模式：使用双路并行 Deepgram（中英同时识别）
+      console.log('[HDService] Creating DeepgramDualTranscriber (zh + en parallel)');
+      this.deepgramDualTranscriber = new DeepgramDualTranscriber();
+      this.deepgramDualTranscriber.onNewText(this.onNewTextCallback);
+      this.activeTranscriber = this.deepgramDualTranscriber;
+
+      const success = await this.deepgramDualTranscriber.start();
+      if (!success) {
+        return { success: false, service: 'deepgram-dual', quotaExceeded: true };
+      }
+      return { success: true, service: 'deepgram-dual' };
+
     } else {
-      // 使用 Deepgram
-      // 每次都创建新实例，确保语言设置生效
+      // 中文/英文模式：使用单路 Deepgram
       const deepgramLang = this.getDeepgramLanguage();
       console.log(`[HDService] Creating DeepgramTranscriber with language: ${deepgramLang}`);
       this.deepgramTranscriber = new DeepgramTranscriber();
