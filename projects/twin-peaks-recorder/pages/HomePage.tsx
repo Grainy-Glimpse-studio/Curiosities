@@ -266,6 +266,7 @@ const HomePage: React.FC = () => {
         }
 
         // Set language mode
+        console.log(`[HomePage] Starting HD with speechLang: ${speechLang}`);
         hdService.setLanguageMode(speechLang as LanguageMode);
         transcriberRef.current = hdService;
       } else {
@@ -679,6 +680,7 @@ const HomePage: React.FC = () => {
                   setSpeechLang(prev => {
                     // 顺序: EN → 中文 → AUTO (Auto 消耗双倍配额，放最后)
                     const next = prev === 'en' ? 'zh' : prev === 'zh' ? 'auto' : 'en';
+                    console.log(`[HomePage] Language toggle: ${prev} → ${next}`);
                     if (transcriberRef.current) {
                       // Check if it's the HD service or regular transcriber
                       if ('setLanguageMode' in transcriberRef.current) {
