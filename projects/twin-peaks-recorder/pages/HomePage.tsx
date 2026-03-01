@@ -62,7 +62,7 @@ const HomePage: React.FC = () => {
   const [floatingWordsEnabled, setFloatingWordsEnabled] = useState(true);
   const [focusModeOpen, setFocusModeOpen] = useState(false);
   const [, setCapturedWords] = useState<string[]>([]);
-  const [speechLang, setSpeechLang] = useState<'auto' | 'zh' | 'en'>('auto');
+  const [speechLang, setSpeechLang] = useState<'auto' | 'zh' | 'en'>('en'); // 默认英文，Auto 消耗双倍配额
   const [openTranscripts, setOpenTranscripts] = useState<Memo[]>([]);
   const [starVisible, setStarVisible] = useState(false);
   const [showApiSettings, setShowApiSettings] = useState(false);
@@ -677,7 +677,8 @@ const HomePage: React.FC = () => {
               <span
                 onClick={() => {
                   setSpeechLang(prev => {
-                    const next = prev === 'auto' ? 'zh' : prev === 'zh' ? 'en' : 'auto';
+                    // 顺序: EN → 中文 → AUTO (Auto 消耗双倍配额，放最后)
+                    const next = prev === 'en' ? 'zh' : prev === 'zh' ? 'auto' : 'en';
                     if (transcriberRef.current) {
                       // Check if it's the HD service or regular transcriber
                       if ('setLanguageMode' in transcriberRef.current) {

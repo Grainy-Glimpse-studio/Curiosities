@@ -50,35 +50,52 @@
 - State: `customTitle` in CassetteTape.tsx
 
 ## Language Toggle & Font Switching
-- **UI Toggle**: Click to switch between AUTO / 中文 / EN during recording
+- **UI Toggle**: Click to switch between EN → 中文 → AUTO during recording
 - Located next to HIDE and FOCUS MODE buttons (top-left when recording)
-- **AUTO**: Browser auto-detects language
-- **中文**: Forces Traditional Chinese (zh-TW) + HuiWen (明朝) font
+- **Tab 顺序**: EN → 中文 → AUTO（Auto 消耗双倍配额，放最后）
 - **EN**: Forces English (en-US) + Consulate (typewriter) font
+- **中文**: Forces Traditional Chinese (zh-TW) + HuiWen (明朝) font
+- **AUTO**: 双路并行识别（中英自动切换）
 - Can switch language while recording without stopping
 
-## HD Mode Speech Recognition (2026-03-01)
-- **Two modes**: Standard (Web Speech API) and HD (cloud APIs)
-- **HD mode auto-selects API based on language**:
-  - AUTO / 中文 → Alibaba Cloud (supports Chinese-English mixed)
-  - EN → Deepgram (optimized for English)
-- **Visitor mode**: Free 10 min/week, uses developer's API keys
-- **User mode**: Unlimited, user provides their own API keys
+## HD Mode Speech Recognition (2026-03-01 Updated)
+- **Two modes**: Standard (Web Speech API) and HD (Deepgram cloud API)
+
+### HD Mode Language Strategy
+| 模式 | 实现方式 | 配额消耗 |
+|-----|---------|---------|
+| **EN** | Deepgram 单路 `language=en` | 1x |
+| **中文** | Deepgram 单路 `language=zh-TW` | 1x |
+| **AUTO** | Deepgram 双路并行 `zh-TW` + `en` | 2x |
+
+### AUTO 模式双路并行原理
+- 同时开两路 WebSocket 连接到 Deepgram
+- 一路设 `language=zh-TW`，一路设 `language=en`
+- 同一个麦克风音频流同时发给两路
+- 每次收到结果时，比较两路的 `confidence` 值
+- 取 confidence 高的显示到屏幕上
+- 实现用户说中文显示中文、说英文显示英文的实时自动切换
+
+**注意**：
+- 不使用 `language=multi`（只支持西班牙语+英语，不支持中文）
+- 不使用 `detect_language`（不支持 streaming，延迟太高）
+
+### 游客配额限制
+- **每人每周 10 分钟**（使用浏览器指纹追踪）
+- AUTO 模式消耗双倍（因为两路连接）
+- 数据每周自动清理
 
 ### HD Service Files
-- `services/hdService.ts` - Unified HD service, auto-selects Aliyun or Deepgram
-- `services/aliyunService.ts` - Alibaba Cloud WebSocket transcription
-- `services/deepgramService.ts` - Deepgram real-time transcription (updated with visitor mode)
-- `api/aliyun-token.ts` - Backend: get Aliyun token, track visitor usage
-- `api/deepgram-key.ts` - Backend: distribute Deepgram key, track visitor usage
+- `services/hdService.ts` - 统一 HD 服务入口
+- `services/deepgramService.ts` - Deepgram 单路转写（中文/英文模式）
+- `services/deepgramDualService.ts` - Deepgram 双路并行转写（AUTO 模式）
+- `services/aliyunService.ts` - 阿里云转写（已弃用，免费版只有2路并发太少）
+- `api/deepgram-key.ts` - 后端：分发 Deepgram key，追踪游客用量
 
 ### Environment Variables (Vercel Dashboard)
 ```
 UPSTASH_REDIS_REST_URL      # Redis for visitor quota tracking
 UPSTASH_REDIS_REST_TOKEN
-ALIYUN_ACCESS_KEY_ID        # Alibaba Cloud credentials
-ALIYUN_ACCESS_KEY_SECRET
-ALIYUN_APP_KEY
 DEEPGRAM_API_KEY            # Deepgram API key
 ```
 
@@ -86,7 +103,7 @@ DEEPGRAM_API_KEY            # Deepgram API key
 - `components/ApiSettings.tsx` - Modal for configuring API keys
 - Two tabs: Speech Recognition, Text Processing
 - Speech mode toggle: Standard / HD
-- Supports both Deepgram and Aliyun (3 keys) inputs
+- Supports Deepgram API key input
 
 ## FloatingWords Animation Settings
 - **Enter/Exit duration**: 2.0 seconds (darkroom developing effect)
