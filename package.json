@@ -8,5 +8,8 @@
     "dev:twin-peaks": "npm run dev --workspace=twin-peaks-recorder",
     "build:twin-peaks": "npm run build --workspace=twin-peaks-recorder",
     "build:all": "npm run build --workspaces --if-present"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.36.3"
   }
 }
