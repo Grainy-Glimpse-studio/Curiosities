@@ -538,7 +538,7 @@ const HomePage: React.FC = () => {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white overflow-hidden relative font-sans select-none cursor-none">
+    <div className="min-h-screen text-white overflow-hidden relative font-sans select-none cursor-none">
 
       {/* Shooting Star */}
       <ShootingStar
