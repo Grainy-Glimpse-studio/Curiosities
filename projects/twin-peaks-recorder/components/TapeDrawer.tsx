@@ -288,10 +288,8 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
                       ref={(el) => { letterRefs.current[refIndex] = el; }}
                       className="text-[8vh] md:text-[10vh] lg:text-[12vh] font-recorder font-bold leading-[0.85] transition-all duration-200"
                       style={{
-                        color: `rgba(255,255,255,${0.02 + glowIntensity * 0.25 + hoverBoost})`,
-                        textShadow: (glowIntensity > 0.05 || isHovered)
-                          ? `0 0 ${20 + glowIntensity * 50}px rgba(255,255,255,${glowIntensity * 0.7 + hoverBoost}), 0 0 ${50 + glowIntensity * 100}px rgba(255,255,255,${glowIntensity * 0.4 + hoverBoost * 0.5})`
-                          : 'none',
+                        color: `rgba(255,255,255,${0.15 + glowIntensity * 0.25 + hoverBoost})`,
+                        textShadow: `0 0 ${10 + glowIntensity * 40}px rgba(255,255,255,${0.1 + glowIntensity * 0.6 + hoverBoost}), 0 0 ${30 + glowIntensity * 80}px rgba(255,255,255,${glowIntensity * 0.4 + hoverBoost * 0.5})`,
                       }}
                       onMouseEnter={() => {
                         if (!isCurrentWord || wordOpacity <= 0.5 || isTransitioning.current) return;
