@@ -1,0 +1,41 @@
+{
+  "title": "My Gallery",
+  "description": "A collection of memories under the stars",
+  "items": [
+    {
+      "id": "1",
+      "type": "image",
+      "src": "https://picsum.photos/800/600?random=101",
+      "title": "Summer Sunset"
+    },
+    {
+      "id": "2",
+      "type": "image",
+      "src": "https://picsum.photos/800/600?random=102",
+      "title": "Mountain View"
+    },
+    {
+      "id": "3",
+      "type": "text",
+      "content": "Every moment is a star waiting to be caught.",
+      "title": "Thought"
+    },
+    {
+      "id": "4",
+      "type": "image",
+      "src": "https://picsum.photos/800/600?random=103",
+      "title": "Ocean Breeze"
+    },
+    {
+      "id": "5",
+      "type": "video",
+      "src": "https://example.com/videos/trip.mp4",
+      "title": "Summer Trip"
+    }
+  ],
+  "settings": {
+    "mode": "single",
+    "cardSize": "medium",
+    "starInterval": [6000, 12000]
+  }
+}

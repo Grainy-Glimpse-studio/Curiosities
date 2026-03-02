@@ -7,6 +7,8 @@
   "scripts": {
     "dev:twin-peaks": "npm run dev --workspace=twin-peaks-recorder",
     "build:twin-peaks": "npm run build --workspace=twin-peaks-recorder",
+    "dev:stars": "npm run dev --workspace=catch-a-shooting-star",
+    "build:stars": "npm run build --workspace=catch-a-shooting-star",
     "build:all": "npm run build --workspaces --if-present"
   },
   "dependencies": {
