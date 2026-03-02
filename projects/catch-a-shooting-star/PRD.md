@@ -8,6 +8,110 @@
 
 ---
 
+## 整体愿景
+
+### 框架定位
+这是一个**可复用的互动展示框架**，核心是"捕捉流星→获取内容"的交互模式。
+
+框架完成后：
+1. 打包部分功能为 **Skills**（可复用组件）
+2. 基于框架创建**具体项目**（纯文字展示、纯图片展示等）
+3. 将框架与其他项目结合，应用到**个人网站**
+
+### 不打包的部分
+- **Guestbook** - 这是当前 demo 的特有功能，不作为通用 skill
+
+---
+
+## 模式矩阵
+
+### 显示模式 (Display Mode)
+| 模式 | 说明 |
+|------|------|
+| `single` | 单内容居中显示，一次只看一个 |
+| `gallery` | 画廊模式，多卡片同时显示 |
+
+### 交互模式 (Interaction Mode)
+| 模式 | 说明 |
+|------|------|
+| `keyboard` | 空格键捕捉流星 |
+| `gesture` | 手势抓取（需摄像头） |
+
+### 内容类型 (Content Type)
+| 类型 | 说明 | 示例场景 |
+|------|------|----------|
+| 纯文字 | 只有文本内容 | 诗歌、语录、留言 |
+| 纯图片 | 只有图片 | 摄影作品、插画 |
+| 文字+图片 | 图片配文字说明 | 作品集、游记 |
+
+---
+
+## URL 结构规划
+
+```
+curiosities.vercel.app/
+├── catch-a-shooting-star/     # 当前 demo（含 Guestbook）
+│
+├── [project-name]/            # 具体项目（独立地址）
+│   例如:
+│   ├── poetry/                # 纯文字项目 - 诗歌展示
+│   ├── photography/           # 纯图片项目 - 摄影作品
+│   └── travel-notes/          # 文字+图片 - 游记
+│
+└── (未来) 嵌入个人主站
+```
+
+每个具体项目是**独立的子地址**，有自己的：
+- 内容配置
+- 样式定制
+- 可选功能开关
+
+---
+
+## 图片存储方案
+
+对于图片项目，需要外部存储：
+
+| 方案 | 优点 | 适用场景 |
+|------|------|----------|
+| **Cloudflare R2** | 免费额度大，CDN 快 | 推荐 |
+| Cloudflare Images | 自动优化，按量计费 | 高质量图片 |
+| Vercel Blob | 与 Vercel 集成好 | 少量图片 |
+| 外链 | 最简单 | 已有图床 |
+
+**建议**: 使用 **Cloudflare R2**，免费 10GB 存储 + 无出口费用。
+
+---
+
+## Roadmap
+
+### Phase 1: 框架完善 (当前)
+- [x] 基础交互（keyboard/gesture）
+- [x] 显示模式（single/gallery）
+- [x] 浮动动画效果
+- [x] Guestbook demo
+- [ ] 修复每日留言限制
+- [ ] 显示时间戳和地点
+- [ ] 渲染 Markdown 内容
+
+### Phase 2: 具体项目
+- [ ] 创建第一个纯文字项目（如：诗歌展示）
+- [ ] 创建第一个纯图片项目（如：摄影作品）
+- [ ] 接入 Cloudflare R2 图片存储
+- [ ] 项目独立配置系统
+
+### Phase 3: Skills 打包
+- [ ] 提取核心组件为可复用 Skills
+- [ ] 文档化 API 和配置项
+- [ ] 支持 npm 包或 iframe 嵌入
+
+### Phase 4: 集成应用
+- [ ] 嵌入个人主站
+- [ ] 支持自定义主题
+- [ ] 多语言支持
+
+---
+
 ## 技术架构
 
 ### 前端
@@ -20,21 +124,22 @@
 - **部署**: Vercel Serverless Functions
 - **数据库**: Upstash Redis
 - **API**: `/api/messages` (GET/POST)
+- **图片存储**: Cloudflare R2 (计划)
 
 ### 项目结构
 ```
 src/
-├── core/                    # 核心组件
+├── core/                    # 核心组件 (打包为 Skills)
 │   ├── StarCatcher.tsx      # 主控制器，管理内容显示
 │   ├── ShootingStar.tsx     # 流星动画和捕捉逻辑
 │   ├── Starfield.tsx        # 背景星空
 │   └── HandTracker.tsx      # 手势识别 (MediaPipe)
-├── modes/                   # 显示模式
+├── modes/                   # 显示模式 (打包为 Skills)
 │   ├── SingleView.tsx       # 单内容显示（文字/图片/输入）
 │   └── GalleryView.tsx      # 画廊模式（多卡片）
 ├── components/
 │   └── ModeSelector.tsx     # 首页模式选择
-├── features/guestbook/      # 留言功能
+├── features/guestbook/      # 留言功能 (不打包)
 │   ├── useGuestbook.ts      # 留言逻辑 Hook
 │   ├── guestbookService.ts  # API 调用
 │   └── types.ts             # 类型定义
@@ -219,9 +324,15 @@ const getProtectionTime = (item: ContentItem) => {
 ## 环境变量
 
 ```bash
-# Upstash Redis
+# Upstash Redis (Guestbook)
 UPSTASH_REDIS_REST_URL=xxx
 UPSTASH_REDIS_REST_TOKEN=xxx
+
+# Cloudflare R2 (计划 - 图片存储)
+R2_ACCOUNT_ID=xxx
+R2_ACCESS_KEY_ID=xxx
+R2_SECRET_ACCESS_KEY=xxx
+R2_BUCKET_NAME=xxx
 ```
 
 ---
@@ -254,8 +365,17 @@ vercel --prod    # 部署到生产
 
 ## 下一步优先级
 
+### 短期 (框架完善)
 1. **高** - 修复每日留言限制
 2. **高** - 显示时间戳和地点
 3. **中** - 渲染 Markdown 内容
 4. **中** - 富文本输入设计
-5. **低** - UI 字体/布局微调
+
+### 中期 (具体项目)
+1. 创建纯文字项目模板
+2. 创建纯图片项目模板
+3. 接入 Cloudflare R2
+
+### 长期 (Skills & 集成)
+1. 提取核心组件为 Skills
+2. 嵌入个人主站
