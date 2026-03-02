@@ -77,7 +77,7 @@ const ShootingStar: React.FC<ShootingStarProps> = ({
   mode,
   keyboardScheme = 'space',
   isGrabbing = false,
-  grabPosition,
+  grabPosition: _grabPosition,
   grabPositions = [],
   maxConcurrent = 1,
   intervalRange = [8000, 15000],
