@@ -14,6 +14,50 @@ const floatKeyframes = `
 }
 `;
 
+// Blow away animation - simple fade out for now (TODO: improve later)
+const BlowAwayText: React.FC<{
+  text: string;
+  style?: React.CSSProperties;
+  className?: string;
+  onComplete?: () => void;
+}> = ({ text, style, className, onComplete }) => {
+  const [isAnimating, setIsAnimating] = React.useState(true);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsAnimating(false);
+      onComplete?.();
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [onComplete]);
+
+  if (!isAnimating) return null;
+
+  return (
+    <span
+      className={className}
+      style={{
+        ...style,
+        animation: 'simpleFadeOut 1.2s ease-out forwards',
+      }}
+    >
+      {text}
+      <style>{`
+        @keyframes simpleFadeOut {
+          0% {
+            opacity: 1;
+            filter: blur(0px);
+          }
+          100% {
+            opacity: 0;
+            filter: blur(3px);
+          }
+        }
+      `}</style>
+    </span>
+  );
+};
+
 // Component to render text with each character floating independently
 const FloatingText: React.FC<{
   text: string;
@@ -57,11 +101,13 @@ interface SingleViewProps {
   fontOpacity?: number;
   fontSize?: number;
   canReply?: boolean;
+  blowAway?: boolean; // Trigger blow away animation
   onItemClick?: (item: ContentItem) => void;
   onItemDoubleClick?: (item: ContentItem) => void;
   onInputSubmit?: (content: string) => void;
   onReply?: (item: ContentItem) => void;
   onClose?: () => void;
+  onBlowAwayComplete?: () => void;
 }
 
 const SingleView: React.FC<SingleViewProps> = ({
@@ -71,11 +117,13 @@ const SingleView: React.FC<SingleViewProps> = ({
   fontOpacity = 1,
   fontSize = 18,
   canReply = false,
+  blowAway = false,
   onItemClick,
   onItemDoubleClick,
   onInputSubmit,
   onReply,
   onClose,
+  onBlowAwayComplete,
 }) => {
   const durationSec = transitionDuration / 1000;
   const [inputValue, setInputValue] = useState('');
@@ -134,9 +182,15 @@ const SingleView: React.FC<SingleViewProps> = ({
                     textShadow: '0 0 20px rgba(0,0,0,0.5)',
                   }}
                 >
-                  "<FloatingText text={item.content || ''} />"
+                  {blowAway ? (
+                    <BlowAwayText text={`"${item.content || ''}"`} onComplete={onBlowAwayComplete} />
+                  ) : (
+                    <>
+                      "<FloatingText text={item.content || ''} />"
+                    </>
+                  )}
                 </p>
-                {canReply && onReply && (
+                {!blowAway && canReply && onReply && (
                   <motion.button
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 0.4 }}

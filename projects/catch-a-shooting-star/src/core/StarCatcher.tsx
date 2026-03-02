@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useImperativeHandle, forwardRef, useRef
 import Starfield from './Starfield';
 import ShootingStar from './ShootingStar';
 import HandTracker from './HandTracker';
+import FaceTracker from './FaceTracker';
 import SingleView from '../modes/SingleView';
 import GalleryView from '../modes/GalleryView';
 import type { StarCatcherConfig, ContentItem, InteractionMode } from '../types';
@@ -76,7 +77,9 @@ const StarCatcher = forwardRef<StarCatcherRef, StarCatcherProps>(({
   const [galleryItems, setGalleryItems] = useState<ContentItem[]>([]);
   const [isGrabbing, setIsGrabbing] = useState(false);
   const [grabPosition, setGrabPosition] = useState<{ x: number; y: number } | undefined>();
+  const [grabPositions, setGrabPositions] = useState<{ x: number; y: number }[]>([]);
   const [isPaused, setIsPaused] = useState(false); // Pause star generation while content is showing
+  const [isBlowingAway, setIsBlowingAway] = useState(false); // Blow away animation in progress
   const galleryViewRef = useRef<{ stackCards: () => void }>(null);
 
   // Content protection: pause stars based on content type
@@ -219,10 +222,25 @@ const StarCatcher = forwardRef<StarCatcherRef, StarCatcherProps>(({
     setGalleryItems(prev => prev.filter(i => i.id !== item.id));
   }, []);
 
-  // Handle grab change from hand tracker
-  const handleGrabChange = useCallback((grabbing: boolean, position?: { x: number; y: number }) => {
+  // Handle grab change from hand tracker (supports multiple hands)
+  const handleGrabChange = useCallback((grabbing: boolean, positions: { x: number; y: number }[]) => {
     setIsGrabbing(grabbing);
-    setGrabPosition(position);
+    setGrabPosition(positions[0]); // Use first grabbing hand for now
+    setGrabPositions(positions); // Store all positions
+  }, []);
+
+  // Handle blow to dismiss current content with animation
+  const handleBlow = useCallback(() => {
+    if (currentItem && !isBlowingAway) {
+      console.log('💨 Blow detected! Starting blow away animation...');
+      setIsBlowingAway(true);
+    }
+  }, [currentItem, isBlowingAway]);
+
+  // Handle blow away animation complete
+  const handleBlowAwayComplete = useCallback(() => {
+    setIsBlowingAway(false);
+    setCurrentItem(null);
   }, []);
 
   // Determine keyboard scheme based on mode and config
@@ -254,6 +272,7 @@ const StarCatcher = forwardRef<StarCatcherRef, StarCatcherProps>(({
         keyboardScheme={keyboardScheme}
         isGrabbing={isGrabbing}
         grabPosition={grabPosition}
+        grabPositions={grabPositions}
         maxConcurrent={maxConcurrent}
         intervalRange={stars?.intervalRange}
         speedRange={stars?.speedRange}
@@ -268,6 +287,15 @@ const StarCatcher = forwardRef<StarCatcherRef, StarCatcherProps>(({
         <HandTracker onGrabChange={handleGrabChange} />
       )}
 
+      {/* Face Tracker for blow detection (gesture mode only) */}
+      {interactionMode === 'gesture' && (
+        <FaceTracker
+          onBlow={handleBlow}
+          blowDuration={600}
+          enabled={currentItem !== null} // Only track when content is showing
+        />
+      )}
+
       {/* Content Display */}
       {mode === 'single' ? (
         <SingleView
@@ -277,11 +305,13 @@ const StarCatcher = forwardRef<StarCatcherRef, StarCatcherProps>(({
           fontOpacity={style?.fontOpacity}
           fontSize={style?.fontSize}
           canReply={canReply}
+          blowAway={isBlowingAway}
           onItemClick={onItemClick}
           onItemDoubleClick={onItemDoubleClick}
           onInputSubmit={handleInputSubmit}
           onReply={handleReply}
           onClose={() => setCurrentItem(null)}
+          onBlowAwayComplete={handleBlowAwayComplete}
         />
       ) : (
         <GalleryView

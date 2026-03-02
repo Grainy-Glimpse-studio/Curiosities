@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 interface HandTrackerProps {
-  onGrabChange: (isGrabbing: boolean, position?: { x: number; y: number }) => void;
+  onGrabChange: (isGrabbing: boolean, positions: { x: number; y: number }[]) => void;
 }
 
 // Load script from CDN
@@ -18,6 +18,23 @@ const loadScript = (src: string): Promise<void> => {
     script.onload = () => resolve();
     script.onerror = () => reject(new Error(`Failed to load ${src}`));
     document.head.appendChild(script);
+  });
+};
+
+// Wait for global object to be available
+const waitForGlobal = (name: string, timeout = 5000): Promise<any> => {
+  return new Promise((resolve, reject) => {
+    const start = Date.now();
+    const check = () => {
+      if ((window as any)[name]) {
+        resolve((window as any)[name]);
+      } else if (Date.now() - start > timeout) {
+        reject(new Error(`Timeout waiting for ${name}`));
+      } else {
+        setTimeout(check, 50);
+      }
+    };
+    check();
   });
 };
 
@@ -40,13 +57,11 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onGrabChange }) => {
 
         if (!mounted) return;
 
-        // Access global objects
-        const Hands = (window as any).Hands;
-        const Camera = (window as any).Camera;
+        // Wait for global objects to be available
+        const Hands = await waitForGlobal('Hands');
+        const Camera = await waitForGlobal('Camera');
 
-        if (!Hands || !Camera) {
-          throw new Error('MediaPipe modules not found');
-        }
+        if (!mounted) return;
 
         const hands = new Hands({
           locateFile: (file: string) => {
@@ -71,21 +86,21 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onGrabChange }) => {
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
           let anyHandGrabbing = false;
-          let grabPos: { x: number; y: number } | undefined;
+          const grabPositions: { x: number; y: number }[] = [];
 
           if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             for (let h = 0; h < results.multiHandLandmarks.length; h++) {
               const landmarks = results.multiHandLandmarks[h];
-              const handedness = results.multiHandedness?.[h]?.label || 'Unknown';
 
-              const handColor = h === 0 ? 'rgba(255, 255, 255, 0.3)' : 'rgba(200, 200, 255, 0.3)';
+              // Hand outline - smaller dots
+              const handColor = h === 0 ? 'rgba(255, 255, 255, 0.35)' : 'rgba(200, 200, 255, 0.35)';
               ctx.fillStyle = handColor;
 
               for (const landmark of landmarks) {
                 const x = landmark.x * canvas.width;
                 const y = landmark.y * canvas.height;
                 ctx.beginPath();
-                ctx.arc(x, y, 3, 0, 2 * Math.PI);
+                ctx.arc(x, y, 2.5, 0, 2 * Math.PI); // smaller dots
                 ctx.fill();
               }
 
@@ -110,22 +125,20 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onGrabChange }) => {
 
               if (isGrabbing) {
                 anyHandGrabbing = true;
-                grabPos = { x: 1 - palm.x, y: palm.y };
+                // Collect ALL grabbing hand positions
+                grabPositions.push({ x: 1 - palm.x, y: palm.y });
 
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                // Grab indicator circle
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.arc(palm.x * canvas.width, palm.y * canvas.height, 30, 0, 2 * Math.PI);
+                ctx.arc(palm.x * canvas.width, palm.y * canvas.height, 25, 0, 2 * Math.PI);
                 ctx.stroke();
-
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-                ctx.font = '10px sans-serif';
-                ctx.fillText(handedness, palm.x * canvas.width - 15, palm.y * canvas.height - 35);
               }
             }
           }
 
-          onGrabChange(anyHandGrabbing, grabPos);
+          onGrabChange(anyHandGrabbing, grabPositions);
         });
 
         handsRef.current = hands;
@@ -180,33 +193,30 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onGrabChange }) => {
         muted
       />
 
-      <div className="fixed bottom-6 right-6 z-50">
-        <div className="relative">
-          <canvas
-            ref={canvasRef}
-            width={160}
-            height={120}
-            className="rounded-lg border border-white/20 bg-black/30 backdrop-blur-sm"
-            style={{ transform: 'scaleX(-1)' }}
-          />
+      {/* Full-screen hand overlay */}
+      <canvas
+        ref={canvasRef}
+        width={window.innerWidth}
+        height={window.innerHeight}
+        className="fixed inset-0 z-40 pointer-events-none"
+        style={{ transform: 'scaleX(-1)' }}
+      />
 
+      {/* Loading/error indicator - small, bottom right */}
+      {(isLoading || error) && (
+        <div className="fixed bottom-6 right-6 z-50">
           {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
-              <div className="text-white/60 text-xs">Loading camera...</div>
+            <div className="text-white/40 text-xs px-3 py-1.5 bg-black/30 rounded-lg backdrop-blur-sm">
+              Loading camera...
             </div>
           )}
-
           {error && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg p-2">
-              <div className="text-red-400/80 text-xs text-center">{error}</div>
+            <div className="text-red-400/60 text-xs px-3 py-1.5 bg-black/30 rounded-lg backdrop-blur-sm">
+              {error}
             </div>
           )}
-
-          <p className="text-white/30 text-[10px] text-center mt-1 tracking-widest uppercase">
-            hand tracking (1-2 hands)
-          </p>
         </div>
-      </div>
+      )}
     </>
   );
 };

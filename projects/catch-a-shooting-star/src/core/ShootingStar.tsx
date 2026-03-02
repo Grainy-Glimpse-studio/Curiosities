@@ -60,7 +60,8 @@ interface ShootingStarProps {
   mode: InteractionMode;
   keyboardScheme?: KeyboardScheme;
   isGrabbing?: boolean;
-  grabPosition?: { x: number; y: number }; // Normalized 0-1
+  grabPosition?: { x: number; y: number }; // Normalized 0-1 (first hand)
+  grabPositions?: { x: number; y: number }[]; // All grabbing hands
   maxConcurrent?: number;
   intervalRange?: [number, number];
   speedRange?: [number, number];
@@ -77,6 +78,7 @@ const ShootingStar: React.FC<ShootingStarProps> = ({
   keyboardScheme = 'space',
   isGrabbing = false,
   grabPosition,
+  grabPositions = [],
   maxConcurrent = 1,
   intervalRange = [8000, 15000],
   speedRange = [1.5, 2.5],
@@ -298,41 +300,38 @@ const ShootingStar: React.FC<ShootingStarProps> = ({
     };
   }, []);
 
-  // Gesture controls
+  // Gesture controls - only detect on grab START, check ALL hands
   useEffect(() => {
     if (mode !== 'gesture') return;
 
-    // Detect grab start
-    if (isGrabbing && !prevGrabbingRef.current && stars.length > 0 && grabPosition) {
+    // Only trigger on grab start (transition from not grabbing to grabbing)
+    if (isGrabbing && !prevGrabbingRef.current && stars.length > 0 && grabPositions.length > 0) {
       const windowW = window.innerWidth;
       const windowH = window.innerHeight;
-      const grabX = grabPosition.x * windowW;
-      const grabY = grabPosition.y * windowH;
 
-      // Distance threshold - must be within 400px of the star to catch it
-      const CATCH_THRESHOLD = 400;
+      // Distance threshold
+      const CATCH_THRESHOLD = 300;
 
-      let closestStar: StarState | null = null;
-      let closestDist = Infinity;
+      // Check each grabbing hand
+      for (const pos of grabPositions) {
+        const grabX = pos.x * windowW;
+        const grabY = pos.y * windowH;
 
-      for (const star of stars) {
-        // Calculate actual current position based on animation progress
-        const pos = getStarCurrentPosition(star);
-        const dist = Math.sqrt((grabX - pos.x) ** 2 + (grabY - pos.y) ** 2);
+        for (const star of stars) {
+          const starPos = getStarCurrentPosition(star);
+          const dist = Math.sqrt((grabX - starPos.x) ** 2 + (grabY - starPos.y) ** 2);
 
-        if (dist < closestDist && dist < CATCH_THRESHOLD) {
-          closestDist = dist;
-          closestStar = star;
+          if (dist < CATCH_THRESHOLD) {
+            catchStar(star.id);
+            prevGrabbingRef.current = isGrabbing;
+            return; // Only catch one star per grab
+          }
         }
       }
-
-      // Only catch if within threshold
-      if (closestStar) {
-        catchStar(closestStar.id);
-      }
     }
+
     prevGrabbingRef.current = isGrabbing;
-  }, [mode, isGrabbing, grabPosition, stars, catchStar, getStarCurrentPosition]);
+  }, [mode, isGrabbing, grabPositions, stars, catchStar, getStarCurrentPosition]);
 
   // Get direction indicator position
   const getDirectionIndicator = (direction: StarDirection) => {
@@ -436,6 +435,7 @@ const ShootingStar: React.FC<ShootingStarProps> = ({
             <FloatingText text="space to catch" />
           </motion.div>
         )}
+
       </AnimatePresence>
     </div>
   );
