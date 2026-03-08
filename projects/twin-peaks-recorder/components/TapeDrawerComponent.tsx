@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { zoom, zoomIdentity, ZoomBehavior, ZoomTransform } from 'd3-zoom';
 import { select } from 'd3-selection';
 import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 interface TapeDrawerProps {
   isOpen: boolean;
