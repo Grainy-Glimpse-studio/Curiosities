@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { AnimatePresence, motion } from 'framer-motion';
 import RecorderUI from '../components/RecorderUI';
 import TapeDrawer from '../components/TapeDrawerComponent';
+import RecycleBin from '../components/RecycleBin';
 import FloatingWords from '../components/FloatingWords';
 import FocusMode from '../components/FocusMode';
 import FloatingTranscript from '../components/FloatingTranscript';
@@ -43,8 +44,9 @@ Second stop, the Regional Bureau Office, to pick up some files. Although I have 
   duration: 60
 };
 
-// Storage key for localStorage
+// Storage keys for localStorage
 const MEMOS_STORAGE_KEY = 'diane-recorder-memos';
+const TRASH_STORAGE_KEY = 'diane-recorder-trash';
 
 // Helper: Convert Blob to base64
 const blobToBase64 = (blob: Blob): Promise<string> => {
@@ -133,6 +135,48 @@ const saveMemosToStorage = async (memos: Memo[]): Promise<void> => {
   }
 };
 
+// Load trash from localStorage
+const loadTrashFromStorage = (): Memo[] => {
+  try {
+    const stored = localStorage.getItem(TRASH_STORAGE_KEY);
+    if (!stored) return [];
+
+    const serialized: SerializedMemo[] = JSON.parse(stored);
+    return serialized.map(item => {
+      if (item.audioBase64) {
+        const blob = base64ToBlob(item.audioBase64);
+        const audioUrl = URL.createObjectURL(blob);
+        const { audioBase64, ...rest } = item;
+        return { ...rest, audioUrl, blob } as Memo;
+      }
+      return item as unknown as Memo;
+    });
+  } catch (e) {
+    console.error('Failed to load trash from localStorage:', e);
+    return [];
+  }
+};
+
+// Save trash to localStorage
+const saveTrashToStorage = async (memos: Memo[]): Promise<void> => {
+  try {
+    const serialized: SerializedMemo[] = await Promise.all(
+      memos.map(async (memo) => {
+        if (!memo.blob) {
+          const { blob, ...rest } = memo;
+          return rest as SerializedMemo;
+        }
+        const audioBase64 = await blobToBase64(memo.blob);
+        const { blob, audioUrl, ...rest } = memo;
+        return { ...rest, audioUrl: '', audioBase64 } as SerializedMemo;
+      })
+    );
+    localStorage.setItem(TRASH_STORAGE_KEY, JSON.stringify(serialized));
+  } catch (e) {
+    console.error('Failed to save trash to localStorage:', e);
+  }
+};
+
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -163,6 +207,9 @@ const HomePage: React.FC = () => {
   const [speechMode, setSpeechMode] = useState<'standard' | 'hd'>('standard');
   const [activeService, setActiveService] = useState<string | null>(null); // Track which service is being used
   const [syncedMemoIds, setSyncedMemoIds] = useState<Set<string>>(new Set()); // Track which memos are synced to cloud
+  const [trashedMemos, setTrashedMemos] = useState<Memo[]>(() => loadTrashFromStorage());
+  const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
+  const trashInitializedRef = useRef(false);
 
   // --- Check if returning from About page with archive open ---
   useEffect(() => {
@@ -189,6 +236,15 @@ const HomePage: React.FC = () => {
     // Save memos whenever they change
     saveMemosToStorage(memos);
   }, [memos]);
+
+  // --- Persist trash to localStorage ---
+  useEffect(() => {
+    if (!trashInitializedRef.current) {
+      trashInitializedRef.current = true;
+      return;
+    }
+    saveTrashToStorage(trashedMemos);
+  }, [trashedMemos]);
 
   // --- Sync font with language selection ---
   useEffect(() => {
@@ -649,6 +705,12 @@ const HomePage: React.FC = () => {
       return;
     }
 
+    // Find the memo to move to trash
+    const memoToTrash = memos.find(m => m.id === id);
+    if (memoToTrash) {
+      setTrashedMemos(prev => [memoToTrash, ...prev]);
+    }
+
     // Delete from cloud if synced
     if (user && syncedMemoIds.has(id)) {
       try {
@@ -673,6 +735,20 @@ const HomePage: React.FC = () => {
       }
     }
   };
+
+  // Recover memos from trash
+  const handleRecover = useCallback((ids: string[]) => {
+    const memosToRecover = trashedMemos.filter(m => ids.includes(m.id));
+    setMemos(prev => [...memosToRecover, ...prev]);
+    setTrashedMemos(prev => prev.filter(m => !ids.includes(m.id)));
+    console.log('[Trash] Recovered:', ids);
+  }, [trashedMemos]);
+
+  // Permanently delete memos from trash
+  const handleDeleteForever = useCallback((ids: string[]) => {
+    setTrashedMemos(prev => prev.filter(m => !ids.includes(m.id)));
+    console.log('[Trash] Permanently deleted:', ids);
+  }, []);
 
   const handleTogglePermanent = (id: string) => {
     setMemos(prev => prev.map(m =>
@@ -1041,6 +1117,17 @@ const HomePage: React.FC = () => {
           });
         }}
         onOpenAbout={() => goToAbout('archive')}
+        onOpenRecycleBin={() => setIsRecycleBinOpen(true)}
+        trashedCount={trashedMemos.length}
+      />
+
+      <RecycleBin
+        isOpen={isRecycleBinOpen}
+        onClose={() => setIsRecycleBinOpen(false)}
+        trashedMemos={trashedMemos}
+        onRecover={handleRecover}
+        onDeleteForever={handleDeleteForever}
+        contentFont={contentFont}
       />
 
       {/* Custom Glowing Cursor */}

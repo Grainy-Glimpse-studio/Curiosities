@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Memo } from '../types';
 import CassetteTape from './CassetteTape';
 import UploadTape from './UploadTape';
-import { Search, ChevronDown, ChevronUp, X, LayoutGrid, ZoomIn, ZoomOut, Settings2 } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, X, LayoutGrid, ZoomIn, ZoomOut, Settings2, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { zoom, zoomIdentity, ZoomBehavior, ZoomTransform } from 'd3-zoom';
 import { select } from 'd3-selection';
@@ -22,6 +22,8 @@ interface TapeDrawerProps {
   onContentFontChange: (font: string) => void;
   onOpenTranscript?: (memo: Memo) => void;
   onOpenAbout?: () => void;
+  onOpenRecycleBin?: () => void;
+  trashedCount?: number;
 }
 
 type SortMethod = 'date_desc' | 'date_asc';
@@ -39,6 +41,8 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
   onContentFontChange,
   onOpenTranscript,
   onOpenAbout,
+  onOpenRecycleBin,
+  trashedCount = 0,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -924,15 +928,18 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
           </div>
         </div>
 
-        {/* About link - bottom left */}
-        {onOpenAbout && (
+        {/* Recycle Bin - bottom left */}
+        {onOpenRecycleBin && (
           <button
-            onClick={onOpenAbout}
+            onClick={onOpenRecycleBin}
             className="absolute bottom-6 left-8 z-40 text-white/20 hover:text-white/50 transition-colors text-xs tracking-widest uppercase flex items-center gap-2 pointer-events-auto"
             style={{ fontFamily: "'Consulate', monospace" }}
           >
-            <span className="text-white/30">✦</span>
-            About this project
+            <Trash2 size={12} className="text-white/30" />
+            Recycle Bin
+            {trashedCount > 0 && (
+              <span className="text-white/40">({trashedCount})</span>
+            )}
           </button>
         )}
 
