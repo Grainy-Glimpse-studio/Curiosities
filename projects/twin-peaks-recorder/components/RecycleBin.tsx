@@ -164,7 +164,7 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
         >
           {/* Header - Draggable */}
           <div
-            className="flex items-center justify-between px-6 py-4 bg-transparent border-b border-white/20 cursor-move select-none shrink-0"
+            className="flex items-center justify-between px-6 py-4 bg-transparent cursor-move select-none shrink-0"
             onMouseDown={handleDragStart}
           >
             <div className="flex items-center gap-3">
@@ -203,11 +203,7 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
                     <div
                       key={memo.id}
                       onClick={() => toggleSelect(memo.id)}
-                      className={`px-6 py-4 cursor-pointer transition-colors ${
-                        isSelected
-                          ? 'bg-[#b69fbb]/15'
-                          : 'hover:bg-white/5'
-                      }`}
+                      className="px-6 py-4 cursor-pointer transition-colors hover:bg-white/5"
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <span
@@ -240,7 +236,7 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
 
           {/* Footer */}
           {trashedMemos.length > 0 && (
-            <div className="px-6 py-4 border-t border-white/20 flex justify-between items-center shrink-0">
+            <div className="px-6 py-4 flex justify-between items-center shrink-0">
               <button
                 onClick={selectAll}
                 className="text-white/40 hover:text-white/70 text-xs tracking-widest uppercase transition-colors"
@@ -268,7 +264,7 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
                   disabled={selectedIds.size === 0}
                   className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-colors border ${
                     selectedIds.size > 0
-                      ? 'bg-[#903e4f]/10 text-[#903e4f] border-[#903e4f]/30 hover:bg-[#903e4f]/20'
+                      ? 'bg-white/5 text-[#b69fbb] border-[#b69fbb]/30 hover:bg-white/15'
                       : 'bg-transparent text-white/20 border-white/10 cursor-not-allowed'
                   }`}
                   style={{ fontFamily: contentFont }}
