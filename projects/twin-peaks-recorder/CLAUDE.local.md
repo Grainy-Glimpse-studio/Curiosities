@@ -944,3 +944,25 @@ ElevenLabs 生成新声音音频（待定）
 ### 截图
 [attached]
 ```
+
+### ✅ 已完成（2026-03-08 晨）
+
+Bug Report 面板 UI 已实现：
+- **位置**：右上角 "Something's wrong" 按钮
+- **样式**：与 ApiSettings 相同的透明毛玻璃风格
+- **3步流程**：
+  1. 选择分类（6个按钮）+ 可选描述
+  2. 上传截图（拖拽/粘贴/点击）
+  3. 选择严重程度（3级）
+
+### ⏳ 待完成
+
+1. **EmailJS 模板**：需要在 EmailJS 创建 `template_bugreport` 模板
+   - 变量：category, description, severity, severity_desc, screenshot, browser, url, timestamp, screen_size
+
+2. **截图发送**：目前截图只能通过 mailto fallback 时无法发送
+   - 选项 A：用 Supabase Storage 存截图，邮件里放链接
+   - 选项 B：Base64 编码放邮件里（可能太大）
+   - 选项 C：用第三方服务如 Imgur 上传
+
+3. **Console 错误收集**：自动捕获 JS 错误日志
