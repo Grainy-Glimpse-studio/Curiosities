@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trash2, RotateCcw, CheckSquare, Square } from 'lucide-react';
+import { X, Trash2, RotateCcw } from 'lucide-react';
 import { Memo } from '../types';
 
 interface RecycleBinProps {
@@ -22,6 +22,41 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
   contentFont,
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [position, setPosition] = useState({ x: 100, y: 100 });
+  const size = { width: 420, height: 400 };
+  const dragStartPos = useRef({ x: 0, y: 0 });
+
+  // Center window on open
+  useEffect(() => {
+    if (isOpen && typeof window !== 'undefined') {
+      setPosition({
+        x: (window.innerWidth - size.width) / 2,
+        y: (window.innerHeight - size.height) / 2,
+      });
+      setSelectedIds(new Set());
+    }
+  }, [isOpen]);
+
+  // Drag handling
+  const handleDragStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    dragStartPos.current = { x: e.clientX - position.x, y: e.clientY - position.y };
+
+    const handleDrag = (e: MouseEvent) => {
+      setPosition({
+        x: Math.max(0, Math.min(window.innerWidth - size.width, e.clientX - dragStartPos.current.x)),
+        y: Math.max(0, Math.min(window.innerHeight - 50, e.clientY - dragStartPos.current.y)),
+      });
+    };
+
+    const handleDragEnd = () => {
+      window.removeEventListener('mousemove', handleDrag);
+      window.removeEventListener('mouseup', handleDragEnd);
+    };
+
+    window.addEventListener('mousemove', handleDrag);
+    window.addEventListener('mouseup', handleDragEnd);
+  };
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -64,92 +99,107 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
     return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  // Only render when open
+  if (!isOpen) return null;
+
   const content = (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-          onClick={onClose}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
+          transition={{ duration: 0.3 }}
+          className="fixed z-[200] flex flex-col backdrop-blur-2xl rounded-2xl shadow-2xl overflow-hidden border border-white/60"
+          style={{
+            left: position.x,
+            top: position.y,
+            width: size.width,
+            height: trashedMemos.length === 0 ? 200 : size.height,
+            backgroundColor: 'rgba(255, 255, 255, 0)',
+          }}
         >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
-            transition={{ duration: 0.3 }}
-            className="relative w-full max-w-lg max-h-[70vh] backdrop-blur-2xl rounded-2xl shadow-2xl overflow-hidden border border-white/20"
-            style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
-            onClick={(e) => e.stopPropagation()}
+          {/* Header - Draggable */}
+          <div
+            className="flex items-center justify-between px-6 py-4 bg-transparent border-b border-white/20 cursor-move select-none shrink-0"
+            onMouseDown={handleDragStart}
           >
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <Trash2 size={18} className="text-white/40" />
-                <span
-                  className="text-white/80 text-sm tracking-widest uppercase"
-                  style={{ fontFamily: contentFont }}
-                >
-                  Recycle Bin
-                </span>
-                {trashedMemos.length > 0 && (
-                  <span className="text-white/30 text-xs">
-                    ({trashedMemos.length})
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={onClose}
-                className="p-1 text-white/40 hover:text-white transition-colors"
+            <div className="flex items-center gap-3">
+              <Trash2 size={16} className="text-white/50" />
+              <span
+                className="text-[10px] text-white/60 font-bold tracking-widest uppercase"
               >
-                <X size={18} />
-              </button>
+                Recycle Bin
+              </span>
+              {trashedMemos.length > 0 && (
+                <span className="text-white/40 text-xs">
+                  ({trashedMemos.length})
+                </span>
+              )}
             </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onClose(); }}
+              className="p-1 text-white/40 hover:text-white transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </div>
 
-            {/* Content */}
-            <div className="overflow-y-auto max-h-[50vh] p-4">
-              {trashedMemos.length === 0 ? (
-                <div className="text-center py-12 text-white/30">
-                  <Trash2 size={32} className="mx-auto mb-3 opacity-50" />
-                  <p style={{ fontFamily: contentFont }}>Recycle bin is empty</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {trashedMemos.map(memo => (
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto">
+            {trashedMemos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-white/30 py-8">
+                <Trash2 size={28} className="mb-3 opacity-50" />
+                <p className="text-sm" style={{ fontFamily: contentFont }}>Empty</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-white/10">
+                {trashedMemos.map(memo => {
+                  const isSelected = selectedIds.has(memo.id);
+                  return (
                     <div
                       key={memo.id}
                       onClick={() => toggleSelect(memo.id)}
-                      className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                        selectedIds.has(memo.id)
-                          ? 'bg-white/15 border border-white/30'
-                          : 'bg-white/5 border border-transparent hover:bg-white/10'
+                      className={`px-6 py-4 cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-[#b69fbb]/10'
+                          : 'hover:bg-white/5'
                       }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 text-white/40">
-                          {selectedIds.has(memo.id) ? (
-                            <CheckSquare size={16} />
-                          ) : (
-                            <Square size={16} />
+                      <div className="flex items-start gap-4">
+                        {/* Checkbox area */}
+                        <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                          isSelected
+                            ? 'border-[#b69fbb] bg-[#b69fbb]'
+                            : 'border-white/30'
+                        }`}>
+                          {isSelected && (
+                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
                           )}
                         </div>
+
+                        {/* Content */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-white/60 text-xs" style={{ fontFamily: contentFont }}>
+                            <span
+                              className={`text-xs ${isSelected ? 'text-[#b69fbb]' : 'text-white/60'}`}
+                              style={{ fontFamily: contentFont }}
+                            >
                               {formatDate(memo.createdAt)}
                             </span>
                             {memo.tags.slice(0, 2).map(tag => (
                               <span
                                 key={tag}
-                                className="text-white/30 text-[10px] uppercase tracking-wider"
+                                className={`text-[10px] uppercase tracking-wider ${isSelected ? 'text-[#b69fbb]/60' : 'text-white/30'}`}
                               >
                                 #{tag}
                               </span>
                             ))}
                           </div>
                           <p
-                            className="text-white/50 text-sm line-clamp-2"
+                            className={`text-sm line-clamp-2 ${isSelected ? 'text-[#b69fbb]/80' : 'text-white/50'}`}
                             style={{ fontFamily: contentFont }}
                           >
                             {memo.transcription || '(No content)'}
@@ -157,60 +207,57 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            {trashedMemos.length > 0 && (
-              <div className="px-6 py-4 border-t border-white/10 flex justify-between items-center">
-                <button
-                  onClick={selectAll}
-                  className="text-white/40 hover:text-white/70 text-xs tracking-widest uppercase transition-colors"
-                  style={{ fontFamily: contentFont }}
-                >
-                  {selectedIds.size === trashedMemos.length ? 'Deselect All' : 'Select All'}
-                </button>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleRecover}
-                    disabled={selectedIds.size === 0}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-colors ${
-                      selectedIds.size > 0
-                        ? 'bg-white/10 text-white/80 hover:bg-white/20'
-                        : 'bg-white/5 text-white/20 cursor-not-allowed'
-                    }`}
-                    style={{ fontFamily: contentFont }}
-                  >
-                    <RotateCcw size={14} />
-                    Recover
-                  </button>
-                  <button
-                    onClick={handleDeleteForever}
-                    disabled={selectedIds.size === 0}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-colors ${
-                      selectedIds.size > 0
-                        ? 'bg-[#903e4f]/20 text-[#903e4f] hover:bg-[#903e4f]/30'
-                        : 'bg-white/5 text-white/20 cursor-not-allowed'
-                    }`}
-                    style={{ fontFamily: contentFont }}
-                  >
-                    <Trash2 size={14} />
-                    Delete Forever
-                  </button>
-                </div>
+                  );
+                })}
               </div>
             )}
-          </motion.div>
+          </div>
+
+          {/* Footer */}
+          {trashedMemos.length > 0 && (
+            <div className="px-6 py-4 border-t border-white/20 flex justify-between items-center shrink-0">
+              <button
+                onClick={selectAll}
+                className="text-white/40 hover:text-white/70 text-xs tracking-widest uppercase transition-colors"
+                style={{ fontFamily: contentFont }}
+              >
+                {selectedIds.size === trashedMemos.length ? 'Deselect All' : 'Select All'}
+              </button>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleRecover}
+                  disabled={selectedIds.size === 0}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-colors border ${
+                    selectedIds.size > 0
+                      ? 'bg-white/5 text-white/80 border-white/20 hover:bg-white/15'
+                      : 'bg-transparent text-white/20 border-white/10 cursor-not-allowed'
+                  }`}
+                  style={{ fontFamily: contentFont }}
+                >
+                  <RotateCcw size={14} />
+                  Recover
+                </button>
+                <button
+                  onClick={handleDeleteForever}
+                  disabled={selectedIds.size === 0}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-colors border ${
+                    selectedIds.size > 0
+                      ? 'bg-[#903e4f]/10 text-[#903e4f] border-[#903e4f]/30 hover:bg-[#903e4f]/20'
+                      : 'bg-transparent text-white/20 border-white/10 cursor-not-allowed'
+                  }`}
+                  style={{ fontFamily: contentFont }}
+                >
+                  <Trash2 size={14} />
+                  Delete Forever
+                </button>
+              </div>
+            </div>
+          )}
         </motion.div>
       )}
     </AnimatePresence>
   );
-
-  // Only render portal when open
-  if (!isOpen) return null;
 
   if (typeof document !== 'undefined') {
     return createPortal(content, document.body);
