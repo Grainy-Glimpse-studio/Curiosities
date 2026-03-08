@@ -224,6 +224,18 @@ const HomePage: React.FC = () => {
     setSyncedMemoIds(prev => new Set([...prev, memo.id]));
   }, [user]);
 
+  // --- Save transcript handler ---
+  const handleSaveTranscript = useCallback((memoId: string, newTranscription: string) => {
+    setMemos(prev => prev.map(m =>
+      m.id === memoId ? { ...m, transcription: newTranscription } : m
+    ));
+    // Also update the openTranscripts so the window reflects the saved content
+    setOpenTranscripts(prev => prev.map(m =>
+      m.id === memoId ? { ...m, transcription: newTranscription } : m
+    ));
+    console.log('[Save] Transcript saved for memo:', memoId);
+  }, []);
+
   // --- Refs ---
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -733,6 +745,7 @@ const HomePage: React.FC = () => {
           isOpen={true}
           onClose={() => setOpenTranscripts(prev => prev.filter(m => m.id !== memo.id))}
           onPlay={playMemo}
+          onSave={handleSaveTranscript}
           titleFont={titleFont}
           contentFont={contentFont}
           initialOffset={index * 30}

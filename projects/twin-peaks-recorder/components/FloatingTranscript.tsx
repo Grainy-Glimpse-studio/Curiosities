@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import emailjs from '@emailjs/browser';
-import { X, Minus, Maximize2, Minimize2, Play, Pause, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2 } from 'lucide-react';
+import { X, Minus, Maximize2, Minimize2, Play, Pause, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2, Save } from 'lucide-react';
 import { Memo } from '../types';
 import MarkdownEditor, { MarkdownEditorRef } from './MarkdownEditor';
 
@@ -11,6 +11,7 @@ interface FloatingTranscriptProps {
   isOpen: boolean;
   onClose: () => void;
   onPlay: (memo: Memo) => void;
+  onSave?: (memoId: string, newTranscription: string) => void; // 保存编辑
   titleFont: string;
   contentFont: string;
   initialOffset?: number; // 多窗口时的偏移量
@@ -60,6 +61,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   isOpen,
   onClose,
   onPlay,
+  onSave,
   titleFont,
   contentFont,
   initialOffset = 0,
@@ -78,6 +80,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showJoinMenu, setShowJoinMenu] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [customTitle, setCustomTitle] = useState('Transcript');
   const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [showProjectInfo, setShowProjectInfo] = useState(false); // 显示项目介绍
@@ -773,6 +776,7 @@ Sent from Diane`
                         content={memo.transcription}
                         fontFamily={contentFont}
                         highlightedWords={memo.highlightedWords}
+                        onChange={() => setHasUnsavedChanges(true)}
                       />
                     )}
                   </motion.div>
@@ -780,20 +784,45 @@ Sent from Diane`
 
                 {/* 底部控制栏 */}
                 <div className="px-6 pt-4 pb-4 bg-transparent flex justify-between items-center shrink-0">
-                  <button
-                    onClick={playInModal}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/10 hover:border-white/20 transition-colors"
-                    style={{ fontFamily: contentFont }}
-                  >
-                    {isPlayingInModal ? (
-                      <Pause size={14} />
-                    ) : (
-                      <Play size={14} />
-                    )}
-                    <span className="text-sm">
-                      {isPlayingInModal ? 'Pause' : 'Play'}
-                    </span>
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={playInModal}
+                      className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/10 hover:border-white/20 transition-colors"
+                      style={{ fontFamily: contentFont }}
+                    >
+                      {isPlayingInModal ? (
+                        <Pause size={14} />
+                      ) : (
+                        <Play size={14} />
+                      )}
+                      <span className="text-sm">
+                        {isPlayingInModal ? 'Pause' : 'Play'}
+                      </span>
+                    </button>
+
+                    {/* Save 按钮 */}
+                    <button
+                      onClick={() => {
+                        if (!memo || !onSave || !editorRef.current?.editor) return;
+                        // 从编辑器获取纯文本内容
+                        const editor = editorRef.current.editor;
+                        const text = editor.getText();
+                        onSave(memo.id, text);
+                        setHasUnsavedChanges(false);
+                      }}
+                      disabled={!hasUnsavedChanges}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-colors ${
+                        hasUnsavedChanges
+                          ? 'bg-white/10 text-white border-white/30 hover:bg-white/20'
+                          : 'bg-white/5 text-white/30 border-white/10 cursor-default'
+                      }`}
+                      style={{ fontFamily: contentFont }}
+                      title={hasUnsavedChanges ? 'Save changes' : 'No changes to save'}
+                    >
+                      <Save size={14} />
+                      <span className="text-sm">Save</span>
+                    </button>
+                  </div>
 
                   <div className="flex items-center gap-3">
                     {/* Cloud Sync 按钮 - 只对登录用户显示 */}
