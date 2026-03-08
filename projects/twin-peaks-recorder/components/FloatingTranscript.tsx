@@ -77,16 +77,14 @@ const generateSRT = (wordTimestamps: Array<{ word: string; start: number; end: n
   }).join('\n');
 };
 
-// 从文本生成默认标题（取前几个词）
-const generateDefaultTitle = (text: string): string => {
-  if (!text) return 'Untitled';
-  // 去掉分隔符和多余空白
-  const cleaned = text.replace(/———/g, '').trim();
-  // 取前30个字符或到第一个换行
-  const firstLine = cleaned.split('\n')[0];
-  if (firstLine.length <= 30) return firstLine;
-  // 截取并加省略号
-  return firstLine.substring(0, 30).trim() + '...';
+// 从时间戳生成默认标题（日期时间格式）
+const generateDefaultTitle = (createdAt: number): string => {
+  const date = new Date(createdAt);
+  const month = date.toLocaleString('en', { month: 'short' });
+  const day = date.getDate();
+  const year = date.getFullYear();
+  const time = date.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${month} ${day}, ${year} ${time}`;
 };
 
 // 目录项结构
@@ -432,9 +430,9 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       });
       // 重置状态
       setShowExportMenu(false);
-      // 设置标题（使用 memo.title 或自动生成）
+      // 设置标题（使用 memo.title 或自动生成日期标题）
       if (memo) {
-        setEditableTitle(memo.title || generateDefaultTitle(memo.transcription));
+        setEditableTitle(memo.title || generateDefaultTitle(memo.createdAt));
       }
     }
   }, [isOpen, initialOffset, memo]);
@@ -1545,8 +1543,8 @@ Sent from Diane`
                 </div>
                 )}
 
-                {/* 播放进度条 - 可点击拖动 */}
-                {memo && (memo.audioUrls?.length || memo.audioUrl) && (
+                {/* 播放进度条 - 只在播放时显示 */}
+                {memo && (memo.audioUrls?.length || memo.audioUrl) && isPlayingInModal && (
                   <div className="px-6 py-2 shrink-0">
                     <div
                       ref={progressBarRef}
