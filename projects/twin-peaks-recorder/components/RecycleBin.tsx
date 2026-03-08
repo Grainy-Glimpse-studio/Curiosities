@@ -237,13 +237,28 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
           {/* Footer */}
           {trashedMemos.length > 0 && (
             <div className="px-6 py-4 flex justify-between items-center shrink-0">
-              <button
-                onClick={selectAll}
-                className="text-white/40 hover:text-white/70 text-xs tracking-widest uppercase transition-colors"
-                style={{ fontFamily: contentFont }}
-              >
-                {selectedIds.size === trashedMemos.length ? 'Deselect All' : 'Select All'}
-              </button>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={selectAll}
+                  className="text-white/40 hover:text-white/70 text-xs tracking-widest uppercase transition-colors"
+                  style={{ fontFamily: contentFont }}
+                >
+                  {selectedIds.size === trashedMemos.length ? 'Deselect All' : 'Select All'}
+                </button>
+                <button
+                  onClick={() => {
+                    const confirmed = window.confirm(`Empty recycle bin? This will permanently delete all ${trashedMemos.length} item(s).`);
+                    if (confirmed) {
+                      onDeleteForever(trashedMemos.map(m => m.id));
+                      setSelectedIds(new Set());
+                    }
+                  }}
+                  className="text-white/30 hover:text-[#b69fbb] text-xs tracking-widest uppercase transition-colors"
+                  style={{ fontFamily: contentFont }}
+                >
+                  Empty All
+                </button>
+              </div>
 
               <div className="flex items-center gap-3">
                 <button
