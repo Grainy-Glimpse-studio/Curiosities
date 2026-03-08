@@ -736,7 +736,7 @@ const HomePage: React.FC = () => {
         const result = await hdService.start(stream);
         if (!result.success) {
           if (result.quotaExceeded) {
-            alert(`HD quota exceeded for ${result.service}. Your weekly free HD minutes have been used. Please add your own API keys in Settings, or try again next week.`);
+            alert(`Your weekly free HD minutes have been used up.\n\nClick "Through the curtain" (top left, purple text) to login and add your own API keys for unlimited access.`);
           } else {
             const errorMsg = (result as any).error || 'Unknown error';
             alert(`Failed to start ${result.service}: ${errorMsg}`);
@@ -1048,13 +1048,13 @@ const HomePage: React.FC = () => {
       {/* Top Left Controls */}
       {!isDrawerOpen && (
         <div className="fixed top-6 left-6 z-50 flex items-center gap-6">
-          {/* Login + Mode indicator - always visible when not in drawer */}
+          {/* Through the curtain (Login) + Mode indicator */}
           <span
             onClick={() => setShowApiSettings(true)}
             className="cursor-pointer font-recorder text-[11px] tracking-[0.3em] uppercase transition-all duration-300 hover:opacity-80"
             style={{ color: '#b69fbb' }}
           >
-            Login · {speechMode === 'hd' ? 'HD' : 'STD'}
+            Through the curtain · {speechMode === 'hd' ? 'HD' : 'STD'}
           </span>
 
           {/* Recording controls - only when recording */}
@@ -1127,6 +1127,24 @@ const HomePage: React.FC = () => {
               </span>
             </>
           )}
+        </div>
+      )}
+
+      {/* Top Right - Report Bug */}
+      {!isDrawerOpen && (
+        <div className="fixed top-6 right-6 z-50">
+          <span
+            onClick={() => {
+              // TODO: 后续改成引导式报告流程
+              const subject = encodeURIComponent('[Bug Report] Diane');
+              const body = encodeURIComponent(`What happened?\n\n\nWhat did you expect?\n\n\nSteps to reproduce:\n1. \n2. \n3. \n\nBrowser: ${navigator.userAgent}\nURL: ${window.location.href}`);
+              window.open(`mailto:diane@twinpeaks.fm?subject=${subject}&body=${body}`, '_blank');
+            }}
+            className="cursor-pointer font-recorder text-[11px] tracking-[0.3em] uppercase transition-all duration-300 hover:opacity-80"
+            style={{ color: '#b69fbb' }}
+          >
+            Something's wrong
+          </span>
         </div>
       )}
 
