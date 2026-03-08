@@ -63,6 +63,20 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
   // Preset card sizes
   const cardPresets = { small: 350, medium: 400, large: 474 };
   const currentPreset = cardWidth === 350 ? 'small' : cardWidth === 400 ? 'medium' : cardWidth === 474 ? 'large' : null;
+
+  // Viewport width for responsive grid
+  const [viewportWidth, setViewportWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  // Track viewport resize
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Calculate grid container width (viewport - ARCHIVE area - padding)
+  const gridContainerWidth = viewportWidth - 120 - 64; // 120px for ARCHIVE, 64px for padding
+
   // Easter egg: ARCHIVE <-> EPHEMERA transition
   const [bgWord, setBgWord] = useState<'ARCHIVE' | 'EPHEMERA'>('ARCHIVE');
   const [hoveredLetters, setHoveredLetters] = useState<Set<number>>(new Set());
@@ -832,7 +846,10 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
               height: '3000px',
             }}
           >
-           <div className="flex flex-wrap gap-8 pb-32">
+           <div
+             className="flex flex-wrap gap-8 pb-32"
+             style={{ width: gridContainerWidth }}
+           >
              {/* Upload Tape - always first, also draggable */}
              <motion.div
                key="upload-tape"
