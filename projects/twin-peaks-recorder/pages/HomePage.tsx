@@ -526,7 +526,12 @@ const HomePage: React.FC = () => {
         const currentResumingId = resumingMemoIdRef.current;
         const currentResumingMemo = resumingMemoRef.current;
 
+        console.log('[Resume Debug] currentResumingId:', currentResumingId);
+        console.log('[Resume Debug] newText:', newText);
+        console.log('[Resume Debug] result:', result);
+
         if (currentResumingId && currentResumingMemo) {
+          console.log('[Resume Debug] Appending to existing memo');
           // 偏移新的时间戳（加上之前所有段的总时长）
           const offsetTimestamps = newTimestamps?.map(ts => ({
             ...ts,

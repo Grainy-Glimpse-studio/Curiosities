@@ -284,6 +284,9 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   // 多段音频播放状态
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const segmentStartTimesRef = useRef<number[]>([]); // 每段的起始时间
+  const totalDurationRef = useRef<number>(0); // 总时长
+  const progressBarRef = useRef<HTMLDivElement>(null); // 进度条 ref
+  const isDraggingRef = useRef(false); // 是否正在拖动进度条
 
   // AI 侧边栏状态
   const [showAISidebar, setShowAISidebar] = useState(false);
@@ -319,6 +322,21 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     }
   }, [isOpen, initialOffset]);
 
+  // 初始化音频时长信息
+  useEffect(() => {
+    if (memo) {
+      const durations = memo.segmentDurations || [memo.duration];
+      const startTimes: number[] = [];
+      let cumulative = 0;
+      for (const d of durations) {
+        startTimes.push(cumulative);
+        cumulative += d;
+      }
+      segmentStartTimesRef.current = startTimes;
+      totalDurationRef.current = cumulative;
+    }
+  }, [memo]);
+
   // 播放控制 - 支持多段音频
   const playInModal = () => {
     if (!memo) return;
@@ -335,7 +353,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       cumulative += d;
     }
     segmentStartTimesRef.current = startTimes;
-    const totalDuration = cumulative;
+    totalDurationRef.current = cumulative;
 
     // 如果正在播放，暂停
     if (isPlayingInModal) {
@@ -345,7 +363,19 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     }
 
     // 开始播放
-    const playSegment = (index: number) => {
+    playFromSegment(0, 0, urls, durations, startTimes, cumulative);
+  };
+
+  // 从指定段和位置开始播放
+  const playFromSegment = (
+    segmentIndex: number,
+    startOffset: number,
+    urls: string[],
+    durations: number[],
+    startTimes: number[],
+    totalDuration: number
+  ) => {
+    const playSegment = (index: number, offset: number = 0) => {
       if (index >= urls.length) {
         // 所有段播放完毕
         setIsPlayingInModal(false);
@@ -359,8 +389,14 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       const audio = new Audio(urls[index]);
       modalAudioRef.current = audio;
 
+      audio.addEventListener('loadedmetadata', () => {
+        if (offset > 0) {
+          audio.currentTime = offset;
+        }
+      });
+
       audio.addEventListener('timeupdate', () => {
-        if (audio && audio.duration) {
+        if (audio && !isDraggingRef.current) {
           // 计算全局播放时间和进度
           const globalTime = startTimes[index] + audio.currentTime;
           setCurrentPlaybackTime(globalTime);
@@ -370,7 +406,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
 
       audio.addEventListener('ended', () => {
         // 播放下一段
-        playSegment(index + 1);
+        playSegment(index + 1, 0);
       });
 
       audio.addEventListener('error', () => {
@@ -384,8 +420,73 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     };
 
     setIsPlayingInModal(true);
-    setCurrentSegmentIndex(0);
-    playSegment(0);
+    playSegment(segmentIndex, startOffset);
+  };
+
+  // 跳转到指定时间（秒）
+  const seekToTime = (targetTime: number) => {
+    if (!memo) return;
+
+    const urls = memo.audioUrls || (memo.audioUrl ? [memo.audioUrl] : []);
+    const durations = memo.segmentDurations || [memo.duration];
+    if (urls.length === 0) return;
+
+    const startTimes = segmentStartTimesRef.current;
+    const totalDuration = totalDurationRef.current;
+
+    // 限制在有效范围内
+    targetTime = Math.max(0, Math.min(targetTime, totalDuration));
+
+    // 找到目标时间所在的段
+    let targetSegment = 0;
+    let offsetInSegment = targetTime;
+    for (let i = 0; i < startTimes.length; i++) {
+      if (i === startTimes.length - 1 || targetTime < startTimes[i + 1]) {
+        targetSegment = i;
+        offsetInSegment = targetTime - startTimes[i];
+        break;
+      }
+    }
+
+    // 更新进度显示
+    setCurrentPlaybackTime(targetTime);
+    setPlaybackProgress(targetTime / totalDuration);
+
+    // 如果正在播放，跳转到新位置
+    if (isPlayingInModal) {
+      modalAudioRef.current?.pause();
+      playFromSegment(targetSegment, offsetInSegment, urls, durations, startTimes, totalDuration);
+    }
+  };
+
+  // 进度条点击/拖动处理
+  const handleProgressBarInteraction = (e: React.MouseEvent | MouseEvent) => {
+    if (!progressBarRef.current || !memo) return;
+
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const progress = x / rect.width;
+    const targetTime = progress * totalDurationRef.current;
+
+    seekToTime(targetTime);
+  };
+
+  const handleProgressBarMouseDown = (e: React.MouseEvent) => {
+    isDraggingRef.current = true;
+    handleProgressBarInteraction(e);
+
+    const handleMouseMove = (e: MouseEvent) => {
+      handleProgressBarInteraction(e);
+    };
+
+    const handleMouseUp = () => {
+      isDraggingRef.current = false;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
   };
 
   const stopModalPlayback = () => {
@@ -491,6 +592,11 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
 
   const formatDate = (ts: number) => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   const formatTime = (ts: number) => new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // AI 功能选择切换
   const toggleAIFeature = (feature: string) => {
@@ -971,25 +1077,45 @@ Sent from Diane`
                 </div>
                 )}
 
-                {/* 播放进度条 */}
-                {isPlayingInModal && (
+                {/* 播放进度条 - 可点击拖动 */}
+                {memo && (memo.audioUrls?.length || memo.audioUrl) && (
                   <div className="px-6 py-2 shrink-0">
-                    <div className="relative h-1 bg-white/20 rounded-full overflow-hidden">
+                    <div
+                      ref={progressBarRef}
+                      className="relative h-2 bg-white/20 rounded-full overflow-visible cursor-pointer group"
+                      onMouseDown={handleProgressBarMouseDown}
+                    >
+                      {/* 进度填充 */}
                       <motion.div
-                        className="absolute left-0 top-0 h-full bg-white/80 rounded-full"
+                        className="absolute left-0 top-0 h-full bg-white/60 rounded-full"
                         style={{ width: `${playbackProgress * 100}%` }}
                         initial={{ width: 0 }}
                         animate={{ width: `${playbackProgress * 100}%` }}
                         transition={{ duration: 0.1, ease: 'linear' }}
                       />
+                      {/* 播放位置指示器（小圆点） */}
                       <div
-                        className="absolute top-0 h-full bg-gradient-to-r from-transparent via-white/50 to-transparent"
+                        className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
                         style={{
-                          left: `${Math.max(0, playbackProgress * 100 - 5)}%`,
-                          width: '10%',
-                          filter: 'blur(2px)',
+                          left: `calc(${playbackProgress * 100}% - 6px)`,
                         }}
                       />
+                      {/* 发光效果 */}
+                      {isPlayingInModal && (
+                        <div
+                          className="absolute top-0 h-full bg-gradient-to-r from-transparent via-white/50 to-transparent"
+                          style={{
+                            left: `${Math.max(0, playbackProgress * 100 - 5)}%`,
+                            width: '10%',
+                            filter: 'blur(2px)',
+                          }}
+                        />
+                      )}
+                    </div>
+                    {/* 时间显示 */}
+                    <div className="flex justify-between mt-1 text-[10px] text-white/40">
+                      <span>{formatDuration(currentPlaybackTime)}</span>
+                      <span>{formatDuration(memo.duration)}</span>
                     </div>
                   </div>
                 )}
