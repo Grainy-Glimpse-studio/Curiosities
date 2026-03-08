@@ -1268,7 +1268,7 @@ Sent from Diane`
 
             {/* 标题栏 - 可拖拽 */}
             <div
-              className="flex items-center justify-between px-6 py-4 bg-transparent border-b border-white/20 cursor-move select-none shrink-0"
+              className="flex items-center justify-between px-6 py-4 bg-transparent border-b border-white/20 cursor-move shrink-0"
               onMouseDown={handleDragStart}
             >
               <div className="flex flex-col">
@@ -1277,8 +1277,9 @@ Sent from Diane`
                   ref={titleRef}
                   contentEditable
                   suppressContentEditableWarning
+                  onMouseDown={(e) => e.stopPropagation()}
                   onBlur={(e) => {
-                    const newTitle = e.currentTarget.textContent || generateDefaultTitle(memo.transcription);
+                    const newTitle = e.currentTarget.textContent || generateDefaultTitle(memo.createdAt);
                     setEditableTitle(newTitle);
                     if (onTitleChange && memo.id !== 'twin-peaks-pilot') {
                       onTitleChange(memo.id, newTitle);
@@ -1291,14 +1292,10 @@ Sent from Diane`
                       (e.target as HTMLElement).blur();
                     }
                   }}
-                  className="text-white text-lg outline-none cursor-text hover:bg-white/10 focus:bg-white/10 rounded px-1 -mx-1 transition-colors"
+                  className="text-white text-lg outline-none cursor-text hover:bg-white/10 focus:bg-white/10 rounded px-1 -mx-1 transition-colors select-text"
                   style={{ fontFamily: titleFont }}
                 >
                   {editableTitle}
-                </span>
-                {/* 日期时间 */}
-                <span className="text-[10px] text-white/50 tracking-wider mt-0.5">
-                  {formatDate(memo.createdAt)} · {formatTime(memo.createdAt)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
