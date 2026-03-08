@@ -401,8 +401,10 @@ const HomePage: React.FC = () => {
 
     // 关闭浮动窗口
     setOpenTranscripts(prev => prev.filter(m => m.id !== memo.id));
-    // 开始录音
-    startRecording();
+    // 开始录音 - 使用 ref 获取最新版本的 startRecording
+    if (startRecordingRef.current) {
+      startRecordingRef.current();
+    }
   }, []);
 
   // --- Refs ---
@@ -414,6 +416,7 @@ const HomePage: React.FC = () => {
   const transcriberRef = useRef<SpeechTranscriber | DeepgramTranscriber | ReturnType<typeof getHDService> | null>(null);
   const pinnedWordsRef = useRef<string[]>([]);
   const recorderContainerRef = useRef<HTMLDivElement | null>(null);
+  const startRecordingRef = useRef<(() => void) | null>(null);
   const [recorderBounds, setRecorderBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   // --- Custom Cursor Effect ---
@@ -760,6 +763,11 @@ const HomePage: React.FC = () => {
       alert("Microphone access denied or not supported. Check settings.");
     }
   };
+
+  // Keep startRecordingRef updated so handleResume can access the latest version
+  useEffect(() => {
+    startRecordingRef.current = startRecording;
+  });
 
   const pauseRecording = () => {
     // 暂停 = 停止并保存为卡带（之后可以通过 Resume 继续录音）
