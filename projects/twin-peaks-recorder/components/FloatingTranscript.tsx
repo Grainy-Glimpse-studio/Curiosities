@@ -521,50 +521,50 @@ Sent from Diane`
             {/* 内容区域 - 可最小化隐藏 */}
             {!isMinimized && (
               <>
-                {/* Tags */}
-                <div className="px-6 py-3 border-b border-white/20 flex flex-wrap gap-2 shrink-0">
-                  {memo.tags.map((tag: string) => (
-                    <span key={tag} className="px-3 py-1 bg-white/10 text-white/80 text-xs uppercase font-bold tracking-wider border border-white/20 rounded-full">
-                      #{tag}
-                    </span>
-                  ))}
+                {/* Tags + 播放控制 */}
+                <div className="px-6 py-3 border-b border-white/20 flex items-center justify-between shrink-0">
+                  {/* 左侧：标签 */}
+                  <div className="flex flex-wrap gap-2">
+                    {memo.tags.map((tag: string) => (
+                      <span key={tag} className="px-3 py-1 bg-white/10 text-white/80 text-xs uppercase font-bold tracking-wider border border-white/20 rounded-full">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                  {/* 右侧：播放控制 */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={playInModal}
+                      className={`p-2 rounded hover:bg-white/20 transition-colors ${isPlayingInModal ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
+                      title={isPlayingInModal ? 'Pause' : 'Play'}
+                    >
+                      {isPlayingInModal ? <Pause size={16} /> : <Play size={16} />}
+                    </button>
+                    <button
+                      onClick={stopModalPlayback}
+                      disabled={!isPlayingInModal && playbackProgress === 0}
+                      className={`p-2 rounded hover:bg-white/20 transition-colors ${
+                        isPlayingInModal || playbackProgress > 0 ? 'text-white/70 hover:text-white' : 'text-white/30'
+                      }`}
+                      title="Stop"
+                    >
+                      <Square size={14} fill="currentColor" />
+                    </button>
+                    <button
+                      onClick={() => setFlowEnabled(!flowEnabled)}
+                      className={`px-2 py-1 rounded text-xs transition-colors ${
+                        flowEnabled ? 'text-white bg-white/20' : 'text-white/50 hover:text-white/70'
+                      }`}
+                      title="Toggle text flow effect during playback"
+                    >
+                      Flow
+                    </button>
+                  </div>
                 </div>
 
-                {/* 工具栏 */}
+                {/* 工具栏 - 格式化按钮 */}
+                {!isPlayingInModal && editorRef.current?.editor && (
                 <div className="px-6 py-2 border-b border-white/20 flex flex-wrap items-center gap-1 shrink-0">
-                  {/* 播放控制 */}
-                  <button
-                    onClick={playInModal}
-                    className={`p-2 rounded hover:bg-white/20 transition-colors ${isPlayingInModal ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
-                    title={isPlayingInModal ? 'Pause' : 'Play'}
-                  >
-                    {isPlayingInModal ? <Pause size={16} /> : <Play size={16} />}
-                  </button>
-                  <button
-                    onClick={stopModalPlayback}
-                    disabled={!isPlayingInModal && playbackProgress === 0}
-                    className={`p-2 rounded hover:bg-white/20 transition-colors ${
-                      isPlayingInModal || playbackProgress > 0 ? 'text-white/70 hover:text-white' : 'text-white/30'
-                    }`}
-                    title="Stop"
-                  >
-                    <Square size={14} fill="currentColor" />
-                  </button>
-                  <button
-                    onClick={() => setFlowEnabled(!flowEnabled)}
-                    className={`px-2 py-1 rounded text-xs transition-colors ${
-                      flowEnabled ? 'text-white bg-white/20' : 'text-white/50 hover:text-white/70'
-                    }`}
-                    title="Toggle text flow effect during playback"
-                  >
-                    Flow
-                  </button>
-
-                  <div className="w-px h-5 bg-white/20 mx-1" />
-
-                  {/* 格式化按钮 - 只在非播放时显示 */}
-                  {!isPlayingInModal && editorRef.current?.editor && (
-                    <>
                     <button
                       onClick={() => editorRef.current?.editor?.chain().focus().toggleBold().run()}
                       className={`p-2 rounded hover:bg-white/20 transition-colors ${editorRef.current?.editor?.isActive('bold') ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
@@ -714,9 +714,8 @@ Sent from Diane`
                     >
                       AI
                     </button>
-                    </>
-                  )}
                 </div>
+                )}
 
                 {/* 播放进度条 */}
                 {isPlayingInModal && (
