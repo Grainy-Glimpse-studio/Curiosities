@@ -663,10 +663,11 @@ ElevenLabs 生成新声音音频（待定）
 
 ### 实现优先级
 
-1. **高**：SRT 导出（已有时间戳，转格式即可）
-2. **高**：BWF 导出（需要研究 BWF 文件格式）
-3. **中**：打板键（音频生成 + 混音）
-4. **低**：ElevenLabs 接入（待定）
+1. **高**：SRT 导出 ✅ 已完成 (2026-03-08)
+2. **高**：BWF 导出 ✅ 已完成 (2026-03-08) - TimeReference 写入 bext chunk
+3. **高**：WAV 导出 ✅ 已完成 (2026-03-08) - WebM 转 WAV
+4. **中**：打板键（音频生成 + 混音）
+5. **低**：ElevenLabs 接入（待定）
 
 ---
 
@@ -684,14 +685,16 @@ ElevenLabs 生成新声音音频（待定）
 - **需求**：便宜/免费、支持中英文、响应快
 
 #### 2. 编写 AI Prompts
-- **状态**：待编写
-- **需要的 prompts**：
-  - Cleanup 基础版：去口癖词、去重复
+- **状态**：部分完成（本地功能已实现，AI 功能待 API 选择）
+- **已完成（本地处理，不需要 AI）**：
+  - ✅ Cleanup 基础版：去口癖词、去重复（正则匹配）
+    - 中文：嗯、呃、啊、那个、就是说、然后呢、对吧、你知道吗...
+    - 英文：um, uh, like, you know, i mean, basically, actually...
+  - ✅ 划线→小标题：下划线文字转 H2 标题
+- **待 AI API 选择后实现**：
   - Summary 摘要：概括内容
-  - 划线→小标题：转换格式
   - 定制 Cleanup：用户自定义模板
   - 重新转录：用更好的模型重转
-- **难点**：不确定怎么写好的 prompt
 
 ### 🎨 UI/UX 改进
 
@@ -732,19 +735,21 @@ ElevenLabs 生成新声音音频（待定）
 ### ✏️ 文档编辑功能
 
 #### 6. 左侧目录栏 (Table of Contents)
-- **状态**：待实现
-- **位置**：浮动窗口左侧
+- **状态**：✅ 已完成 (2026-03-08)
+- **位置**：浮动窗口左侧（点击工具栏 TOC 按钮展开）
 - **功能**：
-  - 可折叠的侧边栏
-  - 显示文档结构（类似 Markdown 笔记软件）
-  - `#` 大标题 → 一级目录
-  - `##` 小标题 → 二级目录
+  - 可折叠的侧边栏（180px 宽）
+  - 显示文档结构（H1、H2 标题）
   - 点击跳转到对应位置
+  - 从 TipTap editor JSON 提取标题
 
 #### 7. 标题可编辑
-- **状态**：待修复（一直没改）
-- **问题**：文档标题不能修改，很不方便
-- **目标**：点击标题可以直接编辑
+- **状态**：✅ 已完成 (2026-03-08)
+- **实现**：
+  - 浮动窗口标题使用 contentEditable
+  - 点击编辑，失焦保存
+  - 自动从 transcription 前 30 字符生成默认标题
+  - 保存到 memo.title 字段
 
 ### 📄 富媒体内容支持
 
@@ -834,3 +839,42 @@ ElevenLabs 生成新声音音频（待定）
   - Jam Sync 原理
   - 不同相机的时码支持情况
   - LTC/SMPTE 时码格式
+
+---
+
+## 2026-03-08 夜间实现总结
+
+### ✅ 今晚完成的功能
+
+| 功能 | 文件 | 说明 |
+|------|------|------|
+| **SRT 字幕导出** | FloatingTranscript.tsx | 从 word timestamps 生成标准 SRT 格式 |
+| **WAV 导出** | utils/audioExport.ts | WebM 转 WAV（Web Audio API 解码） |
+| **BWF 导出** | utils/audioExport.ts | 带 bext chunk 的 WAV，写入 TimeReference |
+| **标题可编辑** | FloatingTranscript.tsx | contentEditable，自动生成默认标题 |
+| **左侧 TOC** | FloatingTranscript.tsx | 从 TipTap JSON 提取 H1/H2 标题 |
+| **划线→标题** | FloatingTranscript.tsx | AI 侧边栏功能，本地处理无需 API |
+| **Cleanup** | FloatingTranscript.tsx | 本地去口癖词（中英文），无需 AI |
+| **导出加载状态** | FloatingTranscript.tsx | WAV/BWF 转换时显示 spinner |
+
+### 📁 新增文件
+
+- `utils/audioExport.ts` - 音频导出工具（WAV/BWF 转换）
+
+### 🔧 修改文件
+
+- `types.ts` - 添加 `title?: string` 字段
+- `pages/HomePage.tsx` - Resume 调试日志、标题变更回调
+- `components/FloatingTranscript.tsx` - 所有新功能实现
+- `services/speechService.ts` - TranscriptionResult 添加 wordTimestamps 类型
+
+### ⏳ 待用户测试
+
+- **Resume 功能 bug**：追加录音后 transcription 没保存
+  - 已添加详细 Console 日志
+  - 用户需打开 DevTools Console 测试并查看 `[Resume]` 开头的日志
+
+### 🚀 部署
+
+- 所有更改已推送到 `origin/main`
+- Vercel 会自动部署
