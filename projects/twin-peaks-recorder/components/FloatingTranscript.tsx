@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import emailjs from '@emailjs/browser';
-import { X, Minus, Maximize2, Minimize2, Play, Pause, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload } from 'lucide-react';
+import { X, Minus, Maximize2, Minimize2, Play, Pause, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2 } from 'lucide-react';
 import { Memo } from '../types';
 import MarkdownEditor, { MarkdownEditorRef } from './MarkdownEditor';
 
@@ -16,6 +16,10 @@ interface FloatingTranscriptProps {
   initialOffset?: number; // 多窗口时的偏移量
   onOpenAbout?: () => void; // 打开 About 页面
   creatorEmail?: string; // 创作者邮箱
+  // Cloud sync props
+  onSyncToCloud?: (memo: Memo) => Promise<void>;
+  isSynced?: boolean;
+  isLoggedIn?: boolean;
 }
 
 // 卡拉OK式高亮文本组件
@@ -61,6 +65,9 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   initialOffset = 0,
   onOpenAbout,
   creatorEmail = 'diane@twinpeaks.fm', // 默认邮箱，之后可以改
+  onSyncToCloud,
+  isSynced = false,
+  isLoggedIn = false,
 }) => {
   const [position, setPosition] = useState({ x: 100, y: 100 });
   const [size, setSize] = useState({ width: 600, height: 500 });
@@ -74,6 +81,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const [customTitle, setCustomTitle] = useState('Transcript');
   const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [showProjectInfo, setShowProjectInfo] = useState(false); // 显示项目介绍
+  const [isSyncing, setIsSyncing] = useState(false); // 云同步中
 
   // AI 侧边栏状态
   const [showAISidebar, setShowAISidebar] = useState(false);
@@ -757,6 +765,44 @@ Sent from Diane`
                   </button>
 
                   <div className="flex items-center gap-3">
+                    {/* Cloud Sync 按钮 - 只对登录用户显示 */}
+                    {isLoggedIn && memo.id !== 'twin-peaks-pilot' && (
+                      <button
+                        onClick={async () => {
+                          if (!onSyncToCloud || isSyncing || isSynced) return;
+                          setIsSyncing(true);
+                          try {
+                            await onSyncToCloud(memo);
+                          } catch (error) {
+                            console.error('Failed to sync to cloud:', error);
+                          } finally {
+                            setIsSyncing(false);
+                          }
+                        }}
+                        disabled={isSyncing || isSynced}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-colors ${
+                          isSynced
+                            ? 'bg-[#b69fbb]/20 text-[#b69fbb] border-[#b69fbb]/30'
+                            : isSyncing
+                            ? 'bg-white/10 text-white/60 border-white/20'
+                            : 'bg-white/5 hover:bg-white/15 text-white/60 hover:text-[#b69fbb] border-white/10 hover:border-[#b69fbb]/30'
+                        }`}
+                        style={{ fontFamily: contentFont }}
+                        title={isSynced ? 'Synced to Cloud' : 'Sync to Cloud'}
+                      >
+                        {isSyncing ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : isSynced ? (
+                          <Cloud size={14} />
+                        ) : (
+                          <CloudOff size={14} />
+                        )}
+                        <span className="text-sm">
+                          {isSyncing ? 'Syncing...' : isSynced ? 'Synced' : 'Sync'}
+                        </span>
+                      </button>
+                    )}
+
                     {/* Join Project 按钮 */}
                     <div className="relative">
                       <button

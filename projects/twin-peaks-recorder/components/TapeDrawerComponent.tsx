@@ -22,10 +22,6 @@ interface TapeDrawerProps {
   onContentFontChange: (font: string) => void;
   onOpenTranscript?: (memo: Memo) => void;
   onOpenAbout?: () => void;
-  // Cloud sync props
-  onSyncToCloud?: (memo: Memo) => Promise<void>;
-  syncedMemoIds?: Set<string>;
-  isLoggedIn?: boolean;
 }
 
 type SortMethod = 'date_desc' | 'date_asc';
@@ -43,9 +39,6 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
   onContentFontChange,
   onOpenTranscript,
   onOpenAbout,
-  onSyncToCloud,
-  syncedMemoIds = new Set(),
-  isLoggedIn = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -906,9 +899,6 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
                      contentFont={contentFont}
                      onOpenTranscript={onOpenTranscript}
                      shouldAllowClick={shouldAllowClick}
-                     onSyncToCloud={onSyncToCloud}
-                     isSynced={syncedMemoIds.has(memo.id)}
-                     isLoggedIn={isLoggedIn}
                    />
                  </motion.div>
                ))

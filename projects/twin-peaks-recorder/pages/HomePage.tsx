@@ -738,6 +738,9 @@ const HomePage: React.FC = () => {
           initialOffset={index * 30}
           onOpenAbout={() => goToAbout('transcript')}
           creatorEmail="diane@twinpeaks.fm"
+          onSyncToCloud={handleSyncToCloud}
+          isSynced={syncedMemoIds.has(memo.id)}
+          isLoggedIn={!!user}
         />
       ))}
 
@@ -1025,9 +1028,6 @@ const HomePage: React.FC = () => {
           });
         }}
         onOpenAbout={() => goToAbout('archive')}
-        onSyncToCloud={handleSyncToCloud}
-        syncedMemoIds={syncedMemoIds}
-        isLoggedIn={!!user}
       />
 
       {/* Custom Glowing Cursor */}
