@@ -180,12 +180,30 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
                 </span>
               )}
             </div>
-            <button
-              onClick={(e) => { e.stopPropagation(); onClose(); }}
-              className="p-1 text-white/40 hover:text-white transition-colors"
-            >
-              <X size={14} />
-            </button>
+            <div className="flex items-center gap-3">
+              {trashedMemos.length > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const confirmed = window.confirm(`Empty recycle bin? This will permanently delete all ${trashedMemos.length} item(s).`);
+                    if (confirmed) {
+                      onDeleteForever(trashedMemos.map(m => m.id));
+                      setSelectedIds(new Set());
+                    }
+                  }}
+                  className="text-white/30 hover:text-[#b69fbb] text-[10px] tracking-widest uppercase transition-colors"
+                  style={{ fontFamily: contentFont }}
+                >
+                  Empty All
+                </button>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); onClose(); }}
+                className="p-1 text-white/40 hover:text-white transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
           </div>
 
           {/* Content */}
@@ -236,58 +254,40 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
 
           {/* Footer */}
           {trashedMemos.length > 0 && (
-            <div className="px-6 py-4 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={selectAll}
-                  className="text-white/40 hover:text-white/70 text-xs tracking-widest uppercase transition-colors"
-                  style={{ fontFamily: contentFont }}
-                >
-                  {selectedIds.size === trashedMemos.length ? 'Deselect All' : 'Select All'}
-                </button>
-                <button
-                  onClick={() => {
-                    const confirmed = window.confirm(`Empty recycle bin? This will permanently delete all ${trashedMemos.length} item(s).`);
-                    if (confirmed) {
-                      onDeleteForever(trashedMemos.map(m => m.id));
-                      setSelectedIds(new Set());
-                    }
-                  }}
-                  className="text-white/30 hover:text-[#b69fbb] text-xs tracking-widest uppercase transition-colors"
-                  style={{ fontFamily: contentFont }}
-                >
-                  Empty All
-                </button>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleRecover}
-                  disabled={selectedIds.size === 0}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-colors border ${
-                    selectedIds.size > 0
-                      ? 'bg-white/5 text-white/80 border-white/20 hover:bg-white/15'
-                      : 'bg-transparent text-white/20 border-white/10 cursor-not-allowed'
-                  }`}
-                  style={{ fontFamily: contentFont }}
-                >
-                  <RotateCcw size={14} />
-                  Recover
-                </button>
-                <button
-                  onClick={handleDeleteForever}
-                  disabled={selectedIds.size === 0}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-colors border ${
-                    selectedIds.size > 0
-                      ? 'bg-white/5 text-[#b69fbb] border-[#b69fbb]/30 hover:bg-white/15'
-                      : 'bg-transparent text-white/20 border-white/10 cursor-not-allowed'
-                  }`}
-                  style={{ fontFamily: contentFont }}
-                >
-                  <Trash2 size={14} />
-                  Delete Forever
-                </button>
-              </div>
+            <div className="px-6 py-4 flex justify-center items-center gap-3 shrink-0 flex-wrap">
+              <button
+                onClick={selectAll}
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-colors border bg-white/5 text-white/60 border-white/20 hover:bg-white/15 hover:text-white/80"
+                style={{ fontFamily: contentFont }}
+              >
+                {selectedIds.size === trashedMemos.length ? 'Deselect All' : 'Select All'}
+              </button>
+              <button
+                onClick={handleRecover}
+                disabled={selectedIds.size === 0}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-colors border ${
+                  selectedIds.size > 0
+                    ? 'bg-white/5 text-white/80 border-white/20 hover:bg-white/15'
+                    : 'bg-transparent text-white/20 border-white/10 cursor-not-allowed'
+                }`}
+                style={{ fontFamily: contentFont }}
+              >
+                <RotateCcw size={14} />
+                Recover
+              </button>
+              <button
+                onClick={handleDeleteForever}
+                disabled={selectedIds.size === 0}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-colors border ${
+                  selectedIds.size > 0
+                    ? 'bg-white/5 text-[#b69fbb] border-[#b69fbb]/30 hover:bg-white/15'
+                    : 'bg-transparent text-white/20 border-white/10 cursor-not-allowed'
+                }`}
+                style={{ fontFamily: contentFont }}
+              >
+                <Trash2 size={14} />
+                Delete Forever
+              </button>
             </div>
           )}
 

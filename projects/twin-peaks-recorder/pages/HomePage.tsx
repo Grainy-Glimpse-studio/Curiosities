@@ -869,7 +869,7 @@ const HomePage: React.FC = () => {
                     : 'text-white/50 hover:text-white/70'
                 }`}
               >
-                FOCUS MODE
+                THE LODGE
               </span>
 
               <span

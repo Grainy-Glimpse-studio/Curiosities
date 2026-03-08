@@ -268,7 +268,7 @@ const FocusMode: React.FC<FocusModeProps> = ({ isOpen, onClose, onCapture, fontF
           className="flex items-center justify-between px-4 py-2 border-b border-white/10 cursor-grab active:cursor-grabbing shrink-0"
         >
           <span className="text-[10px] font-recorder tracking-[0.3em] text-white/30 uppercase">
-            Focus Mode
+            The Lodge
           </span>
           <button
             onClick={onClose}
