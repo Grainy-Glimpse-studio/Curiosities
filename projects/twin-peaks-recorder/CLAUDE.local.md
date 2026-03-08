@@ -1016,3 +1016,55 @@ Bug Report 面板 UI 已实现：
 用户担心：如果按钮逻辑不先想清楚，后续可能需要重做。
 建议：先确定状态机设计，再实现。
 
+---
+
+## 🎙️ 主页 Pause→Record 应该 Resume（待验证物理录音机行为）
+
+### 用户反馈 (2026-03-08)
+
+当前行为：
+1. 在主页点 Record 录音
+2. 点 Pause（保存为卡带）
+3. 再点 Record → **创建新卡带**
+
+期望行为（待验证）：
+1. 在主页点 Record 录音
+2. 点 Pause（保存为卡带）
+3. 再点 Record → **继续追加到刚才的卡带**（相当于 Resume）
+
+### 状态
+
+**暂不实现** - 用户需要先验证物理磁带录音机的实际行为，确保数字版本与物理版本一致。
+
+### 设计问题
+
+- 物理录音机 Pause 后按 Record 是什么行为？
+- 是否需要一个 "Auto-resume" 模式？
+- 如何区分 "继续录" 和 "开始新录音"？
+
+---
+
+## 🐛 当前 Bug（2026-03-08 晨）
+
+### Bug 1: Duration 为 0
+
+**现象**：
+- `newDuration: 0`
+- `m.duration (current state): 0`
+- `total duration: 0`
+
+**影响**：时间戳偏移计算错误，Flow 效果不正确
+
+**可能原因**：`elapsedTime` 状态没有正确更新
+
+### Bug 2: localStorage 配额满
+
+**错误**：`QuotaExceededError: Failed to execute 'setItem' on 'Storage'`
+
+**原因**：localStorage 约 5MB 限制，存储了太多 base64 音频数据
+
+**解决方案**：
+- 定期清理旧数据
+- 压缩存储
+- 或使用 IndexedDB 代替 localStorage
+

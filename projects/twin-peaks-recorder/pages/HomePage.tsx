@@ -417,6 +417,7 @@ const HomePage: React.FC = () => {
   const pinnedWordsRef = useRef<string[]>([]);
   const recorderContainerRef = useRef<HTMLDivElement | null>(null);
   const startRecordingRef = useRef<(() => void) | null>(null);
+  const elapsedTimeRef = useRef<number>(0); // 避免闭包问题
   const [recorderBounds, setRecorderBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   // --- Custom Cursor Effect ---
@@ -544,7 +545,7 @@ const HomePage: React.FC = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type });
         const newAudioUrl = URL.createObjectURL(audioBlob);
         const newText = result.text || '(No speech detected / 未检测到语音)';
-        const newDuration = elapsedTime;
+        const newDuration = elapsedTimeRef.current; // 使用 ref 避免闭包问题
         const newTimestamps = result.wordTimestamps;
 
         // 如果是追加录音（Resume 功能）- 使用 ref 避免闭包问题
@@ -670,6 +671,7 @@ const HomePage: React.FC = () => {
 
         setRecorderState(RecorderState.IDLE);
         setElapsedTime(0);
+        elapsedTimeRef.current = 0;
       };
 
       mediaRecorder.start();
@@ -798,6 +800,7 @@ const HomePage: React.FC = () => {
       }
       setRecorderState(RecorderState.IDLE);
       setElapsedTime(0);
+      elapsedTimeRef.current = 0;
       return;
     }
 
@@ -807,6 +810,7 @@ const HomePage: React.FC = () => {
       } else {
         setRecorderState(RecorderState.IDLE);
         setElapsedTime(0);
+        elapsedTimeRef.current = 0;
       }
     }
   };
@@ -862,6 +866,7 @@ const HomePage: React.FC = () => {
     const onEnd = () => {
       setRecorderState(RecorderState.IDLE);
       setElapsedTime(0);
+      elapsedTimeRef.current = 0;
     };
 
     const onError = (e: any) => {
@@ -884,7 +889,11 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     if (recorderState === RecorderState.RECORDING) {
       timerRef.current = window.setInterval(() => {
-        setElapsedTime(prev => prev + 1);
+        setElapsedTime(prev => {
+          const newTime = prev + 1;
+          elapsedTimeRef.current = newTime; // 同步更新 ref
+          return newTime;
+        });
       }, 1000);
     } else if (recorderState !== RecorderState.PLAYING && recorderState !== RecorderState.PAUSED) {
       if (timerRef.current) clearInterval(timerRef.current);
