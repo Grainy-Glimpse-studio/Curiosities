@@ -98,6 +98,7 @@ export class DeepgramDualTranscriber {
   private audioStartTime: number = 0; // 音频实际开始录制的时间
   private onReadyCallback: ((actualStartTime: number) => void) | null = null;
   private ownsStream: boolean = false; // 是否拥有 stream（用于决定是否在 stop 时释放）
+  private lastInterimText: string = ''; // 保存最后的 interim 结果作为备份
 
   // 用于比较两路结果
   private pendingResults: Map<string, PendingResult[]> = new Map();
@@ -282,6 +283,7 @@ export class DeepgramDualTranscriber {
       }
       this.transcript += text + ' ';
       this.lastFinalTimestamp = now;
+      this.lastInterimText = ''; // 清除 interim 备份（已有 final 结果）
 
       // 存储词级时间戳（加上 timestampOffset 以保持语言切换后的顺序）
       // 防止重叠：检查整个词组的起始时间，如果与已存储的时间戳重叠则跳过
@@ -304,6 +306,9 @@ export class DeepgramDualTranscriber {
           }
         }
       }
+    } else {
+      // 保存 interim 结果作为备份（以防没有收到 final 结果）
+      this.lastInterimText = text;
     }
 
     if (this.onNewTextCallback) {
@@ -399,6 +404,7 @@ export class DeepgramDualTranscriber {
   async start(existingStream?: MediaStream): Promise<boolean> {
     this.transcript = '';
     this.wordTimestamps = [];
+    this.lastInterimText = '';
     this.isListening = true;
     this.lastFinalTimestamp = 0;
     this.startTime = Date.now();
@@ -464,7 +470,12 @@ export class DeepgramDualTranscriber {
       this.enConnection = null;
     }
 
-    const text = this.transcript.trim();
+    // 如果没有 final 结果但有 interim 结果，使用 interim 作为备份
+    let text = this.transcript.trim();
+    if (!text && this.lastInterimText) {
+      console.log('[DualTranscriber] No final results, using interim fallback:', this.lastInterimText);
+      text = this.lastInterimText.trim();
+    }
     const tags = extractTags(text);
 
     console.log('[DualTranscriber] Returning text length:', text.length);

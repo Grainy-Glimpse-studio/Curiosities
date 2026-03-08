@@ -91,6 +91,7 @@ export class DeepgramTranscriber {
   private timestampOffset: number = 0; // 语言切换时的时间偏移量
   private onReadyCallback: ((actualStartTime: number) => void) | null = null;
   private ownsStream: boolean = false; // 是否拥有 stream（用于决定是否在 stop 时释放）
+  private lastInterimText: string = ''; // 保存最后的 interim 结果作为备份
 
   // 用户自己的 Key（可选）
   private userApiKey: string = '';
@@ -218,6 +219,7 @@ export class DeepgramTranscriber {
   async start(existingStream?: MediaStream): Promise<boolean> {
     this.transcript = '';
     this.wordTimestamps = [];
+    this.lastInterimText = '';
     this.isListening = true;
     this.lastFinalTimestamp = 0;
     this.startTime = Date.now();
@@ -267,6 +269,7 @@ export class DeepgramTranscriber {
             }
             this.transcript += text + ' ';
             this.lastFinalTimestamp = now;
+            this.lastInterimText = ''; // 清除 interim 备份（已有 final 结果）
 
             // 捕获词级时间戳（卡拉OK效果）
             // 加上 timestampOffset 以保持语言切换后的顺序
@@ -286,6 +289,8 @@ export class DeepgramTranscriber {
               this.onNewTextCallback(text, true);
             }
           } else {
+            // 保存 interim 结果作为备份（以防没有收到 final 结果）
+            this.lastInterimText = text;
             if (this.onNewTextCallback) {
               this.onNewTextCallback(text, false);
             }
@@ -364,7 +369,12 @@ export class DeepgramTranscriber {
       this.connection = null;
     }
 
-    const text = this.transcript.trim();
+    // 如果没有 final 结果但有 interim 结果，使用 interim 作为备份
+    let text = this.transcript.trim();
+    if (!text && this.lastInterimText) {
+      console.log('[DeepgramTranscriber] No final results, using interim fallback:', this.lastInterimText);
+      text = this.lastInterimText.trim();
+    }
     const tags = extractTags(text);
 
     console.log('[DeepgramTranscriber] Returning text length:', text.length);
