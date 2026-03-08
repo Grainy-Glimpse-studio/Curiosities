@@ -938,17 +938,18 @@ Sent from Diane`
                         </span>
                       </button>
                       {showJoinMenu && (
-                        <div className="absolute bottom-full right-0 mb-2 bg-black/90 backdrop-blur-md rounded-lg border border-white/20 overflow-hidden min-w-[160px]">
+                        <div className="absolute bottom-full right-0 mb-2 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[160px]">
                           <button
                             onClick={() => { setShowJoinMenu(false); setShowProjectInfo(true); }}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white/80 hover:bg-white/10 hover:text-white transition-colors text-sm"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
                           >
                             <Info size={16} />
                             What is this?
                           </button>
+                          <div className="mx-3 border-t border-white/20" />
                           <button
                             onClick={sendToCreator}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white/80 hover:bg-white/10 hover:text-white transition-colors text-sm border-t border-white/10"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
                           >
                             <Mail size={16} />
                             Send your Ephemera
@@ -968,31 +969,34 @@ Sent from Diane`
                         <span className="text-sm">Export</span>
                       </button>
                       {showExportMenu && (
-                        <div className="absolute bottom-full right-0 mb-2 bg-black/90 backdrop-blur-md rounded-lg border border-white/20 overflow-hidden min-w-[140px]">
+                        <div className="absolute bottom-full right-0 mb-2 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[140px]">
                           <button
                             onClick={exportAsMarkdown}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white/80 hover:bg-white/10 hover:text-white transition-colors text-sm"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
                           >
                             <FileCode size={16} />
                             Markdown
                           </button>
+                          <div className="mx-3 border-t border-white/20" />
                           <button
                             onClick={exportAsPDF}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white/80 hover:bg-white/10 hover:text-white transition-colors text-sm border-t border-white/10"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
                           >
                             <FileText size={16} />
                             PDF
                           </button>
+                          <div className="mx-3 border-t border-white/20" />
                           <button
                             onClick={exportAsWord}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white/80 hover:bg-white/10 hover:text-white transition-colors text-sm border-t border-white/10"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
                           >
                             <File size={16} />
                             Word
                           </button>
+                          <div className="mx-3 border-t border-white/20" />
                           <button
                             onClick={downloadAudio}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white/80 hover:bg-white/10 hover:text-white transition-colors text-sm border-t border-white/10"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
                           >
                             <Music size={16} />
                             Audio
