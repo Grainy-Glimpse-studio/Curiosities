@@ -42,7 +42,7 @@ Second stop, the Regional Bureau Office, to pick up some files. Although I have 
   createdAt: new Date('1990-04-08T08:00:00').getTime(),
   isPermanent: true,
   duration: 60,
-  audioOffset: 5, // 开头静音约 5 秒（可调整）
+  audioOffset: 8, // 开头静音约 8 秒
 };
 
 // Storage keys for localStorage
