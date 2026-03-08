@@ -42,6 +42,92 @@ Second stop, the Regional Bureau Office, to pick up some files. Although I have 
   duration: 60
 };
 
+// Storage key for localStorage
+const MEMOS_STORAGE_KEY = 'diane-recorder-memos';
+
+// Helper: Convert Blob to base64
+const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
+// Helper: Convert base64 to Blob
+const base64ToBlob = (base64: string): Blob => {
+  const parts = base64.split(',');
+  const mimeMatch = parts[0].match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : 'audio/webm';
+  const bstr = atob(parts[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+};
+
+// Serializable version of Memo for localStorage
+interface SerializedMemo extends Omit<Memo, 'blob' | 'audioUrl'> {
+  audioBase64?: string;
+  audioUrl: string;
+}
+
+// Load memos from localStorage
+const loadMemosFromStorage = (): Memo[] => {
+  try {
+    const stored = localStorage.getItem(MEMOS_STORAGE_KEY);
+    if (!stored) return [DEFAULT_MEMO];
+
+    const serialized: SerializedMemo[] = JSON.parse(stored);
+    const memos = serialized.map(item => {
+      // Convert base64 back to blob and create URL
+      if (item.audioBase64) {
+        const blob = base64ToBlob(item.audioBase64);
+        const audioUrl = URL.createObjectURL(blob);
+        const { audioBase64, ...rest } = item;
+        return { ...rest, audioUrl, blob } as Memo;
+      }
+      // Static file (like DEFAULT_MEMO)
+      return item as unknown as Memo;
+    });
+
+    // Ensure DEFAULT_MEMO is always present
+    if (!memos.find(m => m.id === 'twin-peaks-pilot')) {
+      memos.push(DEFAULT_MEMO);
+    }
+
+    return memos;
+  } catch (e) {
+    console.error('Failed to load memos from localStorage:', e);
+    return [DEFAULT_MEMO];
+  }
+};
+
+// Save memos to localStorage
+const saveMemosToStorage = async (memos: Memo[]): Promise<void> => {
+  try {
+    const serialized: SerializedMemo[] = await Promise.all(
+      memos.map(async (memo) => {
+        // Don't save static files' audio, just keep the URL
+        if (memo.id === 'twin-peaks-pilot' || !memo.blob) {
+          const { blob, ...rest } = memo;
+          return rest as SerializedMemo;
+        }
+        // Convert blob to base64 for storage
+        const audioBase64 = await blobToBase64(memo.blob);
+        const { blob, audioUrl, ...rest } = memo;
+        return { ...rest, audioUrl: '', audioBase64 } as SerializedMemo;
+      })
+    );
+    localStorage.setItem(MEMOS_STORAGE_KEY, JSON.stringify(serialized));
+  } catch (e) {
+    console.error('Failed to save memos to localStorage:', e);
+  }
+};
+
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -55,8 +141,9 @@ const HomePage: React.FC = () => {
   // --- State ---
   const [recorderState, setRecorderState] = useState<RecorderState>(RecorderState.IDLE);
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [memos, setMemos] = useState<Memo[]>([DEFAULT_MEMO]);
+  const [memos, setMemos] = useState<Memo[]>(() => loadMemosFromStorage());
   const [currentMemoId, setCurrentMemoId] = useState<string | null>('twin-peaks-pilot');
+  const memosInitializedRef = useRef(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [titleFont, setTitleFont] = useState("'Consulate', monospace");
   const [contentFont, setContentFont] = useState("'Consulate', monospace");
@@ -85,6 +172,17 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     setSpeechMode(loadSpeechMode());
   }, []);
+
+  // --- Persist memos to localStorage ---
+  useEffect(() => {
+    // Skip the first render (initial load from storage)
+    if (!memosInitializedRef.current) {
+      memosInitializedRef.current = true;
+      return;
+    }
+    // Save memos whenever they change
+    saveMemosToStorage(memos);
+  }, [memos]);
 
   // --- Sync font with language selection ---
   useEffect(() => {

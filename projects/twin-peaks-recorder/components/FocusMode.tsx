@@ -142,15 +142,22 @@ const FocusMode: React.FC<FocusModeProps> = ({ isOpen, onClose, onCapture, fontF
 
   // 当 scrollTrigger 变化时，滚动到当前句子
   useEffect(() => {
-    if (!currentSentenceId.current) return;
+    if (!currentSentenceId.current || !scrollRef.current) return;
 
     // 延迟一帧确保 DOM 已更新
     requestAnimationFrame(() => {
       const el = sentenceRefs.current.get(currentSentenceId.current!);
-      if (el) {
-        el.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center', // 垂直居中
+      const container = scrollRef.current;
+      if (el && container) {
+        // 计算相对于容器的位置，使元素居中
+        const containerRect = container.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const relativeTop = elRect.top - containerRect.top + container.scrollTop;
+        const targetScrollTop = relativeTop - (containerRect.height / 2) + (elRect.height / 2);
+
+        container.scrollTo({
+          top: targetScrollTop,
+          behavior: 'smooth'
         });
       }
     });
