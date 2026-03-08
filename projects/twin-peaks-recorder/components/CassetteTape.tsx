@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Memo } from '../types';
-import { Play, Pause, Trash2, Download, X, FileText, File, FileCode, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Palette, Sparkles } from 'lucide-react';
+import { Play, Pause, Trash2, Download, X, FileText, File, FileCode, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Palette, Sparkles, Cloud, CloudOff, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 
 interface CassetteTapeProps {
@@ -12,6 +12,10 @@ interface CassetteTapeProps {
   contentFont: string;
   shouldAllowClick?: () => boolean;
   onOpenTranscript?: (memo: Memo) => void; // 打开独立浮动窗口
+  // Cloud sync props
+  onSyncToCloud?: (memo: Memo) => Promise<void>;
+  isSynced?: boolean;
+  isLoggedIn?: boolean;
 }
 
 // Animation variants for coordinated parent-child animations
@@ -100,11 +104,27 @@ const KaraokeText: React.FC<KaraokeTextProps> = ({ text, progress, fontFamily })
   );
 };
 
-const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onTogglePermanent, titleFont, contentFont, shouldAllowClick, onOpenTranscript }) => {
+const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onTogglePermanent, titleFont, contentFont, shouldAllowClick, onOpenTranscript, onSyncToCloud, isSynced = false, isLoggedIn = false }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showFontSizeMenu, setShowFontSizeMenu] = useState(false);
   const [showColorMenu, setShowColorMenu] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // Handle cloud sync
+  const handleSyncToCloud = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onSyncToCloud || isSyncing || isSynced) return;
+
+    setIsSyncing(true);
+    try {
+      await onSyncToCloud(memo);
+    } catch (error) {
+      console.error('Failed to sync to cloud:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // AI Processing Panel
   const [showAIPanel, setShowAIPanel] = useState(false);
@@ -363,21 +383,44 @@ const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onT
               className="flex items-center gap-3 px-4 py-2 rounded-full bg-zinc-900 text-zinc-300 border border-zinc-800 hover:bg-zinc-800 hover:text-white active:scale-95 transition-all shadow-lg group/play"
             >
               <Play size={14} fill="currentColor" className="group-hover/play:text-amber-500 transition-colors" />
-              <span className="text-[10px] font-bold tracking-[0.2em] uppercase">Play Tape</span>
+              <span className="text-[10px] font-bold tracking-[0.2em] uppercase">Play</span>
             </button>
 
-            <div className="flex gap-3">
+            <div className="flex gap-2">
+              {/* Cloud Sync Button - only show for logged in users and non-default memos */}
+              {isLoggedIn && memo.id !== 'twin-peaks-pilot' && (
+                <button
+                  onClick={handleSyncToCloud}
+                  disabled={isSyncing || isSynced}
+                  className={`p-2 rounded-full bg-zinc-900 border transition-all shadow-md ${
+                    isSynced
+                      ? 'border-[#b69fbb]/50 text-[#b69fbb]'
+                      : isSyncing
+                      ? 'border-zinc-700 text-zinc-500'
+                      : 'border-zinc-800 text-zinc-500 hover:text-[#b69fbb] hover:border-[#b69fbb]/50'
+                  }`}
+                  title={isSynced ? 'Synced to Cloud' : isSyncing ? 'Syncing...' : 'Sync to Cloud'}
+                >
+                  {isSyncing ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : isSynced ? (
+                    <Cloud size={16} />
+                  ) : (
+                    <CloudOff size={16} />
+                  )}
+                </button>
+              )}
               <button
                 onClick={(e) => { e.stopPropagation(); exportAsMarkdown(); }}
                 className="p-2 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700 transition-all shadow-md"
-                title="Export as Text"
+                title="Export"
               >
                 <Download size={16} />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete(memo.id); }}
                 className="p-2 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-[#903e4f] hover:border-[#903e4f]/50 transition-all shadow-md"
-                title="Delete Tape"
+                title="Delete"
               >
                 <Trash2 size={16} />
               </button>

@@ -14,6 +14,7 @@ import { Memo, RecorderState } from '../types';
 import { getTranscriber, SpeechTranscriber } from '../services/speechService';
 import { DeepgramTranscriber } from '../services/deepgramService';
 import { getHDService, LanguageMode } from '../services/hdService';
+import { saveMemoToCloud, deleteMemoFromCloud, getSyncedMemoIds } from '../services/memoSync';
 
 // Detect if text is primarily Chinese
 const isChinese = (text: string): boolean => {
@@ -131,7 +132,7 @@ const saveMemosToStorage = async (memos: Memo[]): Promise<void> => {
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { apiKeys: userApiKeys } = useAuth();
+  const { apiKeys: userApiKeys, user } = useAuth();
 
   // --- Custom Cursor State ---
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
@@ -157,6 +158,7 @@ const HomePage: React.FC = () => {
   const [showApiSettings, setShowApiSettings] = useState(false);
   const [speechMode, setSpeechMode] = useState<'standard' | 'hd'>('standard');
   const [activeService, setActiveService] = useState<string | null>(null); // Track which service is being used
+  const [syncedMemoIds, setSyncedMemoIds] = useState<Set<string>>(new Set()); // Track which memos are synced to cloud
 
   // --- Check if returning from About page with archive open ---
   useEffect(() => {
@@ -192,6 +194,27 @@ const HomePage: React.FC = () => {
       setContentFont("'Consulate', monospace");
     }
   }, [speechLang]);
+
+  // --- Load synced memo IDs when user logs in ---
+  useEffect(() => {
+    if (user) {
+      getSyncedMemoIds(user.id)
+        .then(ids => setSyncedMemoIds(ids))
+        .catch(err => console.error('Failed to load synced memo IDs:', err));
+    } else {
+      setSyncedMemoIds(new Set());
+    }
+  }, [user]);
+
+  // --- Cloud sync handlers ---
+  const handleSyncToCloud = useCallback(async (memo: Memo) => {
+    if (!user) {
+      console.error('Must be logged in to sync');
+      return;
+    }
+    await saveMemoToCloud(user.id, memo);
+    setSyncedMemoIds(prev => new Set([...prev, memo.id]));
+  }, [user]);
 
   // --- Refs ---
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -599,7 +622,21 @@ const HomePage: React.FC = () => {
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    // Delete from cloud if synced
+    if (user && syncedMemoIds.has(id)) {
+      try {
+        await deleteMemoFromCloud(user.id, id);
+        setSyncedMemoIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(id);
+          return newSet;
+        });
+      } catch (err) {
+        console.error('Failed to delete from cloud:', err);
+      }
+    }
+
     setMemos(prev => prev.filter(m => m.id !== id));
     if (currentMemoId === id) {
       setCurrentMemoId(null);
@@ -728,7 +765,7 @@ const HomePage: React.FC = () => {
                 onClick={() => setFocusModeOpen(prev => !prev)}
                 className={`cursor-pointer font-recorder text-[11px] tracking-[0.3em] uppercase transition-all duration-300 ${
                   focusModeOpen
-                    ? 'text-[#903e4f]/70 hover:text-[#903e4f]'
+                    ? 'text-[#b69fbb] hover:text-[#d4c4d9]'
                     : 'text-white/50 hover:text-white/70'
                 }`}
               >
@@ -974,6 +1011,9 @@ const HomePage: React.FC = () => {
           });
         }}
         onOpenAbout={() => goToAbout('archive')}
+        onSyncToCloud={handleSyncToCloud}
+        syncedMemoIds={syncedMemoIds}
+        isLoggedIn={!!user}
       />
 
       {/* Custom Glowing Cursor */}
