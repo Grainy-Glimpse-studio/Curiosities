@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import emailjs from '@emailjs/browser';
-import { X, Minus, Maximize2, Minimize2, Play, Pause, Square, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2, Save, Mic, Subtitles, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { X, Minus, Maximize2, Minimize2, Play, Pause, Square, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2, Save, Mic, Subtitles, PanelLeftClose, PanelLeft, Radio, FileAudio } from 'lucide-react';
+import { convertToWav, convertToBwf } from '../utils/audioExport';
 import { Memo } from '../types';
 import MarkdownEditor, { MarkdownEditorRef } from './MarkdownEditor';
 
@@ -786,24 +787,104 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     }
   };
 
-  // 应用 AI 处理（暂时只是占位，后续接入 API）
+  // 应用 AI 处理
   const handleApplyAI = async () => {
     if (selectedAIFeatures.length === 0) return;
     setIsProcessingAI(true);
-    // TODO: 接入实际的 AI API
-    console.log('[AI Processing] Selected features:', selectedAIFeatures);
-    if (selectedAIFeatures.includes('custom')) {
-      if (customPrompt) {
-        console.log('[AI Processing] Custom prompt:', customPrompt);
-      }
-      if (uploadedFile) {
-        console.log('[AI Processing] Uploaded file:', uploadedFile.name);
-      }
+
+    const editor = editorRef.current?.editor;
+    if (!editor) {
+      setIsProcessingAI(false);
+      return;
     }
-    // 模拟处理
-    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    try {
+      // 1. Underline → Headings (本地处理，不需要 AI)
+      if (selectedAIFeatures.includes('underline-to-headings')) {
+        // 获取当前文档 JSON
+        const json = editor.getJSON();
+
+        // 递归处理：找到带下划线的段落，转换为 H2
+        const transformNode = (node: any): any => {
+          if (node.type === 'paragraph' && node.content) {
+            // 检查段落是否整段都有下划线
+            const hasUnderline = node.content.some((child: any) =>
+              child.type === 'text' && child.marks?.some((mark: any) => mark.type === 'underline')
+            );
+
+            if (hasUnderline) {
+              // 提取纯文本（去除所有 marks）
+              const plainText = node.content
+                .filter((child: any) => child.type === 'text')
+                .map((child: any) => child.text)
+                .join('');
+
+              // 转换为 H2
+              return {
+                type: 'heading',
+                attrs: { level: 2 },
+                content: [{ type: 'text', text: plainText }]
+              };
+            }
+          }
+
+          // 递归处理子节点
+          if (node.content) {
+            return {
+              ...node,
+              content: node.content.map(transformNode)
+            };
+          }
+
+          return node;
+        };
+
+        const transformedJson = transformNode(json);
+        editor.commands.setContent(transformedJson);
+        setHasUnsavedChanges(true);
+      }
+
+      // 2. TODO: Cleanup (需要 AI API)
+      if (selectedAIFeatures.includes('cleanup')) {
+        console.log('[AI Processing] Cleanup - needs API integration');
+        // TODO: 接入 AI API
+      }
+
+      // 3. TODO: Summary (需要 AI API)
+      if (selectedAIFeatures.includes('summary')) {
+        console.log('[AI Processing] Summary - needs API integration');
+        // TODO: 接入 AI API
+      }
+
+      // 4. TODO: Custom Cleanup (需要 AI API)
+      if (selectedAIFeatures.includes('custom')) {
+        console.log('[AI Processing] Custom Cleanup - needs API integration');
+        if (customPrompt) {
+          console.log('[AI Processing] Custom prompt:', customPrompt);
+        }
+        if (uploadedFile) {
+          console.log('[AI Processing] Uploaded file:', uploadedFile.name);
+        }
+        // TODO: 接入 AI API
+      }
+
+      // 5. TODO: Re-transcribe (需要原始音频 + AI API)
+      if (selectedAIFeatures.includes('retranscribe')) {
+        console.log('[AI Processing] Re-transcribe - needs API integration');
+        // TODO: 使用原始音频重新转写
+      }
+
+      // 模拟处理延迟（后续接入 API 后可移除）
+      if (!selectedAIFeatures.includes('underline-to-headings')) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    } catch (error) {
+      console.error('[AI Processing] Error:', error);
+    }
+
     setIsProcessingAI(false);
     setShowAISidebar(false);
+    setSelectedAIFeatures([]);
   };
 
 
@@ -891,6 +972,78 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       document.body.removeChild(element);
     });
     setShowExportMenu(false);
+  };
+
+  // 导出为 WAV 格式
+  const exportAsWav = async () => {
+    if (!memo) return;
+    const blobs = memo.blobs || (memo.blob ? [memo.blob] : []);
+    if (blobs.length === 0) {
+      alert('No audio data available for WAV export. Audio blobs may have been cleared after page refresh.');
+      return;
+    }
+
+    setShowExportMenu(false);
+
+    try {
+      for (let i = 0; i < blobs.length; i++) {
+        const wavBlob = await convertToWav(blobs[i]);
+        const url = URL.createObjectURL(wavBlob);
+        const element = document.createElement("a");
+        element.href = url;
+        const suffix = blobs.length > 1 ? `-part${i + 1}` : '';
+        element.download = `${editableTitle || formatDate(memo.createdAt)}${suffix}.wav`;
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('WAV export failed:', error);
+      alert('Failed to export as WAV. The audio format may not be supported.');
+    }
+  };
+
+  // 导出为 BWF 格式（带时码的 WAV，用于影视后期）
+  const exportAsBwf = async () => {
+    if (!memo) return;
+    const blobs = memo.blobs || (memo.blob ? [memo.blob] : []);
+    if (blobs.length === 0) {
+      alert('No audio data available for BWF export. Audio blobs may have been cleared after page refresh.');
+      return;
+    }
+
+    setShowExportMenu(false);
+
+    try {
+      // 计算每段的开始时间
+      const startTimes: number[] = [];
+      let currentTime = memo.createdAt;
+      const durations = memo.segmentDurations || [memo.duration];
+
+      for (let i = 0; i < blobs.length; i++) {
+        startTimes.push(currentTime);
+        if (i < durations.length) {
+          currentTime += durations[i] * 1000; // 转换为毫秒
+        }
+      }
+
+      for (let i = 0; i < blobs.length; i++) {
+        const bwfBlob = await convertToBwf(blobs[i], startTimes[i]);
+        const url = URL.createObjectURL(bwfBlob);
+        const element = document.createElement("a");
+        element.href = url;
+        const suffix = blobs.length > 1 ? `-part${i + 1}` : '';
+        element.download = `${editableTitle || formatDate(memo.createdAt)}${suffix}.wav`;
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('BWF export failed:', error);
+      alert('Failed to export as BWF. The audio format may not be supported.');
+    }
   };
 
   // 导出 SRT 字幕文件
@@ -1659,7 +1812,22 @@ Sent from Diane`
                             className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
                           >
                             <Music size={16} />
-                            Audio
+                            Audio (WebM)
+                          </button>
+                          <button
+                            onClick={exportAsWav}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
+                          >
+                            <FileAudio size={16} />
+                            Audio (WAV)
+                          </button>
+                          <button
+                            onClick={exportAsBwf}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
+                            title="Broadcast Wave Format with timecode for video editing"
+                          >
+                            <Radio size={16} />
+                            Audio (BWF)
                           </button>
                         </div>
                       )}

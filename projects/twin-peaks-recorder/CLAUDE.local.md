@@ -708,10 +708,26 @@ ElevenLabs 生成新声音音频（待定）
 - **范围**：界面 UI 文字切换为中文
 - **优先级**：低
 
-#### 5. Ephemera 页面重新排版
-- **状态**：有想法和参考例子，未开始
-- **问题**：当前布局很丑
-- **下一步**：整理参考例子，开始设计
+#### 5. Ephemera 页面重新设计
+- **状态**：已有设计方案
+- **参考项目**：`catch-a-shooting-star`（同目录下的项目）
+
+**设计方案**：
+- **核心交互**：
+  - 长 Markdown 文档分段显示
+  - **按 Enter 键**：切换到下一段
+  - 偶尔有流星飞过（比主页少）
+  - **按 Space 键**：抓住流星，显示 About Me
+- **UI 布局**：
+  - 打开 Ephemera 界面 → 显示第一段文字
+  - 底部提示："press enter to continue"
+  - 流星不频繁，偶尔出现
+- **About Me**：
+  - 抓住流星后显示关于创作者的介绍
+
+**技术参考**：
+- 看 `catch-a-shooting-star/src/core/StarCatcher.tsx` - 流星捕捉逻辑
+- 看 `catch-a-shooting-star/src/core/ShootingStar.tsx` - 流星动画
 
 ### ✏️ 文档编辑功能
 
