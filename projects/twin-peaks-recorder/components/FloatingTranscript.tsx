@@ -387,6 +387,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const [showProjectInfo, setShowProjectInfo] = useState(false); // 显示项目介绍
   const [isSyncing, setIsSyncing] = useState(false); // 云同步中
   const [flowEnabled, setFlowEnabled] = useState(true); // 播放时文字发光效果
+  const [isExporting, setIsExporting] = useState<string | null>(null); // 正在导出的格式
 
   // 多段音频播放状态
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
@@ -844,10 +845,49 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
         setHasUnsavedChanges(true);
       }
 
-      // 2. TODO: Cleanup (需要 AI API)
+      // 2. Cleanup - 本地处理（去除口癖词和重复）
       if (selectedAIFeatures.includes('cleanup')) {
-        console.log('[AI Processing] Cleanup - needs API integration');
-        // TODO: 接入 AI API
+        const text = editor.getText();
+
+        // 定义要移除的口癖词（中英文）
+        const fillerPatterns = [
+          // 中文口癖
+          /\s*[，。]?\s*(嗯+|呃+|啊+|哎+|那个|就是说|然后呢|对吧|你知道吗|怎么说呢|这个这个|那个那个)\s*[，。]?\s*/g,
+          // 英文口癖
+          /\s*[,.]?\s*\b(um+|uh+|er+|ah+|like|you know|i mean|basically|actually|literally|so yeah|yeah so|right so)\b\s*[,.]?\s*/gi,
+          // 重复词（连续相同词）
+          /\b(\w+)\s+\1\b/gi,
+          // 中文重复词
+          /([\u4e00-\u9fa5]+)\s*\1/g,
+          // 多余空格
+          /\s{2,}/g,
+          // 多余标点
+          /[，。]{2,}/g,
+        ];
+
+        let cleanedText = text;
+        for (const pattern of fillerPatterns) {
+          cleanedText = cleanedText.replace(pattern, (match, p1) => {
+            // 对于重复词，保留一个
+            if (p1 && match.toLowerCase().includes(p1.toLowerCase())) {
+              return p1 + ' ';
+            }
+            return ' ';
+          });
+        }
+
+        // 清理首尾空白和多余空格
+        cleanedText = cleanedText.trim().replace(/\s+/g, ' ');
+
+        // 转换回 HTML 并更新编辑器
+        const html = cleanedText
+          .split('\n\n')
+          .filter(p => p.trim())
+          .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+          .join('');
+
+        editor.commands.setContent(html);
+        setHasUnsavedChanges(true);
       }
 
       // 3. TODO: Summary (需要 AI API)
@@ -976,7 +1016,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
 
   // 导出为 WAV 格式
   const exportAsWav = async () => {
-    if (!memo) return;
+    if (!memo || isExporting) return;
     const blobs = memo.blobs || (memo.blob ? [memo.blob] : []);
     if (blobs.length === 0) {
       alert('No audio data available for WAV export. Audio blobs may have been cleared after page refresh.');
@@ -984,6 +1024,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     }
 
     setShowExportMenu(false);
+    setIsExporting('wav');
 
     try {
       for (let i = 0; i < blobs.length; i++) {
@@ -1001,12 +1042,14 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     } catch (error) {
       console.error('WAV export failed:', error);
       alert('Failed to export as WAV. The audio format may not be supported.');
+    } finally {
+      setIsExporting(null);
     }
   };
 
   // 导出为 BWF 格式（带时码的 WAV，用于影视后期）
   const exportAsBwf = async () => {
-    if (!memo) return;
+    if (!memo || isExporting) return;
     const blobs = memo.blobs || (memo.blob ? [memo.blob] : []);
     if (blobs.length === 0) {
       alert('No audio data available for BWF export. Audio blobs may have been cleared after page refresh.');
@@ -1014,6 +1057,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     }
 
     setShowExportMenu(false);
+    setIsExporting('bwf');
 
     try {
       // 计算每段的开始时间
@@ -1043,6 +1087,8 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     } catch (error) {
       console.error('BWF export failed:', error);
       alert('Failed to export as BWF. The audio format may not be supported.');
+    } finally {
+      setIsExporting(null);
     }
   };
 
@@ -1767,13 +1813,23 @@ Sent from Diane`
                     <div className="relative">
                       <button
                         onClick={() => { setShowExportMenu(!showExportMenu); setShowJoinMenu(false); }}
-                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/10 hover:border-white/20 transition-colors"
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-colors ${
+                          isExporting
+                            ? 'bg-white/10 text-white/80 border-white/20'
+                            : 'bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border-white/10 hover:border-white/20'
+                        }`}
                         style={{ fontFamily: contentFont }}
                       >
-                        <Download size={14} />
-                        <span className="text-sm">Export</span>
+                        {isExporting ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Download size={14} />
+                        )}
+                        <span className="text-sm">
+                          {isExporting === 'wav' ? 'Converting WAV...' : isExporting === 'bwf' ? 'Converting BWF...' : 'Export'}
+                        </span>
                       </button>
-                      {showExportMenu && (
+                      {showExportMenu && !isExporting && (
                         <div className="absolute bottom-full right-0 mb-2 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[140px] shadow-2xl">
                           <button
                             onClick={exportAsMarkdown}
