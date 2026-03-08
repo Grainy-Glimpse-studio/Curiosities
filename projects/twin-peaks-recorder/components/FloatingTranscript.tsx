@@ -925,7 +925,7 @@ Sent from Diane`
                         </span>
                       </button>
                       {showJoinMenu && (
-                        <div className="absolute bottom-full right-0 mb-2 bg-black/60 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[160px]">
+                        <div className="absolute bottom-full right-0 mb-2 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[160px] shadow-2xl">
                           <button
                             onClick={() => { setShowJoinMenu(false); setShowProjectInfo(true); }}
                             className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
@@ -956,7 +956,7 @@ Sent from Diane`
                         <span className="text-sm">Export</span>
                       </button>
                       {showExportMenu && (
-                        <div className="absolute bottom-full right-0 mb-2 bg-black/60 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[140px]">
+                        <div className="absolute bottom-full right-0 mb-2 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[140px] shadow-2xl">
                           <button
                             onClick={exportAsMarkdown}
                             className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
