@@ -1236,20 +1236,13 @@ const HomePage: React.FC = () => {
           </div>
 
           {/* The Case Files - right below recorder */}
-          <button
+          <span
             onClick={() => setIsDrawerOpen(true)}
-            className="shrink-0 mt-3 group flex flex-col items-center gap-3 transition-all duration-500 hover:-translate-y-1"
+            className="shrink-0 mt-6 cursor-pointer font-recorder text-[11px] tracking-[0.3em] uppercase transition-all duration-300 hover:opacity-80"
+            style={{ color: '#b69fbb' }}
           >
-            <div className="relative">
-              <div className="w-32 h-2.5 bg-[#1a1a1a] rounded-full border border-zinc-800 shadow-2xl group-hover:w-40 transition-all duration-500 overflow-hidden">
-                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-              </div>
-              <div className="absolute -top-1 -right-1 w-2 h-2 bg-[#b69fbb] rounded-full animate-pulse shadow-[0_0_8px_rgba(182,159,187,0.6)]"></div>
-            </div>
-            <div className="text-zinc-500 font-journal text-[10px] tracking-[0.4em] uppercase group-hover:text-[#b69fbb] transition-colors">
-              The Case Files
-            </div>
-          </button>
+            The Case Files
+          </span>
 
         </main>
 
