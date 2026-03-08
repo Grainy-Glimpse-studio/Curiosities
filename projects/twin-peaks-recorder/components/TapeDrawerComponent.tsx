@@ -6,6 +6,7 @@ import { Search, ChevronDown, ChevronUp, X, LayoutGrid, ZoomIn, ZoomOut, Setting
 import { motion } from 'framer-motion';
 import { zoom, zoomIdentity, ZoomBehavior, ZoomTransform } from 'd3-zoom';
 import { select } from 'd3-selection';
+import DatePicker from 'react-datepicker';
 
 interface TapeDrawerProps {
   isOpen: boolean;
@@ -41,8 +42,8 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [sortMethod, setSortMethod] = useState<SortMethod>('date_desc');
-  const [dateFrom, setDateFrom] = useState<string>('');
-  const [dateTo, setDateTo] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [isTidy, setIsTidy] = useState(true);
@@ -274,12 +275,12 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
 
     // Filter by Date Range
     if (dateFrom) {
-      const fromDate = new Date(dateFrom).setHours(0, 0, 0, 0);
-      result = result.filter(m => m.createdAt >= fromDate);
+      const fromTimestamp = new Date(dateFrom).setHours(0, 0, 0, 0);
+      result = result.filter(m => m.createdAt >= fromTimestamp);
     }
     if (dateTo) {
-      const toDate = new Date(dateTo).setHours(23, 59, 59, 999);
-      result = result.filter(m => m.createdAt <= toDate);
+      const toTimestamp = new Date(dateTo).setHours(23, 59, 59, 999);
+      result = result.filter(m => m.createdAt <= toTimestamp);
     }
 
     // Sort
@@ -663,22 +664,29 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] text-white/40 uppercase tracking-widest font-recorder">Range</span>
-                    <input
-                      type="date"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
-                      className="bg-black/30 backdrop-blur-sm border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-[#b69fbb]/50 text-[#b69fbb] [color-scheme:dark]"
+                    <DatePicker
+                      selected={dateFrom}
+                      onChange={(date) => setDateFrom(date)}
+                      placeholderText="From"
+                      dateFormat="MM/dd/yyyy"
+                      className="bg-black/50 backdrop-blur-sm border border-white/20 rounded px-2 py-1 text-xs focus:outline-none focus:border-[#b69fbb]/50 text-[#b69fbb] w-24 placeholder-white/30"
+                      calendarClassName="dark-calendar"
+                      popperClassName="dark-datepicker-popper"
                     />
                     <span className="text-white/30">→</span>
-                    <input
-                      type="date"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
-                      className="bg-black/30 backdrop-blur-sm border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-[#b69fbb]/50 text-[#b69fbb] [color-scheme:dark]"
+                    <DatePicker
+                      selected={dateTo}
+                      onChange={(date) => setDateTo(date)}
+                      placeholderText="To"
+                      dateFormat="MM/dd/yyyy"
+                      className="bg-black/50 backdrop-blur-sm border border-white/20 rounded px-2 py-1 text-xs focus:outline-none focus:border-[#b69fbb]/50 text-[#b69fbb] w-24 placeholder-white/30"
+                      calendarClassName="dark-calendar"
+                      popperClassName="dark-datepicker-popper"
+                      minDate={dateFrom || undefined}
                     />
                     {(dateFrom || dateTo) && (
                       <button
-                        onClick={() => { setDateFrom(''); setDateTo(''); }}
+                        onClick={() => { setDateFrom(null); setDateTo(null); }}
                         className="text-[#903e4f] text-xs hover:text-[#b85a6a] transition-colors ml-2"
                       >
                         ×

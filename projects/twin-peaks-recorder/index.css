@@ -225,27 +225,90 @@
 }
 
 /* ========================================
-   DATE PICKER STYLING
+   DATE PICKER STYLING (react-datepicker)
    ======================================== */
-input[type="date"] {
-  color-scheme: dark;
+.dark-datepicker-popper {
+  z-index: 9999 !important;
 }
 
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.7) sepia(1) saturate(0.5) hue-rotate(260deg);
-  cursor: pointer;
-  opacity: 0.6;
-  transition: opacity 0.2s;
+.dark-calendar {
+  background: rgba(20, 20, 20, 0.95) !important;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  font-family: 'Consulate', monospace !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5) !important;
 }
 
-input[type="date"]::-webkit-calendar-picker-indicator:hover {
-  opacity: 1;
+.dark-calendar .react-datepicker__header {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  padding-top: 12px !important;
 }
 
-input[type="date"]::-webkit-datetime-edit {
-  color: #b69fbb;
+.dark-calendar .react-datepicker__current-month {
+  color: #b69fbb !important;
+  font-weight: normal !important;
+  font-size: 14px !important;
+  margin-bottom: 8px !important;
 }
 
-input[type="date"]::-webkit-datetime-edit-fields-wrapper {
-  padding: 0;
+.dark-calendar .react-datepicker__day-names {
+  margin-bottom: 0 !important;
+}
+
+.dark-calendar .react-datepicker__day-name {
+  color: rgba(255, 255, 255, 0.4) !important;
+  font-size: 10px !important;
+  width: 32px !important;
+  line-height: 32px !important;
+}
+
+.dark-calendar .react-datepicker__day {
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 12px !important;
+  width: 32px !important;
+  line-height: 32px !important;
+  border-radius: 6px !important;
+  transition: all 0.15s ease !important;
+}
+
+.dark-calendar .react-datepicker__day:hover {
+  background: rgba(182, 159, 187, 0.2) !important;
+  color: #b69fbb !important;
+}
+
+.dark-calendar .react-datepicker__day--selected,
+.dark-calendar .react-datepicker__day--keyboard-selected {
+  background: #b69fbb !important;
+  color: #000 !important;
+}
+
+.dark-calendar .react-datepicker__day--today {
+  border: 1px solid rgba(182, 159, 187, 0.5) !important;
+  background: transparent !important;
+}
+
+.dark-calendar .react-datepicker__day--outside-month {
+  color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.dark-calendar .react-datepicker__day--disabled {
+  color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark-calendar .react-datepicker__navigation {
+  top: 12px !important;
+}
+
+.dark-calendar .react-datepicker__navigation-icon::before {
+  border-color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.dark-calendar .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+  border-color: #b69fbb !important;
+}
+
+.dark-calendar .react-datepicker__triangle {
+  display: none !important;
 }

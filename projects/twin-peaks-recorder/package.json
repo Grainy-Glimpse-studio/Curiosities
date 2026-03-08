@@ -28,6 +28,7 @@
     "framer-motion": "^12.34.3",
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
+    "react-datepicker": "^9.1.0",
     "react-dom": "^19.2.3",
     "react-router-dom": "^7.13.1",
     "tailwindcss": "^4.2.1",
@@ -35,6 +36,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@types/react-datepicker": "^6.2.0",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
