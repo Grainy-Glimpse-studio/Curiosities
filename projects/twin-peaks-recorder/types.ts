@@ -16,6 +16,7 @@ export interface Memo {
   duration: number; // in seconds
   highlightedWords?: string[]; // Words pinned during recording
   wordTimestamps?: WordTimestamp[]; // 词级时间戳（卡拉OK效果）
+  audioOffset?: number; // 音频开头的静音时长（秒），用于 Flow 估算时间戳
 }
 
 export enum RecorderState {

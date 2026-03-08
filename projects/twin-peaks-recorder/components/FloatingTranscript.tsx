@@ -30,9 +30,10 @@ interface KaraokeTextProps {
   fontFamily: string;
   wordTimestamps?: Array<{ word: string; start: number; end: number }>;
   audioDuration?: number; // 音频总时长（秒），用于没有时间戳时估算
+  audioOffset?: number; // 音频开头的静音时长（秒）
 }
 
-const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily, wordTimestamps, audioDuration }) => {
+const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily, wordTimestamps, audioDuration, audioOffset = 0 }) => {
   // 计算词的发光强度（0-1），基于当前时间在词时间范围内的位置
   const getGlowIntensity = (timestamp: { start: number; end: number } | undefined): number => {
     if (!timestamp) return 1; // 没有时间戳的词默认全亮
@@ -184,7 +185,9 @@ const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily
     // 统计总词数（用于估算每个词的时间）
     const allWords = text.split(/\s+/).filter(w => w.length > 0);
     const totalWords = allWords.length;
-    const timePerWord = audioDuration / totalWords;
+    // 实际说话时长 = 总时长 - 开头静音
+    const speakingDuration = audioDuration - audioOffset;
+    const timePerWord = speakingDuration / totalWords;
 
     // 按段落分割
     const paragraphs = text.split(/\n\n+/);
@@ -206,9 +209,9 @@ const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily
                   return <span key={wIdx}>{word}</span>;
                 }
 
-                // 估算这个词的时间戳
-                const estimatedStart = globalWordIndex * timePerWord;
-                const estimatedEnd = (globalWordIndex + 1) * timePerWord;
+                // 估算这个词的时间戳（从 audioOffset 开始）
+                const estimatedStart = audioOffset + globalWordIndex * timePerWord;
+                const estimatedEnd = audioOffset + (globalWordIndex + 1) * timePerWord;
                 globalWordIndex++;
 
                 const intensity = getGlowIntensity({ start: estimatedStart, end: estimatedEnd });
@@ -1023,6 +1026,7 @@ Sent from Diane`
                         fontFamily={contentFont}
                         wordTimestamps={memo.wordTimestamps}
                         audioDuration={memo.duration}
+                        audioOffset={memo.audioOffset}
                       />
                     ) : (
                       <MarkdownEditor
