@@ -197,8 +197,9 @@ export class HDService {
 
     } else if (service === 'deepgram-dual') {
       // Auto 模式：使用双路并行 Deepgram（中英同时识别）
-      console.log('[HDService] Creating DeepgramDualTranscriber (zh + en parallel)');
-      this.deepgramDualTranscriber = new DeepgramDualTranscriber();
+      const userKey = this.config.deepgram?.apiKey;
+      console.log(`[HDService] Creating DeepgramDualTranscriber (zh + en parallel), userKey: ${userKey ? 'YES' : 'NO'}`);
+      this.deepgramDualTranscriber = new DeepgramDualTranscriber(userKey);
       this.deepgramDualTranscriber.onNewText(this.onNewTextCallback);
       this.activeTranscriber = this.deepgramDualTranscriber;
 
@@ -211,8 +212,9 @@ export class HDService {
     } else {
       // 中文/英文模式：使用单路 Deepgram
       const deepgramLang = this.getDeepgramLanguage();
-      console.log(`[HDService] Creating DeepgramTranscriber with language: ${deepgramLang}`);
-      this.deepgramTranscriber = new DeepgramTranscriber();
+      const userKey = this.config.deepgram?.apiKey;
+      console.log(`[HDService] Creating DeepgramTranscriber with language: ${deepgramLang}, userKey: ${userKey ? 'YES' : 'NO'}`);
+      this.deepgramTranscriber = new DeepgramTranscriber(userKey);
       this.deepgramTranscriber.setLanguage(deepgramLang);
       this.deepgramTranscriber.onNewText(this.onNewTextCallback);
       this.activeTranscriber = this.deepgramTranscriber;
