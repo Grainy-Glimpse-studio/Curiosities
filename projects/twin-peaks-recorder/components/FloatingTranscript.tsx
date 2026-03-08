@@ -33,7 +33,9 @@ interface KaraokeTextProps {
 
 const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily, wordTimestamps }) => {
   // 计算词的发光强度（0-1），基于当前时间在词时间范围内的位置
-  const getGlowIntensity = (timestamp: { start: number; end: number }): number => {
+  const getGlowIntensity = (timestamp: { start: number; end: number } | undefined): number => {
+    if (!timestamp) return 1; // 没有时间戳的词默认全亮
+
     // 还没到这个词
     if (currentTime < timestamp.start) return 0;
 
@@ -70,55 +72,108 @@ const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily
   // 检测是否包含中文字符
   const hasChinese = (str: string) => /[\u4e00-\u9fa5]/.test(str);
 
-  // 如果有词级时间戳，直接用时间戳数组渲染（支持中英文混合）
+  // 清理词（去除标点）用于匹配
+  const cleanWord = (w: string) => w.replace(/[.,!?;:'"，。！？；：、""'']/g, '').toLowerCase();
+
+  // 如果有词级时间戳，用原文结构 + 时间戳做发光
   if (wordTimestamps && wordTimestamps.length > 0) {
-    // 根据时间戳间隔来分段落（间隔 > 2秒 视为新段落）
-    const paragraphs: Array<Array<{ word: string; start: number; end: number }>> = [];
-    let currentParagraph: Array<{ word: string; start: number; end: number }> = [];
-
-    wordTimestamps.forEach((ts, idx) => {
-      if (idx > 0) {
-        const gap = ts.start - wordTimestamps[idx - 1].end;
-        // 如果间隔超过 2 秒，或者遇到分隔符，开始新段落
-        if (gap > 2 || ts.word.includes('———')) {
-          if (currentParagraph.length > 0) {
-            paragraphs.push(currentParagraph);
-            currentParagraph = [];
-          }
-          // 跳过分隔符本身
-          if (ts.word.includes('———')) {
-            return;
-          }
-        }
-      }
-      currentParagraph.push(ts);
-    });
-
-    // 添加最后一个段落
-    if (currentParagraph.length > 0) {
-      paragraphs.push(currentParagraph);
-    }
+    // 按段落分割原文（保留 ——— 分隔符和换行）
+    const sections = text.split(/(\n\n+|———)/);
+    let timestampIndex = 0;
 
     return (
       <div
         className="text-white text-base leading-relaxed"
         style={{ fontFamily }}
       >
-        {paragraphs.map((para, pIdx) => (
-          <p key={pIdx} className="mb-4">
-            {para.map((ts, wIdx) => {
-              const intensity = getGlowIntensity(ts);
-              const needsSpace = wIdx > 0 && !hasChinese(ts.word) && !hasChinese(para[wIdx - 1].word);
+        {sections.map((section, sIdx) => {
+          // 如果是分隔符，渲染分隔符
+          if (section === '———') {
+            return (
+              <p key={sIdx} className="my-4 text-center text-white/30">
+                ———
+              </p>
+            );
+          }
 
-              return (
-                <span key={wIdx}>
-                  {needsSpace && ' '}
-                  <span style={getWordStyle(intensity)}>{ts.word}</span>
-                </span>
-              );
-            })}
-          </p>
-        ))}
+          // 如果是空白，跳过
+          if (/^\s*$/.test(section)) {
+            return null;
+          }
+
+          // 渲染段落内容
+          // 对于中文，按字符分割；对于英文，按空格分割
+          const isMostlyChinese = (section.match(/[\u4e00-\u9fa5]/g) || []).length > section.length * 0.3;
+
+          if (isMostlyChinese) {
+            // 中文：每个字符单独渲染
+            const chars = section.split('');
+            return (
+              <p key={sIdx} className="mb-4">
+                {chars.map((char, cIdx) => {
+                  // 跳过空白字符
+                  if (/\s/.test(char)) {
+                    return <span key={cIdx}>{char}</span>;
+                  }
+
+                  // 尝试匹配时间戳
+                  let timestamp: { start: number; end: number } | undefined;
+                  if (timestampIndex < wordTimestamps.length) {
+                    const ts = wordTimestamps[timestampIndex];
+                    // 检查这个字符是否在当前时间戳的词里
+                    if (ts.word.includes(char)) {
+                      timestamp = ts;
+                      // 如果是这个词的最后一个字符，移动到下一个时间戳
+                      const wordChars = ts.word.split('');
+                      const charPosInWord = wordChars.indexOf(char);
+                      if (charPosInWord === wordChars.length - 1 || !ts.word.slice(charPosInWord + 1).includes(char)) {
+                        timestampIndex++;
+                      }
+                    }
+                  }
+
+                  const intensity = getGlowIntensity(timestamp);
+                  return (
+                    <span key={cIdx} style={getWordStyle(intensity)}>
+                      {char}
+                    </span>
+                  );
+                })}
+              </p>
+            );
+          } else {
+            // 英文：按空格分词
+            const words = section.split(/(\s+)/);
+            return (
+              <p key={sIdx} className="mb-4">
+                {words.map((word, wIdx) => {
+                  // 空白字符直接渲染
+                  if (/^\s+$/.test(word)) {
+                    return <span key={wIdx}>{word}</span>;
+                  }
+
+                  // 尝试匹配时间戳
+                  let timestamp: { start: number; end: number } | undefined;
+                  if (timestampIndex < wordTimestamps.length) {
+                    const ts = wordTimestamps[timestampIndex];
+                    // 简单匹配：清理后比较
+                    if (cleanWord(ts.word) === cleanWord(word) || ts.word.includes(cleanWord(word)) || cleanWord(word).includes(cleanWord(ts.word))) {
+                      timestamp = ts;
+                      timestampIndex++;
+                    }
+                  }
+
+                  const intensity = getGlowIntensity(timestamp);
+                  return (
+                    <span key={wIdx} style={getWordStyle(intensity)}>
+                      {word}
+                    </span>
+                  );
+                })}
+              </p>
+            );
+          }
+        })}
       </div>
     );
   }
