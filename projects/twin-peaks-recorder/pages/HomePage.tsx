@@ -284,6 +284,9 @@ const HomePage: React.FC = () => {
   // Resume 录音状态
   const [resumingMemoId, setResumingMemoId] = useState<string | null>(null);
   const [resumingMemo, setResumingMemo] = useState<Memo | null>(null);
+  // 使用 ref 存储 resume 状态，避免闭包问题
+  const resumingMemoIdRef = useRef<string | null>(null);
+  const resumingMemoRef = useRef<Memo | null>(null);
 
   // --- Check if returning from About page with archive open ---
   useEffect(() => {
@@ -371,8 +374,12 @@ const HomePage: React.FC = () => {
     // 不允许对默认 memo 进行追加录音
     if (memo.id === 'twin-peaks-pilot') return;
 
+    // 同时设置 state 和 ref（ref 用于 onstop 回调，避免闭包问题）
     setResumingMemoId(memo.id);
     setResumingMemo(memo);
+    resumingMemoIdRef.current = memo.id;
+    resumingMemoRef.current = memo;
+
     // 关闭浮动窗口
     setOpenTranscripts(prev => prev.filter(m => m.id !== memo.id));
     // 开始录音
@@ -515,17 +522,20 @@ const HomePage: React.FC = () => {
         const newDuration = elapsedTime;
         const newTimestamps = result.wordTimestamps;
 
-        // 如果是追加录音（Resume 功能）
-        if (resumingMemoId && resumingMemo) {
+        // 如果是追加录音（Resume 功能）- 使用 ref 避免闭包问题
+        const currentResumingId = resumingMemoIdRef.current;
+        const currentResumingMemo = resumingMemoRef.current;
+
+        if (currentResumingId && currentResumingMemo) {
           // 偏移新的时间戳（加上之前所有段的总时长）
           const offsetTimestamps = newTimestamps?.map(ts => ({
             ...ts,
-            start: ts.start + resumingMemo.duration,
-            end: ts.end + resumingMemo.duration,
+            start: ts.start + currentResumingMemo.duration,
+            end: ts.end + currentResumingMemo.duration,
           }));
 
           setMemos(prev => prev.map(m => {
-            if (m.id === resumingMemoId) {
+            if (m.id === currentResumingId) {
               const existingUrls = m.audioUrls || (m.audioUrl ? [m.audioUrl] : []);
               const existingBlobs = m.blobs || (m.blob ? [m.blob] : []);
               const existingDurations = m.segmentDurations || [m.duration];
@@ -550,7 +560,7 @@ const HomePage: React.FC = () => {
 
           // 更新 openTranscripts 中的对应 memo
           setOpenTranscripts(prev => prev.map(m => {
-            if (m.id === resumingMemoId) {
+            if (m.id === currentResumingId) {
               const existingUrls = m.audioUrls || (m.audioUrl ? [m.audioUrl] : []);
               const existingBlobs = m.blobs || (m.blob ? [m.blob] : []);
               const existingDurations = m.segmentDurations || [m.duration];
@@ -569,9 +579,12 @@ const HomePage: React.FC = () => {
             return m;
           }));
 
-          setCurrentMemoId(resumingMemoId);
+          setCurrentMemoId(currentResumingId);
+          // 清除 resume 状态（state 和 ref）
           setResumingMemoId(null);
           setResumingMemo(null);
+          resumingMemoIdRef.current = null;
+          resumingMemoRef.current = null;
         } else {
           // 创建新 memo（正常逻辑）
           const newMemo: Memo = {
