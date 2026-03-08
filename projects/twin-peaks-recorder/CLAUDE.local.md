@@ -33,9 +33,17 @@
 - `handleTidy()` resets all positions
 
 ## Theme Colors
-- Primary red: `#903e4f`
-- Lighter red: `#b85a6a`
-- Dark background: `#1a1a1a`
+
+| Color | Hex | Usage |
+|-------|-----|-------|
+| **Theme Red** | `#903e4f` | Title hover, Play button hover, Delete buttons, action highlights |
+| **Theme Purple** | `#b69fbb` | Selected states, accents, Login/HD indicator, AI features |
+| Lighter Red | `#b85a6a` | Secondary red accents |
+| Dark Background | `#1a1a1a` | Card backgrounds, containers |
+
+**Usage Guidelines:**
+- **Theme Red (#903e4f)**: For interactive elements, hover states, destructive actions
+- **Theme Purple (#b69fbb)**: For selection states, non-destructive highlights, branding accents
 
 ## Fonts
 - **HuiWen** (明朝): Chinese font `汇文筑地五号明朝体1.0.otf` - available for both Title and Text
