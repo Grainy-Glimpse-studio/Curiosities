@@ -223,3 +223,29 @@
 .modal-closing-content .modal-tags {
   animation: text-dissolve 0.3s ease-out forwards;
 }
+
+/* ========================================
+   DATE PICKER STYLING
+   ======================================== */
+input[type="date"] {
+  color-scheme: dark;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7) sepia(1) saturate(0.5) hue-rotate(260deg);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+input[type="date"]::-webkit-datetime-edit {
+  color: #b69fbb;
+}
+
+input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}

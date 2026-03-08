@@ -666,14 +666,14 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
                       type="date"
                       value={dateFrom}
                       onChange={(e) => setDateFrom(e.target.value)}
-                      className="bg-transparent px-2 py-1 text-xs focus:outline-none text-[#b69fbb]"
+                      className="bg-black/30 backdrop-blur-sm border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-[#b69fbb]/50 text-[#b69fbb] [color-scheme:dark]"
                     />
                     <span className="text-white/30">→</span>
                     <input
                       type="date"
                       value={dateTo}
                       onChange={(e) => setDateTo(e.target.value)}
-                      className="bg-transparent px-2 py-1 text-xs focus:outline-none text-[#b69fbb]"
+                      className="bg-black/30 backdrop-blur-sm border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-[#b69fbb]/50 text-[#b69fbb] [color-scheme:dark]"
                     />
                     {(dateFrom || dateTo) && (
                       <button
