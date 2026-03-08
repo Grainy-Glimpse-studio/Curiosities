@@ -520,6 +520,9 @@ const HomePage: React.FC = () => {
 
   const startRecording = async () => {
     try {
+      // 重置 PAUSE 标志（每次开始新的录音周期）
+      shouldResumeAfterPauseRef.current = false;
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const mimeType = getSupportedMimeType();
@@ -647,7 +650,31 @@ const HomePage: React.FC = () => {
           }));
 
           setCurrentMemoId(currentResumingId);
-          // 清除 resume 状态（state 和 ref）
+
+          // 如果是 PAUSE 触发的，保持 resume 状态（下次 REC 继续追加）
+          if (shouldResumeAfterPauseRef.current) {
+            console.log('[Pause→Resume] Appended, keeping resume state for memo:', currentResumingId);
+            // 更新 refs 到最新的 memo 状态（包含刚追加的内容）
+            // 需要从 memos 状态里获取更新后的版本
+            // 但因为 setMemos 是异步的，我们需要手动计算更新后的 memo
+            const updatedMemo: Memo = {
+              ...currentResumingMemo,
+              audioUrls: [...(currentResumingMemo.audioUrls || (currentResumingMemo.audioUrl ? [currentResumingMemo.audioUrl] : [])), newAudioUrl],
+              blobs: [...(currentResumingMemo.blobs || (currentResumingMemo.blob ? [currentResumingMemo.blob] : [])), audioBlob],
+              transcription: currentResumingMemo.transcription + '\n\n———\n\n' + newText,
+              duration: currentResumingMemo.duration + newDuration,
+              segmentDurations: [...(currentResumingMemo.segmentDurations || [currentResumingMemo.duration]), newDuration],
+              wordTimestamps: [...(currentResumingMemo.wordTimestamps || []), ...(offsetTimestamps || [])],
+            };
+            setResumingMemo(updatedMemo);
+            resumingMemoRef.current = updatedMemo;
+            // 设为 PAUSED 状态，不重置时间
+            setRecorderState(RecorderState.PAUSED);
+            return; // 提前返回
+          }
+
+          // STOP 触发的：清除 resume 状态
+          console.log('[Stop] Clearing resume state');
           setResumingMemoId(null);
           setResumingMemo(null);
           resumingMemoIdRef.current = null;
@@ -681,20 +708,17 @@ const HomePage: React.FC = () => {
             setResumingMemo(newMemo);
             resumingMemoIdRef.current = newMemo.id;
             resumingMemoRef.current = newMemo;
-            shouldResumeAfterPauseRef.current = false; // 重置标志
+            // 设为 PAUSED 状态（按钮保持按下），不重置标志直到下一次录音开始
+            setRecorderState(RecorderState.PAUSED);
+            // 不重置 elapsedTime，保留显示当前录音时长
+            return; // 提前返回，不执行下面的 IDLE 逻辑
           }
         }
 
-        // 如果是 PAUSE 触发的，设为 PAUSED 状态（按钮保持按下）
-        // 否则设为 IDLE
-        if (shouldResumeAfterPauseRef.current) {
-          setRecorderState(RecorderState.PAUSED);
-          // 不重置时间，保留显示
-        } else {
-          setRecorderState(RecorderState.IDLE);
-          setElapsedTime(0);
-          elapsedTimeRef.current = 0;
-        }
+        // 正常停止：设为 IDLE
+        setRecorderState(RecorderState.IDLE);
+        setElapsedTime(0);
+        elapsedTimeRef.current = 0;
       };
 
       mediaRecorder.start();
@@ -843,23 +867,27 @@ const HomePage: React.FC = () => {
 
   // STOP 按钮：彻底结束录音，清除所有 Resume 状态
   const finalStopRecording = () => {
-    console.log('[FinalStop] Clearing all resume state');
-    // 清除 Resume 状态（STOP = 录音彻底结束）
+    console.log('[FinalStop] Clearing pause flag, keeping resume refs for onstop');
+    // 只清除 PAUSE 标志，让 onstop 知道这是 STOP 而不是 PAUSE
+    // 不清除 resumingMemoIdRef，onstop 需要它来决定是追加还是创建
     shouldResumeAfterPauseRef.current = false;
-    setResumingMemoId(null);
-    setResumingMemo(null);
-    resumingMemoIdRef.current = null;
-    resumingMemoRef.current = null;
 
-    // 如果当前是 PAUSED 状态，直接设为 IDLE（因为 mediaRecorder 已经停了）
+    // 如果当前是 PAUSED 状态，需要清除 resume 状态并设为 IDLE
+    // 因为 PAUSED 时 mediaRecorder 已经停了，不会再触发 onstop
     if (recorderState === RecorderState.PAUSED) {
+      console.log('[FinalStop] Was PAUSED, clearing all resume state');
+      setResumingMemoId(null);
+      setResumingMemo(null);
+      resumingMemoIdRef.current = null;
+      resumingMemoRef.current = null;
       setRecorderState(RecorderState.IDLE);
       setElapsedTime(0);
       elapsedTimeRef.current = 0;
       return;
     }
 
-    // 然后正常停止
+    // 如果正在录音，调用 stopRecording 停止 MediaRecorder
+    // onstop 会处理追加逻辑和清除 refs
     stopRecording();
   };
 

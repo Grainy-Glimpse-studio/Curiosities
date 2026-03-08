@@ -1044,7 +1044,7 @@ Bug Report 面板 UI 已实现：
 
 ---
 
-## 🐛 当前 Bug（2026-03-08 晨）
+## 🐛 当前 Bug（2026-03-08 更新）
 
 ### Bug 1: Duration 为 0 ✅ 已修复
 
@@ -1073,7 +1073,7 @@ Bug Report 面板 UI 已实现：
 - FloatingTranscript 调用 HomePage 的播放函数
 - 共享同一个 audio 元素
 
-### Bug 4: Resume 时间戳偏移不正确 🔴 待修复
+### Bug 4: Resume 时间戳偏移不正确 🟡 需重新测试
 
 **现象**：Resume 后的 Flow 效果时间戳不对
 
@@ -1089,4 +1089,386 @@ Bug Report 面板 UI 已实现：
 - 但停止后 transcript 是空的
 
 **原因**：和之前 interim fallback 一样的问题，可能切换语言后新的连接没有正确累积
+
+### Bug 6: PAUSE→REC 创建两条卡带 🟡 待验证 (2026-03-08 夜)
+
+**现象**：
+- 录音中按 PAUSE → 卡带保存
+- 再按 REC → 创建新卡带（应该追加到原卡带）
+- PAUSE 按钮没有保持按下状态
+
+**根本原因**：
+`onstop` 回调里有两个 `if (shouldResumeAfterPauseRef.current)` 检查，第一个检查后把标志重置为 false，导致第二个检查失败
+
+**修复**：
+1. 在第一个 if 块里设置 PAUSED 状态后 `return` 提前返回
+2. `finalStopRecording` 不再提前清除 `resumingMemoIdRef`，让 onstop 正确追加
+3. 追加分支也支持 PAUSE（更新 refs 到追加后的 memo）
+
+**流程**：
+```
+REC → 录音开始
+PAUSE → 保存卡带，设为 PAUSED 状态，PAUSE 按钮保持按下
+REC → 继续录音（追加模式）
+PAUSE → 追加内容，保持 PAUSED
+REC → 继续...
+STOP → 追加内容，清除状态，设为 IDLE
+```
+
+---
+
+## 🎙️ 录音逻辑详解（待验证 - 2026-03-08）
+
+> ⚠️ 以下逻辑是代码分析结果，尚未用户验证
+
+### 核心状态
+
+```typescript
+// pages/HomePage.tsx
+const [recorderState, setRecorderState] = useState<RecorderState>(RecorderState.IDLE);
+// RecorderState: IDLE | RECORDING | PAUSED | PLAYING | PROCESSING
+
+// Resume 相关 refs（避免闭包问题）
+const resumingMemoIdRef = useRef<string | null>(null);      // 要追加的目标 memo ID
+const resumingMemoRef = useRef<Memo | null>(null);          // 要追加的目标 memo 对象
+const shouldResumeAfterPauseRef = useRef<boolean>(false);   // PAUSE 标志
+```
+
+### 关键函数
+
+| 函数 | 触发 | 作用 |
+|------|------|------|
+| `startRecording()` | REC 按钮 | 获取麦克风，启动 MediaRecorder，启动转写服务 |
+| `pauseRecording()` | PAUSE 按钮 | 设置 `shouldResumeAfterPauseRef=true`，调用 `stopRecording()` |
+| `stopRecording()` | 内部调用 | 停止 MediaRecorder，触发 `onstop` 回调 |
+| `finalStopRecording()` | STOP 按钮 | 设置 `shouldResumeAfterPauseRef=false`，停止录音 |
+| `onstop` 回调 | MediaRecorder 停止 | 保存音频，决定创建新 memo 还是追加 |
+
+### 录音流程
+
+#### 流程 1: 正常录音 + STOP
+
+```
+1. 用户按 REC
+   → startRecording()
+   → shouldResumeAfterPauseRef = false
+   → MediaRecorder.start()
+   → setRecorderState(RECORDING)
+
+2. 用户按 STOP
+   → finalStopRecording()
+   → shouldResumeAfterPauseRef = false（已经是）
+   → stopRecording() → MediaRecorder.stop()
+
+3. onstop 回调触发
+   → resumingMemoIdRef.current 是 null
+   → 走 else 分支：创建新 memo
+   → shouldResumeAfterPauseRef 是 false
+   → setRecorderState(IDLE)
+```
+
+#### 流程 2: 录音 + PAUSE + REC（Resume）+ STOP
+
+```
+1. 用户按 REC
+   → startRecording()
+   → shouldResumeAfterPauseRef = false
+   → setRecorderState(RECORDING)
+
+2. 用户按 PAUSE
+   → pauseRecording()
+   → shouldResumeAfterPauseRef = true
+   → stopRecording() → MediaRecorder.stop()
+
+3. onstop 回调触发（第一次）
+   → resumingMemoIdRef.current 是 null
+   → 走 else 分支：创建新 memo (newMemo)
+   → shouldResumeAfterPauseRef 是 true
+   → 设置 resumingMemoIdRef = newMemo.id
+   → 设置 resumingMemoRef = newMemo
+   → setRecorderState(PAUSED)
+   → return（提前返回）
+
+4. 用户按 REC（继续录音）
+   → startRecording()
+   → shouldResumeAfterPauseRef = false
+   → resumingMemoIdRef.current 仍有值（不清除）
+   → setRecorderState(RECORDING)
+
+5. 用户按 STOP
+   → finalStopRecording()
+   → shouldResumeAfterPauseRef = false
+   → stopRecording() → MediaRecorder.stop()
+
+6. onstop 回调触发（第二次）
+   → resumingMemoIdRef.current 有值
+   → 走 if 分支：追加到现有 memo
+   → shouldResumeAfterPauseRef 是 false
+   → 清除所有 resume refs
+   → setRecorderState(IDLE)
+```
+
+#### 流程 3: PAUSED 状态按 STOP（取消 Resume）
+
+```
+1. 状态是 PAUSED（按过 PAUSE）
+2. 用户按 STOP
+   → finalStopRecording()
+   → shouldResumeAfterPauseRef = false
+   → 检测到 recorderState === PAUSED
+   → 清除所有 resume refs
+   → setRecorderState(IDLE)
+   → return（MediaRecorder 已经停了，不再调用 stopRecording）
+```
+
+### onstop 回调核心逻辑
+
+```typescript
+// pages/HomePage.tsx 540-722 行
+mediaRecorder.onstop = async () => {
+  // 获取转写结果
+  const result = transcriber.stop();
+  const newText = result.text;
+  const newDuration = elapsedTimeRef.current;
+
+  // 读取 refs（避免闭包）
+  const currentResumingId = resumingMemoIdRef.current;
+  const currentResumingMemo = resumingMemoRef.current;
+
+  if (currentResumingId && currentResumingMemo) {
+    // ===== 追加分支 =====
+    // 偏移时间戳
+    const offsetTimestamps = newTimestamps?.map(ts => ({
+      ...ts,
+      start: ts.start + currentResumingMemo.duration,
+      end: ts.end + currentResumingMemo.duration,
+    }));
+
+    // 更新 memos 状态（追加）
+    setMemos(prev => prev.map(m => {
+      if (m.id === currentResumingId) {
+        return {
+          ...m,
+          audioUrls: [...existingUrls, newAudioUrl],
+          transcription: m.transcription + '\n\n———\n\n' + newText,
+          duration: m.duration + newDuration,
+          // ...
+        };
+      }
+      return m;
+    }));
+
+    if (shouldResumeAfterPauseRef.current) {
+      // PAUSE 触发：保持 resume 状态
+      // 更新 refs 到追加后的 memo
+      setRecorderState(RecorderState.PAUSED);
+      return;
+    }
+    // STOP 触发：清除 refs
+    resumingMemoIdRef.current = null;
+    // ...
+  } else {
+    // ===== 创建新 memo 分支 =====
+    const newMemo = { id: uuidv4(), ... };
+    setMemos(prev => [newMemo, ...prev]);
+
+    if (shouldResumeAfterPauseRef.current) {
+      // PAUSE 触发：设置 resume 状态
+      resumingMemoIdRef.current = newMemo.id;
+      resumingMemoRef.current = newMemo;
+      setRecorderState(RecorderState.PAUSED);
+      return;
+    }
+  }
+
+  // 默认：设为 IDLE
+  setRecorderState(RecorderState.IDLE);
+};
+```
+
+---
+
+## 🔊 播放逻辑详解（待验证 - 2026-03-08）
+
+> ⚠️ 以下逻辑是代码分析结果，尚未用户验证
+
+### 播放入口
+
+有两个独立的播放入口：
+
+| 入口 | 位置 | Audio 元素 | 多段支持 |
+|------|------|-----------|---------|
+| 主页播放 | HomePage `playMemo()` | `audioPlayerRef` | ❌ 只播第一段 |
+| 浮动窗口播放 | FloatingTranscript `playInModal()` | `modalAudioRef` | ✅ 递归播放所有段 |
+
+### 主页播放（简化版）
+
+```typescript
+// pages/HomePage.tsx 890-919 行
+const playMemo = async (memo: Memo) => {
+  if (recorderState === RecorderState.RECORDING) return;
+
+  const urls = memo.audioUrls || (memo.audioUrl ? [memo.audioUrl] : []);
+  if (urls.length === 0) return;
+
+  setCurrentMemoId(memo.id);
+  setGlobalPlayingMemoId(memo.id);
+  setRecorderState(RecorderState.PLAYING);
+
+  // 只播放第一段
+  player.src = urls[0];
+  player.play();
+};
+```
+
+### 浮动窗口播放（完整多段）
+
+#### 数据结构
+
+```typescript
+// 假设 memo 有 3 段录音
+memo.audioUrls = ['blob:url1', 'blob:url2', 'blob:url3'];
+memo.segmentDurations = [30, 45, 20];  // 每段时长（秒）
+// 总时长 = 30 + 45 + 20 = 95 秒
+```
+
+#### `playInModal()` 函数
+
+```typescript
+// components/FloatingTranscript.tsx 525-558 行
+const playInModal = () => {
+  const urls = memo.audioUrls || [];
+  const durations = memo.segmentDurations || [memo.duration];
+
+  // 计算每段的全局起始时间
+  // durations = [30, 45, 20]
+  // startTimes = [0, 30, 75]
+  const startTimes: number[] = [];
+  let cumulative = 0;
+  for (const d of durations) {
+    startTimes.push(cumulative);
+    cumulative += d;
+  }
+  // cumulative = 95（总时长）
+
+  // 切换播放/暂停
+  if (isPlayingInModal) {
+    modalAudioRef.current?.pause();
+    setIsPlayingInModal(false);
+    return;
+  }
+
+  // 从第一段开始播放
+  playFromSegment(0, 0, urls, durations, startTimes, cumulative);
+};
+```
+
+#### `playFromSegment()` 递归播放
+
+```typescript
+// components/FloatingTranscript.tsx 560-615 行
+const playFromSegment = (segmentIndex, startOffset, urls, durations, startTimes, totalDuration) => {
+
+  const playSegment = (index: number, offset: number = 0) => {
+    // 递归终止：所有段播完
+    if (index >= urls.length) {
+      setIsPlayingInModal(false);
+      return;
+    }
+
+    // 每段创建新 Audio 对象
+    const audio = new Audio(urls[index]);
+    modalAudioRef.current = audio;
+
+    // 更新全局播放时间（用于 Flow 效果）
+    audio.addEventListener('timeupdate', () => {
+      // globalTime = 当前段起始时间 + 段内位置
+      // 例如：播放第 2 段的第 10 秒 → globalTime = 30 + 10 = 40
+      const globalTime = startTimes[index] + audio.currentTime;
+      setCurrentPlaybackTime(globalTime);
+      setPlaybackProgress(globalTime / totalDuration);
+    });
+
+    // 当前段结束 → 递归播放下一段
+    audio.addEventListener('ended', () => {
+      playSegment(index + 1, 0);
+    });
+
+    audio.play();
+  };
+
+  setIsPlayingInModal(true);
+  playSegment(segmentIndex, startOffset);
+};
+```
+
+#### 进度条跳转 `seekToTime()`
+
+```typescript
+// components/FloatingTranscript.tsx 617-651 行
+const seekToTime = (targetTime: number) => {
+  // 找到目标时间在哪一段
+  // 例如：targetTime = 40，startTimes = [0, 30, 75]
+  // → targetSegment = 1（第 2 段）
+  // → offsetInSegment = 40 - 30 = 10（段内第 10 秒）
+
+  let targetSegment = 0;
+  for (let i = startTimes.length - 1; i >= 0; i--) {
+    if (targetTime >= startTimes[i]) {
+      targetSegment = i;
+      break;
+    }
+  }
+  const offsetInSegment = targetTime - startTimes[targetSegment];
+
+  // 如果正在播放，跳转到新位置
+  if (isPlayingInModal) {
+    modalAudioRef.current?.pause();
+    playFromSegment(targetSegment, offsetInSegment, ...);
+  }
+};
+```
+
+### 全局播放状态同步（当前问题）
+
+```typescript
+// HomePage 传给 FloatingTranscript 的 props
+<FloatingTranscript
+  globalPlayingMemoId={globalPlayingMemoId}
+  onPlayStateChange={(memoId, isPlaying) => {
+    setGlobalPlayingMemoId(isPlaying ? memoId : null);
+    if (isPlaying) {
+      setRecorderState(RecorderState.PLAYING);
+    }
+  }}
+/>
+
+// FloatingTranscript 内部
+useEffect(() => {
+  // 通知 parent 播放状态变化
+  onPlayStateChange?.(isPlayingInModal ? memo.id : null, isPlayingInModal);
+}, [isPlayingInModal]);
+
+useEffect(() => {
+  // 如果其他 memo 开始播放，停止当前播放
+  if (globalPlayingMemoId !== memo.id && isPlayingInModal) {
+    modalAudioRef.current?.pause();
+    setIsPlayingInModal(false);
+  }
+}, [globalPlayingMemoId]);
+```
+
+**当前问题**：主页和浮动窗口有两个独立的 Audio 元素，状态同步不完整。
+
+---
+
+## 📋 待验证清单
+
+以上录音和播放逻辑需要用户验证：
+
+- [ ] PAUSE→REC 是否正确追加到同一卡带
+- [ ] PAUSE 按钮是否保持按下状态
+- [ ] 多段音频是否顺序播放
+- [ ] Flow 效果时间戳是否正确
+- [ ] 进度条跳转是否正常工作
 

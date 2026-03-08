@@ -100,6 +100,73 @@ Curiosities/
 
 ---
 
+---
+
+## Diane 录音机 (Twin Peaks Recorder)
+
+### 项目概述
+
+一款模拟物理磁带录音机的网页应用，支持实时语音转文字。
+
+### 核心功能
+
+- 录音 + 实时转写（Deepgram API）
+- 多段音频录制（Resume 功能）
+- 卡拉OK 式文字高亮播放（Flow 效果）
+- 导出：SRT 字幕、BWF 音频、WAV
+
+### 录音逻辑（物理录音机行为）
+
+**按钮行为**：
+- **REC**：开始录音 / 从 PAUSED 继续录音（追加模式）
+- **PAUSE**：暂停并保存当前段，保持可继续状态
+- **STOP**：结束录音，保存所有内容
+
+**状态机**：
+```
+IDLE ──REC──→ RECORDING
+              │
+              PAUSE
+              ↓
+           PAUSED ──REC──→ RECORDING（追加模式）
+              │
+              STOP
+              ↓
+           IDLE
+```
+
+**多段录音数据结构**：
+```typescript
+interface Memo {
+  audioUrls: string[];           // 多段音频 URL
+  segmentDurations: number[];    // 每段时长
+  duration: number;              // 总时长
+  wordTimestamps: WordTimestamp[]; // 词级时间戳（用于 Flow）
+}
+```
+
+### 播放逻辑
+
+**两个播放入口**：
+1. 主页录音机：只播放第一段
+2. 浮动窗口：递归播放所有段，支持进度跳转
+
+**多段播放原理**：
+```
+段 1 (0-30s) → ended → 段 2 (30-75s) → ended → 段 3 (75-95s) → 结束
+```
+
+**全局时间计算**（用于 Flow 效果）：
+```
+globalTime = startTimes[currentSegment] + audio.currentTime
+```
+
+### 详细文档
+
+完整的代码逻辑分析见：`projects/twin-peaks-recorder/CLAUDE.local.md`
+
+---
+
 ## 备注
 
 - 项目来源：Google AI Studio 导出
