@@ -688,10 +688,10 @@ const HomePage: React.FC = () => {
       setPinnedWords([]);
       pinnedWordsRef.current = [];
 
-      // Start the transcriber
+      // Start the transcriber（传入已有的 stream 避免重复请求麦克风）
       if (speechMode === 'hd') {
         const hdService = transcriberRef.current as ReturnType<typeof getHDService>;
-        const result = await hdService.start();
+        const result = await hdService.start(stream);
         if (!result.success) {
           if (result.quotaExceeded) {
             alert(`HD quota exceeded for ${result.service}. Your weekly free HD minutes have been used. Please add your own API keys in Settings, or try again next week.`);

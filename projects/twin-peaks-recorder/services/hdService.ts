@@ -184,8 +184,8 @@ export class HDService {
     }
   }
 
-  // 开始录音
-  async start(): Promise<{ success: boolean; service: string; quotaExceeded?: boolean; error?: string }> {
+  // 开始录音（可选传入已有的 stream，避免重复请求麦克风权限）
+  async start(existingStream?: MediaStream): Promise<{ success: boolean; service: string; quotaExceeded?: boolean; error?: string }> {
     // recordingStartTime 会在 transcriber 的 onReady 回调中设置
     // 这样能更精确地反映音频实际开始录制的时间
 
@@ -202,7 +202,7 @@ export class HDService {
       this.dashscopeTranscriber.onNewText(this.onNewTextCallback);
       this.activeTranscriber = this.dashscopeTranscriber;
 
-      const success = await this.dashscopeTranscriber.start();
+      const success = await this.dashscopeTranscriber.start(existingStream);
       if (!success) {
         console.error('[HDService] DashScope start failed');
         return { success: false, service: 'dashscope', error: 'Failed to start DashScope transcription' };
@@ -224,7 +224,7 @@ export class HDService {
       });
       this.activeTranscriber = this.deepgramDualTranscriber;
 
-      const success = await this.deepgramDualTranscriber.start();
+      const success = await this.deepgramDualTranscriber.start(existingStream);
       if (!success) {
         return { success: false, service: 'deepgram-dual', quotaExceeded: true };
       }
@@ -247,7 +247,7 @@ export class HDService {
       });
       this.activeTranscriber = this.deepgramTranscriber;
 
-      const success = await this.deepgramTranscriber.start();
+      const success = await this.deepgramTranscriber.start(existingStream);
       if (!success) {
         return { success: false, service: 'deepgram', quotaExceeded: true };
       }

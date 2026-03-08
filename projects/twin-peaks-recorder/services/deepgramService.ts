@@ -90,6 +90,7 @@ export class DeepgramTranscriber {
   private audioStartTime: number = 0; // 音频实际开始录制的时间（MediaRecorder 启动时）
   private timestampOffset: number = 0; // 语言切换时的时间偏移量
   private onReadyCallback: ((actualStartTime: number) => void) | null = null;
+  private ownsStream: boolean = false; // 是否拥有 stream（用于决定是否在 stop 时释放）
 
   // 用户自己的 Key（可选）
   private userApiKey: string = '';
@@ -214,7 +215,7 @@ export class DeepgramTranscriber {
     }
   }
 
-  async start(): Promise<boolean> {
+  async start(existingStream?: MediaStream): Promise<boolean> {
     this.transcript = '';
     this.wordTimestamps = [];
     this.isListening = true;
@@ -228,8 +229,16 @@ export class DeepgramTranscriber {
     }
 
     try {
-      // Get microphone access
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // 使用已有的 stream 或获取新的
+      if (existingStream) {
+        this.stream = existingStream;
+        this.ownsStream = false; // 不拥有 stream，stop 时不释放
+        console.log('[DeepgramTranscriber] Using existing stream');
+      } else {
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.ownsStream = true; // 拥有 stream，stop 时需要释放
+        console.log('[DeepgramTranscriber] Created new stream');
+      }
 
       // Create Deepgram client
       const deepgram = createClient(this.apiKey);
@@ -340,8 +349,8 @@ export class DeepgramTranscriber {
       this.mediaRecorder.stop();
     }
 
-    // Stop stream tracks
-    if (this.stream) {
+    // Stop stream tracks（只有在自己创建的 stream 时才释放）
+    if (this.stream && this.ownsStream) {
       this.stream.getTracks().forEach(track => track.stop());
     }
 

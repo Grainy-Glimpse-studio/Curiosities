@@ -97,6 +97,7 @@ export class DeepgramDualTranscriber {
   private timestampOffset: number = 0; // 语言切换时的时间偏移量
   private audioStartTime: number = 0; // 音频实际开始录制的时间
   private onReadyCallback: ((actualStartTime: number) => void) | null = null;
+  private ownsStream: boolean = false; // 是否拥有 stream（用于决定是否在 stop 时释放）
 
   // 用于比较两路结果
   private pendingResults: Map<string, PendingResult[]> = new Map();
@@ -395,7 +396,7 @@ export class DeepgramDualTranscriber {
     }
   }
 
-  async start(): Promise<boolean> {
+  async start(existingStream?: MediaStream): Promise<boolean> {
     this.transcript = '';
     this.wordTimestamps = [];
     this.isListening = true;
@@ -410,7 +411,16 @@ export class DeepgramDualTranscriber {
     }
 
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // 使用已有的 stream 或获取新的
+      if (existingStream) {
+        this.stream = existingStream;
+        this.ownsStream = false;
+        console.log('[DualTranscriber] Using existing stream');
+      } else {
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        this.ownsStream = true;
+        console.log('[DualTranscriber] Created new stream');
+      }
 
       const deepgram = createClient(this.apiKey);
 
@@ -435,7 +445,8 @@ export class DeepgramDualTranscriber {
       this.mediaRecorder.stop();
     }
 
-    if (this.stream) {
+    // 只有在自己创建的 stream 时才释放
+    if (this.stream && this.ownsStream) {
       this.stream.getTracks().forEach(track => track.stop());
     }
 

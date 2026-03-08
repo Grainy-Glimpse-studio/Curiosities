@@ -57,6 +57,7 @@ export class DashScopeTranscriber {
   private audioContext: AudioContext | null = null;
   private processor: ScriptProcessorNode | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
+  private ownsStream: boolean = false; // 是否拥有 stream
 
   constructor(apiKey?: string) {
     if (apiKey) {
@@ -113,7 +114,7 @@ export class DashScopeTranscriber {
     return this.transcript;
   }
 
-  async start(): Promise<boolean> {
+  async start(existingStream?: MediaStream): Promise<boolean> {
     if (!this.apiKey) {
       console.error('[DashScopeTranscriber] No API key provided');
       return false;
@@ -125,15 +126,23 @@ export class DashScopeTranscriber {
     this.taskId = generateTaskId();
 
     try {
-      // Get microphone access
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: 16000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-        }
-      });
+      // 使用已有的 stream 或获取新的
+      if (existingStream) {
+        this.stream = existingStream;
+        this.ownsStream = false;
+        console.log('[DashScopeTranscriber] Using existing stream');
+      } else {
+        this.stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            sampleRate: 16000,
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+          }
+        });
+        this.ownsStream = true;
+        console.log('[DashScopeTranscriber] Created new stream');
+      }
 
       // Create WebSocket connection
       // Auth is passed in the first message's header.authorization field
@@ -290,11 +299,11 @@ export class DashScopeTranscriber {
       this.audioContext = null;
     }
 
-    // Stop stream tracks
-    if (this.stream) {
+    // Stop stream tracks（只有在自己创建的 stream 时才释放）
+    if (this.stream && this.ownsStream) {
       this.stream.getTracks().forEach(track => track.stop());
-      this.stream = null;
     }
+    this.stream = null;
 
     // Close WebSocket
     if (this.websocket) {
