@@ -434,7 +434,8 @@ const HomePage: React.FC = () => {
           createdAt: Date.now(),
           isPermanent: false,
           duration: elapsedTime,
-          highlightedWords: pinnedWordsRef.current.length > 0 ? [...pinnedWordsRef.current] : undefined
+          highlightedWords: pinnedWordsRef.current.length > 0 ? [...pinnedWordsRef.current] : undefined,
+          wordTimestamps: result.wordTimestamps,
         };
 
         setMemos(prev => [newMemo, ...prev]);

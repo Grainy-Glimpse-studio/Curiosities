@@ -1,5 +1,7 @@
 # Ephemera
 
+Ephemera is an interactive art project exploring the human voice.
+
 Everything can be generated now.
 
 But no one would generate this — a voice murmuring something it never thought worth keeping. Purposeless. Unpolished. Spoken into the air before the mind could stop it. There is no prompt for that. No reason to make it.

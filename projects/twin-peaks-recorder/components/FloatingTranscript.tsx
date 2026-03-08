@@ -26,31 +26,47 @@ interface FloatingTranscriptProps {
 // 卡拉OK式高亮文本组件
 interface KaraokeTextProps {
   text: string;
-  progress: number; // 0-1
+  currentTime: number; // 当前播放时间（秒）
   fontFamily: string;
+  wordTimestamps?: Array<{ word: string; start: number; end: number }>;
 }
 
-const KaraokeText: React.FC<KaraokeTextProps> = ({ text, progress, fontFamily }) => {
-  const totalChars = text.length;
-  const highlightedChars = Math.floor(totalChars * progress);
-  const playedPart = text.slice(0, highlightedChars);
-  const unplayedPart = text.slice(highlightedChars);
+const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily, wordTimestamps }) => {
+  // 如果有词级时间戳，使用精确的卡拉OK效果
+  if (wordTimestamps && wordTimestamps.length > 0) {
+    return (
+      <div
+        className="text-white text-base leading-relaxed whitespace-pre-wrap"
+        style={{ fontFamily }}
+      >
+        {wordTimestamps.map((w, i) => {
+          const isPlayed = currentTime >= w.start;
+          return (
+            <span
+              key={i}
+              style={isPlayed ? {
+                color: '#fff',
+                textShadow: '0 0 8px rgba(255,255,255,0.8), 0 0 16px rgba(255,255,255,0.5), 0 0 24px rgba(255,255,255,0.3)',
+              } : {
+                color: 'rgba(255,255,255,0.6)',
+              }}
+            >
+              {w.word}{' '}
+            </span>
+          );
+        })}
+      </div>
+    );
+  }
 
+  // 没有时间戳时，回退到基于文本长度的简单模式（不太准确）
   return (
     <div
       className="text-white text-base leading-relaxed whitespace-pre-wrap"
       style={{ fontFamily }}
     >
-      <span
-        style={{
-          color: '#fff',
-          textShadow: '0 0 8px rgba(255,255,255,0.8), 0 0 16px rgba(255,255,255,0.5), 0 0 24px rgba(255,255,255,0.3)',
-        }}
-      >
-        {playedPart}
-      </span>
       <span style={{ color: 'rgba(255,255,255,0.6)' }}>
-        {unplayedPart}
+        {text}
       </span>
     </div>
   );
@@ -78,6 +94,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const [prevState, setPrevState] = useState({ position: { x: 100, y: 100 }, size: { width: 720, height: 580 } });
   const [isPlayingInModal, setIsPlayingInModal] = useState(false);
   const [playbackProgress, setPlaybackProgress] = useState(0);
+  const [currentPlaybackTime, setCurrentPlaybackTime] = useState(0); // 当前播放时间（秒）
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showJoinMenu, setShowJoinMenu] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -129,11 +146,13 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       modalAudioRef.current.addEventListener('timeupdate', () => {
         if (modalAudioRef.current && modalAudioRef.current.duration) {
           setPlaybackProgress(modalAudioRef.current.currentTime / modalAudioRef.current.duration);
+          setCurrentPlaybackTime(modalAudioRef.current.currentTime);
         }
       });
       modalAudioRef.current.addEventListener('ended', () => {
         setIsPlayingInModal(false);
         setPlaybackProgress(0);
+        setCurrentPlaybackTime(0);
       });
     }
 
@@ -153,6 +172,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       modalAudioRef.current = null;
       setIsPlayingInModal(false);
       setPlaybackProgress(0);
+      setCurrentPlaybackTime(0);
     }
   };
 
@@ -827,8 +847,9 @@ Sent from Diane`
                     {isPlayingInModal && flowEnabled ? (
                       <KaraokeText
                         text={memo.transcription}
-                        progress={playbackProgress}
+                        currentTime={currentPlaybackTime}
                         fontFamily={contentFont}
+                        wordTimestamps={memo.wordTimestamps}
                       />
                     ) : (
                       <MarkdownEditor

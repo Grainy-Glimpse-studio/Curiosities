@@ -13,6 +13,7 @@ import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 export interface TranscriptionResult {
   text: string;
   tags: string[];
+  wordTimestamps?: Array<{ word: string; start: number; end: number }>;
 }
 
 // API base URL
@@ -84,6 +85,10 @@ export class DeepgramTranscriber {
   private startTime: number = 0;
   private mode: 'visitor' | 'user' = 'visitor';
 
+  // 词级时间戳（卡拉OK效果）
+  private wordTimestamps: Array<{ word: string; start: number; end: number }> = [];
+  private audioStartTime: number = 0; // 录音开始的时间戳，用于计算绝对时间
+
   // 用户自己的 Key（可选）
   private userApiKey: string = '';
 
@@ -131,8 +136,11 @@ export class DeepgramTranscriber {
   }
 
   // 设置初始 transcript（用于语言切换时恢复之前的内容）
-  setInitialTranscript(text: string): void {
+  setInitialTranscript(text: string, timestamps?: Array<{ word: string; start: number; end: number }>): void {
     this.transcript = text;
+    if (timestamps) {
+      this.wordTimestamps = timestamps;
+    }
   }
 
   getCurrentTranscript(): string {
@@ -196,6 +204,7 @@ export class DeepgramTranscriber {
 
   async start(): Promise<boolean> {
     this.transcript = '';
+    this.wordTimestamps = [];
     this.isListening = true;
     this.lastFinalTimestamp = 0;
     this.startTime = Date.now();
@@ -226,6 +235,7 @@ export class DeepgramTranscriber {
       // Handle transcription results
       this.connection.on(LiveTranscriptionEvents.Transcript, (data: any) => {
         const text = data.channel?.alternatives?.[0]?.transcript;
+        const words = data.channel?.alternatives?.[0]?.words;
         const isFinal = data.is_final;
 
         if (text && text.trim()) {
@@ -236,6 +246,19 @@ export class DeepgramTranscriber {
             }
             this.transcript += text + ' ';
             this.lastFinalTimestamp = now;
+
+            // 捕获词级时间戳（卡拉OK效果）
+            if (words && Array.isArray(words)) {
+              for (const w of words) {
+                if (w.word && typeof w.start === 'number' && typeof w.end === 'number') {
+                  this.wordTimestamps.push({
+                    word: w.word,
+                    start: w.start,
+                    end: w.end,
+                  });
+                }
+              }
+            }
 
             if (this.onNewTextCallback) {
               this.onNewTextCallback(text, true);
@@ -312,7 +335,12 @@ export class DeepgramTranscriber {
     const text = this.transcript.trim();
     const tags = extractTags(text);
 
-    return { text, tags };
+    return { text, tags, wordTimestamps: this.wordTimestamps };
+  }
+
+  // 获取当前词级时间戳
+  getWordTimestamps(): Array<{ word: string; start: number; end: number }> {
+    return this.wordTimestamps;
   }
 
   setLanguage(lang: string): void {

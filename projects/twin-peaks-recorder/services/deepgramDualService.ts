@@ -10,6 +10,7 @@ import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 export interface TranscriptionResult {
   text: string;
   tags: string[];
+  wordTimestamps?: Array<{ word: string; start: number; end: number }>;
 }
 
 // API base URL
@@ -72,6 +73,7 @@ interface PendingResult {
   language: 'zh' | 'en';
   isFinal: boolean;
   timestamp: number;
+  words?: Array<{ word: string; start: number; end: number }>;
 }
 
 export class DeepgramDualTranscriber {
@@ -89,6 +91,9 @@ export class DeepgramDualTranscriber {
   private startTime: number = 0;
   private mode: 'visitor' | 'user' = 'visitor';
   private userApiKey: string = '';
+
+  // 词级时间戳（卡拉OK效果）
+  private wordTimestamps: Array<{ word: string; start: number; end: number }> = [];
 
   // 用于比较两路结果
   private pendingResults: Map<string, PendingResult[]> = new Map();
@@ -127,8 +132,11 @@ export class DeepgramDualTranscriber {
   }
 
   // 设置初始 transcript（用于语言切换时恢复之前的内容）
-  setInitialTranscript(text: string): void {
+  setInitialTranscript(text: string, timestamps?: Array<{ word: string; start: number; end: number }>): void {
     this.transcript = text;
+    if (timestamps) {
+      this.wordTimestamps = timestamps;
+    }
   }
 
   getCurrentTranscript(): string {
@@ -192,7 +200,8 @@ export class DeepgramDualTranscriber {
     text: string,
     confidence: number,
     isFinal: boolean,
-    startTime: number
+    startTime: number,
+    words?: Array<{ word: string; start: number; end: number }>
   ): void {
     const key = `${startTime}-${isFinal}`;
 
@@ -201,7 +210,7 @@ export class DeepgramDualTranscriber {
     }
 
     const results = this.pendingResults.get(key)!;
-    results.push({ text, confidence, language, isFinal, timestamp: Date.now() });
+    results.push({ text, confidence, language, isFinal, timestamp: Date.now(), words });
 
     // 如果两路都有结果了，比较并输出
     const zhResult = results.find(r => r.language === 'zh');
@@ -243,10 +252,10 @@ export class DeepgramDualTranscriber {
 
     console.log(`[DualTranscriber] Best result: ${bestResult.language} (zh: ${zhResult.confidence.toFixed(3)}, en: ${enResult.confidence.toFixed(3)}) - "${bestResult.text}"`);
 
-    this.outputResult(bestResult.text, isFinal);
+    this.outputResult(bestResult.text, isFinal, bestResult.words);
   }
 
-  private outputResult(text: string, isFinal: boolean): void {
+  private outputResult(text: string, isFinal: boolean, words?: Array<{ word: string; start: number; end: number }>): void {
     if (!text.trim()) return;
 
     if (isFinal) {
@@ -256,6 +265,11 @@ export class DeepgramDualTranscriber {
       }
       this.transcript += text + ' ';
       this.lastFinalTimestamp = now;
+
+      // 存储词级时间戳
+      if (words && Array.isArray(words)) {
+        this.wordTimestamps.push(...words);
+      }
     }
 
     if (this.onNewTextCallback) {
@@ -278,11 +292,18 @@ export class DeepgramDualTranscriber {
       const alternative = data.channel?.alternatives?.[0];
       const text = alternative?.transcript || '';
       const confidence = alternative?.confidence || 0;
+      const words = alternative?.words;
       const isFinal = data.is_final;
       const start = data.start || 0;
 
       if (text.trim()) {
-        this.handleTranscriptResult(label, text, confidence, isFinal, start);
+        // 转换 words 格式
+        const wordTimestamps = words?.map((w: any) => ({
+          word: w.word,
+          start: w.start,
+          end: w.end,
+        }));
+        this.handleTranscriptResult(label, text, confidence, isFinal, start, wordTimestamps);
       }
     });
 
@@ -337,6 +358,7 @@ export class DeepgramDualTranscriber {
 
   async start(): Promise<boolean> {
     this.transcript = '';
+    this.wordTimestamps = [];
     this.isListening = true;
     this.lastFinalTimestamp = 0;
     this.startTime = Date.now();
@@ -391,7 +413,12 @@ export class DeepgramDualTranscriber {
     const text = this.transcript.trim();
     const tags = extractTags(text);
 
-    return { text, tags };
+    return { text, tags, wordTimestamps: this.wordTimestamps };
+  }
+
+  // 获取当前词级时间戳
+  getWordTimestamps(): Array<{ word: string; start: number; end: number }> {
+    return this.wordTimestamps;
   }
 
   // 兼容接口
