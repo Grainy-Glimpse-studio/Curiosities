@@ -42,6 +42,7 @@ export class HDService {
   private languageMode: LanguageMode = 'auto';
   private config: HDServiceConfig = {};
   private onNewTextCallback: ((text: string, isFinal: boolean) => void) | null = null;
+  private recordingStartTime: number = 0; // 录音开始的时间戳，用于计算语言切换时的时间偏移
 
   constructor() {}
 
@@ -91,13 +92,10 @@ export class HDService {
     const currentTimestamps = this.activeTranscriber.getWordTimestamps?.() || [];
     console.log(`[HDService] Saving current transcript (${currentTranscript.length} chars, ${currentTimestamps.length} words)`);
 
-    // 计算时间偏移量：新语言的时间戳需要加上之前最大的结束时间
-    // 这样播放时顺序才是正确的
-    let timestampOffset = 0;
-    if (currentTimestamps.length > 0) {
-      timestampOffset = Math.max(...currentTimestamps.map(t => t.end)) + 0.5; // 加 0.5 秒间隔
-      console.log(`[HDService] Calculated timestamp offset: ${timestampOffset}s`);
-    }
+    // 计算时间偏移量：用实际经过的录音时间，而不是词时间戳
+    // 这样即使识别有问题，时间也是准确的
+    const timestampOffset = (Date.now() - this.recordingStartTime) / 1000;
+    console.log(`[HDService] Timestamp offset from actual elapsed time: ${timestampOffset.toFixed(2)}s`);
 
     // 停止当前连接（不报告用量，因为还要继续）
     if (this.activeTranscriber) {
@@ -188,6 +186,12 @@ export class HDService {
 
   // 开始录音
   async start(): Promise<{ success: boolean; service: string; quotaExceeded?: boolean; error?: string }> {
+    // 只在首次开始录音时记录开始时间（语言切换时不重置）
+    if (this.recordingStartTime === 0) {
+      this.recordingStartTime = Date.now();
+      console.log(`[HDService] Recording started at ${new Date(this.recordingStartTime).toISOString()}`);
+    }
+
     const service = this.selectTranscriber();
     console.log(`[HDService] Language mode: ${this.languageMode}, Selected service: ${service}`);
 
@@ -242,6 +246,9 @@ export class HDService {
 
   // 停止录音
   stop(): TranscriptionResult {
+    // 重置录音开始时间，下次录音重新计算
+    this.recordingStartTime = 0;
+
     if (this.activeTranscriber) {
       const result = this.activeTranscriber.stop();
       this.activeTranscriber = null;
