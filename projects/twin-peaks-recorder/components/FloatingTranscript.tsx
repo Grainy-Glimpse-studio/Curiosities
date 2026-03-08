@@ -782,10 +782,10 @@ Sent from Diane`
                         disabled={isSyncing || isSynced}
                         className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-colors ${
                           isSynced
-                            ? 'bg-[#b69fbb]/20 text-[#b69fbb] border-[#b69fbb]/30'
+                            ? 'bg-white/10 text-white/60 border-white/20'
                             : isSyncing
                             ? 'bg-white/10 text-white/60 border-white/20'
-                            : 'bg-white/5 hover:bg-white/15 text-white/60 hover:text-[#b69fbb] border-white/10 hover:border-[#b69fbb]/30'
+                            : 'bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border-white/10 hover:border-white/20'
                         }`}
                         style={{ fontFamily: contentFont }}
                         title={isSynced ? 'Synced to Cloud' : 'Sync to Cloud'}

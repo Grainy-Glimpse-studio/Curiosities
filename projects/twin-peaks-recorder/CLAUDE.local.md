@@ -417,6 +417,49 @@ Console 会显示：
 
 ---
 
+## ☁️ Cloud Sync 云同步架构 (2026-03-07)
+
+### 当前实现（Phase 1）
+- **只同步文字**：transcription, tags, metadata, highlighted_words
+- **不同步音频/图片**：Supabase 免费版带宽限制（2GB/月）
+- **表结构**：`user_memos`（见 `services/memoSync.ts`）
+
+### 未来升级路径（Phase 2 - 付费版）
+
+#### UI 设计（已规划）
+点击 Sync 按钮弹出多选菜单：
+```
+┌─────────────────────┐
+│  ☑ Text (文档)       │
+│  ☐ Audio (录音)      │
+│  ☐ Visuals (图片)    │
+├─────────────────────┤
+│      [ Sync ]       │
+└─────────────────────┘
+```
+
+#### 技术方案
+- **文字**：存 Supabase Database（当前方案）
+- **音频/图片**：存 Supabase Storage（需升级）
+  ```
+  storage/user-files/{user_id}/
+  ├── audio/memo-xxx.webm
+  ├── visuals/img-xxx.jpg
+  └── documents/memo-xxx.md
+  ```
+- **数据库**：只存元数据 + 文件路径（不存 base64）
+
+#### 配额设计
+- 免费版：只同步文字
+- 付费版：每用户 100MB Storage + 音频/图片同步
+- 需要 `user_storage_usage` 表追踪用量
+
+#### 升级触发点
+- 用户量 > 100
+- 有付费意愿的用户需求
+
+---
+
 ## 🐛 待修复问题
 
 ### Supabase 邮件确认 redirect 到 localhost
