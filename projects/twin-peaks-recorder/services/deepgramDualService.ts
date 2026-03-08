@@ -209,7 +209,10 @@ export class DeepgramDualTranscriber {
     startTime: number,
     words?: Array<{ word: string; start: number; end: number }>
   ): void {
-    const key = `${startTime}-${isFinal}`;
+    // 将 startTime 四舍五入到 0.5 秒，以便更好地匹配两路结果
+    // 因为两路连接可能有轻微的时间差异
+    const roundedStart = Math.round(startTime * 2) / 2;
+    const key = `${roundedStart}-${isFinal}`;
 
     if (!this.pendingResults.has(key)) {
       this.pendingResults.set(key, []);
@@ -273,13 +276,24 @@ export class DeepgramDualTranscriber {
       this.lastFinalTimestamp = now;
 
       // 存储词级时间戳（加上 timestampOffset 以保持语言切换后的顺序）
-      if (words && Array.isArray(words)) {
-        for (const w of words) {
-          this.wordTimestamps.push({
-            word: w.word,
-            start: w.start + this.timestampOffset,
-            end: w.end + this.timestampOffset,
-          });
+      // 防止重叠：检查整个词组的起始时间，如果与已存储的时间戳重叠则跳过
+      if (words && Array.isArray(words) && words.length > 0) {
+        const firstWordStart = words[0].start + this.timestampOffset;
+        const lastStoredEnd = this.wordTimestamps.length > 0
+          ? this.wordTimestamps[this.wordTimestamps.length - 1].end
+          : -1;
+
+        // 如果这组词的开始时间早于已存储的最后结束时间，说明是重复的结果，跳过时间戳
+        if (firstWordStart < lastStoredEnd - 0.3) {
+          console.log(`[DualTranscriber] Skipping overlapping timestamps: firstWordStart=${firstWordStart.toFixed(2)}, lastStoredEnd=${lastStoredEnd.toFixed(2)}`);
+        } else {
+          for (const w of words) {
+            this.wordTimestamps.push({
+              word: w.word,
+              start: w.start + this.timestampOffset,
+              end: w.end + this.timestampOffset,
+            });
+          }
         }
       }
     }
