@@ -10,6 +10,7 @@ import FocusMode from '../components/FocusMode';
 import FloatingTranscript from '../components/FloatingTranscript';
 import ShootingStar from '../components/ShootingStar';
 import ApiSettings, { loadSpeechMode } from '../components/ApiSettings';
+import BugReport from '../components/BugReport';
 import { useAuth } from '../contexts/AuthContext';
 import { Memo, RecorderState } from '../types';
 import { getTranscriber, SpeechTranscriber } from '../services/speechService';
@@ -274,6 +275,7 @@ const HomePage: React.FC = () => {
   const [openTranscripts, setOpenTranscripts] = useState<Memo[]>([]);
   const [starVisible, setStarVisible] = useState(false);
   const [showApiSettings, setShowApiSettings] = useState(false);
+  const [showBugReport, setShowBugReport] = useState(false);
   const [speechMode, setSpeechMode] = useState<'standard' | 'hd'>('standard');
   const [activeService, setActiveService] = useState<string | null>(null); // Track which service is being used
   const [syncedMemoIds, setSyncedMemoIds] = useState<Set<string>>(new Set()); // Track which memos are synced to cloud
@@ -1045,6 +1047,11 @@ const HomePage: React.FC = () => {
         currentSpeechMode={speechMode}
       />
 
+      <BugReport
+        isOpen={showBugReport}
+        onClose={() => setShowBugReport(false)}
+      />
+
       {/* Top Left Controls */}
       {!isDrawerOpen && (
         <div className="fixed top-6 left-6 z-50 flex items-center gap-6">
@@ -1134,12 +1141,7 @@ const HomePage: React.FC = () => {
       {!isDrawerOpen && (
         <div className="fixed top-6 right-6 z-50">
           <span
-            onClick={() => {
-              // TODO: 后续改成引导式报告流程
-              const subject = encodeURIComponent('[Bug Report] Diane');
-              const body = encodeURIComponent(`What happened?\n\n\nWhat did you expect?\n\n\nSteps to reproduce:\n1. \n2. \n3. \n\nBrowser: ${navigator.userAgent}\nURL: ${window.location.href}`);
-              window.open(`mailto:diane@twinpeaks.fm?subject=${subject}&body=${body}`, '_blank');
-            }}
+            onClick={() => setShowBugReport(true)}
             className="cursor-pointer font-recorder text-[11px] tracking-[0.3em] uppercase transition-all duration-300 hover:opacity-80"
             style={{ color: '#b69fbb' }}
           >
