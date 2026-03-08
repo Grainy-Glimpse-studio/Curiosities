@@ -1235,7 +1235,7 @@ const HomePage: React.FC = () => {
             />
           </div>
 
-          {/* Access Archive - right below recorder */}
+          {/* The Case Files - right below recorder */}
           <button
             onClick={() => setIsDrawerOpen(true)}
             className="shrink-0 mt-3 group flex flex-col items-center gap-3 transition-all duration-500 hover:-translate-y-1"
@@ -1247,7 +1247,7 @@ const HomePage: React.FC = () => {
               <div className="absolute -top-1 -right-1 w-2 h-2 bg-[#b69fbb] rounded-full animate-pulse shadow-[0_0_8px_rgba(182,159,187,0.6)]"></div>
             </div>
             <div className="text-zinc-500 font-journal text-[10px] tracking-[0.4em] uppercase group-hover:text-[#b69fbb] transition-colors">
-              Access Archive
+              The Case Files
             </div>
           </button>
 
