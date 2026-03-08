@@ -29,9 +29,10 @@ interface KaraokeTextProps {
   currentTime: number; // 当前播放时间（秒）
   fontFamily: string;
   wordTimestamps?: Array<{ word: string; start: number; end: number }>;
+  audioDuration?: number; // 音频总时长（秒），用于没有时间戳时估算
 }
 
-const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily, wordTimestamps }) => {
+const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily, wordTimestamps, audioDuration }) => {
   // 计算词的发光强度（0-1），基于当前时间在词时间范围内的位置
   const getGlowIntensity = (timestamp: { start: number; end: number } | undefined): number => {
     if (!timestamp) return 1; // 没有时间戳的词默认全亮
@@ -178,7 +179,53 @@ const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily
     );
   }
 
-  // 没有时间戳时，保留原文格式，全部暗色显示
+  // 没有时间戳时，根据音频时长估算时间戳
+  if (audioDuration && audioDuration > 0) {
+    // 统计总词数（用于估算每个词的时间）
+    const allWords = text.split(/\s+/).filter(w => w.length > 0);
+    const totalWords = allWords.length;
+    const timePerWord = audioDuration / totalWords;
+
+    // 按段落分割
+    const paragraphs = text.split(/\n\n+/);
+    let globalWordIndex = 0;
+
+    return (
+      <div
+        className="text-white text-base leading-relaxed"
+        style={{ fontFamily }}
+      >
+        {paragraphs.map((para, pIdx) => {
+          const words = para.split(/(\s+)/);
+
+          return (
+            <p key={pIdx} className="mb-4">
+              {words.map((word, wIdx) => {
+                // 空白字符直接渲染
+                if (/^\s+$/.test(word)) {
+                  return <span key={wIdx}>{word}</span>;
+                }
+
+                // 估算这个词的时间戳
+                const estimatedStart = globalWordIndex * timePerWord;
+                const estimatedEnd = (globalWordIndex + 1) * timePerWord;
+                globalWordIndex++;
+
+                const intensity = getGlowIntensity({ start: estimatedStart, end: estimatedEnd });
+                return (
+                  <span key={wIdx} style={getWordStyle(intensity)}>
+                    {word}
+                  </span>
+                );
+              })}
+            </p>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // 完全没有时间信息时，全部暗色显示
   const dimStyle: React.CSSProperties = {
     color: 'rgba(255,255,255,0.5)',
   };
@@ -975,6 +1022,7 @@ Sent from Diane`
                         currentTime={currentPlaybackTime}
                         fontFamily={contentFont}
                         wordTimestamps={memo.wordTimestamps}
+                        audioDuration={memo.duration}
                       />
                     ) : (
                       <MarkdownEditor
