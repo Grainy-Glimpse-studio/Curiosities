@@ -94,6 +94,7 @@ export class DeepgramDualTranscriber {
 
   // 词级时间戳（卡拉OK效果）
   private wordTimestamps: Array<{ word: string; start: number; end: number }> = [];
+  private timestampOffset: number = 0; // 语言切换时的时间偏移量
 
   // 用于比较两路结果
   private pendingResults: Map<string, PendingResult[]> = new Map();
@@ -132,10 +133,15 @@ export class DeepgramDualTranscriber {
   }
 
   // 设置初始 transcript（用于语言切换时恢复之前的内容）
-  setInitialTranscript(text: string, timestamps?: Array<{ word: string; start: number; end: number }>): void {
+  // offset: 新时间戳需要加上的偏移量（秒），用于保持播放顺序
+  setInitialTranscript(text: string, timestamps?: Array<{ word: string; start: number; end: number }>, offset?: number): void {
     this.transcript = text;
     if (timestamps) {
       this.wordTimestamps = timestamps;
+    }
+    if (offset !== undefined) {
+      this.timestampOffset = offset;
+      console.log(`[DualTranscriber] Timestamp offset set to ${offset}s`);
     }
   }
 
@@ -226,7 +232,7 @@ export class DeepgramDualTranscriber {
           const currentResults = this.pendingResults.get(key)!;
           if (currentResults.length === 1) {
             const result = currentResults[0];
-            this.outputResult(result.text, result.isFinal);
+            this.outputResult(result.text, result.isFinal, result.words);
           }
           this.pendingResults.delete(key);
         }
@@ -266,9 +272,15 @@ export class DeepgramDualTranscriber {
       this.transcript += text + ' ';
       this.lastFinalTimestamp = now;
 
-      // 存储词级时间戳
+      // 存储词级时间戳（加上 timestampOffset 以保持语言切换后的顺序）
       if (words && Array.isArray(words)) {
-        this.wordTimestamps.push(...words);
+        for (const w of words) {
+          this.wordTimestamps.push({
+            word: w.word,
+            start: w.start + this.timestampOffset,
+            end: w.end + this.timestampOffset,
+          });
+        }
       }
     }
 

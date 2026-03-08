@@ -91,6 +91,14 @@ export class HDService {
     const currentTimestamps = this.activeTranscriber.getWordTimestamps?.() || [];
     console.log(`[HDService] Saving current transcript (${currentTranscript.length} chars, ${currentTimestamps.length} words)`);
 
+    // 计算时间偏移量：新语言的时间戳需要加上之前最大的结束时间
+    // 这样播放时顺序才是正确的
+    let timestampOffset = 0;
+    if (currentTimestamps.length > 0) {
+      timestampOffset = Math.max(...currentTimestamps.map(t => t.end)) + 0.5; // 加 0.5 秒间隔
+      console.log(`[HDService] Calculated timestamp offset: ${timestampOffset}s`);
+    }
+
     // 停止当前连接（不报告用量，因为还要继续）
     if (this.activeTranscriber) {
       this.activeTranscriber.stop();
@@ -103,11 +111,11 @@ export class HDService {
     const result = await this.start();
 
     if (result.success && this.activeTranscriber) {
-      // 恢复之前的文本、时间戳，并添加分隔符
+      // 恢复之前的文本、时间戳，并传递时间偏移量
       if (currentTranscript.trim()) {
         const restoredTranscript = currentTranscript + '\n\n———\n\n';
-        this.activeTranscriber.setInitialTranscript(restoredTranscript, currentTimestamps);
-        console.log(`[HDService] Restored transcript with separator and ${currentTimestamps.length} word timestamps`);
+        this.activeTranscriber.setInitialTranscript(restoredTranscript, currentTimestamps, timestampOffset);
+        console.log(`[HDService] Restored transcript with separator, ${currentTimestamps.length} word timestamps, offset ${timestampOffset}s`);
       }
       console.log(`[HDService] Language switched successfully to ${newMode}`);
     }

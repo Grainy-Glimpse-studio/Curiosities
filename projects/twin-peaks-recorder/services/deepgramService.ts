@@ -88,6 +88,7 @@ export class DeepgramTranscriber {
   // 词级时间戳（卡拉OK效果）
   private wordTimestamps: Array<{ word: string; start: number; end: number }> = [];
   private audioStartTime: number = 0; // 录音开始的时间戳，用于计算绝对时间
+  private timestampOffset: number = 0; // 语言切换时的时间偏移量
 
   // 用户自己的 Key（可选）
   private userApiKey: string = '';
@@ -136,10 +137,15 @@ export class DeepgramTranscriber {
   }
 
   // 设置初始 transcript（用于语言切换时恢复之前的内容）
-  setInitialTranscript(text: string, timestamps?: Array<{ word: string; start: number; end: number }>): void {
+  // offset: 新时间戳需要加上的偏移量（秒），用于保持播放顺序
+  setInitialTranscript(text: string, timestamps?: Array<{ word: string; start: number; end: number }>, offset?: number): void {
     this.transcript = text;
     if (timestamps) {
       this.wordTimestamps = timestamps;
+    }
+    if (offset !== undefined) {
+      this.timestampOffset = offset;
+      console.log(`[DeepgramTranscriber] Timestamp offset set to ${offset}s`);
     }
   }
 
@@ -248,13 +254,14 @@ export class DeepgramTranscriber {
             this.lastFinalTimestamp = now;
 
             // 捕获词级时间戳（卡拉OK效果）
+            // 加上 timestampOffset 以保持语言切换后的顺序
             if (words && Array.isArray(words)) {
               for (const w of words) {
                 if (w.word && typeof w.start === 'number' && typeof w.end === 'number') {
                   this.wordTimestamps.push({
                     word: w.word,
-                    start: w.start,
-                    end: w.end,
+                    start: w.start + this.timestampOffset,
+                    end: w.end + this.timestampOffset,
                   });
                 }
               }

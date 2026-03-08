@@ -104,7 +104,8 @@ export class DashScopeTranscriber {
   }
 
   // 设置初始 transcript（用于语言切换时恢复之前的内容）
-  setInitialTranscript(text: string): void {
+  // DashScope 暂不支持 word timestamps，参数保持一致但忽略
+  setInitialTranscript(text: string, _timestamps?: Array<{ word: string; start: number; end: number }>, _offset?: number): void {
     this.transcript = text;
   }
 
