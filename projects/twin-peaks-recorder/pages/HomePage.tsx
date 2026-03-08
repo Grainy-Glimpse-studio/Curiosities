@@ -8,7 +8,8 @@ import FloatingWords from '../components/FloatingWords';
 import FocusMode from '../components/FocusMode';
 import FloatingTranscript from '../components/FloatingTranscript';
 import ShootingStar from '../components/ShootingStar';
-import ApiSettings, { loadApiKeys, loadSpeechMode, ApiKeys } from '../components/ApiSettings';
+import ApiSettings, { loadSpeechMode } from '../components/ApiSettings';
+import { useAuth } from '../contexts/AuthContext';
 import { Memo, RecorderState } from '../types';
 import { getTranscriber, SpeechTranscriber } from '../services/speechService';
 import { DeepgramTranscriber } from '../services/deepgramService';
@@ -44,6 +45,7 @@ Second stop, the Regional Bureau Office, to pick up some files. Although I have 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { apiKeys: userApiKeys } = useAuth();
 
   // --- Custom Cursor State ---
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
@@ -66,7 +68,6 @@ const HomePage: React.FC = () => {
   const [openTranscripts, setOpenTranscripts] = useState<Memo[]>([]);
   const [starVisible, setStarVisible] = useState(false);
   const [showApiSettings, setShowApiSettings] = useState(false);
-  const [apiKeys, setApiKeys] = useState<ApiKeys>({ deepgram: null, aliyun: { accessKeyId: null, accessKeySecret: null, appKey: null }, openai: null });
   const [speechMode, setSpeechMode] = useState<'standard' | 'hd'>('standard');
   const [activeService, setActiveService] = useState<string | null>(null); // Track which service is being used
 
@@ -80,12 +81,19 @@ const HomePage: React.FC = () => {
     }
   }, [location.state]);
 
-  // --- Load API keys and speech mode on mount ---
+  // --- Load speech mode on mount ---
   useEffect(() => {
-    const storedKeys = loadApiKeys();
-    setApiKeys(storedKeys);
     setSpeechMode(loadSpeechMode());
   }, []);
+
+  // --- Sync font with language selection ---
+  useEffect(() => {
+    if (speechLang === 'zh') {
+      setContentFont("'HuiWen', serif");
+    } else {
+      setContentFont("'Consulate', monospace");
+    }
+  }, [speechLang]);
 
   // --- Refs ---
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -246,19 +254,18 @@ const HomePage: React.FC = () => {
         const hdService = getHDService();
 
         // Configure with user's API keys if available
-        const hasAliyunKeys = apiKeys.aliyun.accessKeyId && apiKeys.aliyun.accessKeySecret && apiKeys.aliyun.appKey;
-        const hasDeepgramKey = apiKeys.deepgram;
+        const hasDeepgramKey = userApiKeys?.deepgram;
+        const hasDashScopeKey = userApiKeys?.dashscope;
 
-        if (hasAliyunKeys || hasDeepgramKey) {
+        if (hasDeepgramKey || hasDashScopeKey) {
           hdService.setConfig({
-            aliyun: hasAliyunKeys ? {
-              accessKeyId: apiKeys.aliyun.accessKeyId!,
-              accessKeySecret: apiKeys.aliyun.accessKeySecret!,
-              appKey: apiKeys.aliyun.appKey!,
-            } : undefined,
             deepgram: hasDeepgramKey ? {
-              apiKey: apiKeys.deepgram!,
+              apiKey: userApiKeys.deepgram!,
             } : undefined,
+            dashscope: hasDashScopeKey ? {
+              apiKey: userApiKeys.dashscope!,
+            } : undefined,
+            primarySpeechApi: userApiKeys?.primarySpeechApi,
           });
         } else {
           // Visitor mode - clear any previous config
@@ -625,29 +632,24 @@ const HomePage: React.FC = () => {
         />
       ))}
 
-      {/* API Settings Modal */}
+      {/* Settings Modal */}
       <ApiSettings
         isOpen={showApiSettings}
         onClose={() => setShowApiSettings(false)}
-        onApiKeysChange={setApiKeys}
         onSpeechModeChange={setSpeechMode}
-        currentKeys={apiKeys}
         currentSpeechMode={speechMode}
       />
 
       {/* Top Left Controls */}
       {!isDrawerOpen && (
         <div className="fixed top-6 left-6 z-50 flex items-center gap-6">
-          {/* API Button - always visible when not in drawer */}
+          {/* Login + Mode indicator - always visible when not in drawer */}
           <span
             onClick={() => setShowApiSettings(true)}
-            className={`cursor-pointer font-recorder text-[11px] tracking-[0.3em] uppercase transition-all duration-300 ${
-              speechMode === 'hd'
-                ? 'text-green-400/70 hover:text-green-400'
-                : 'text-white/50 hover:text-white/70'
-            }`}
+            className="cursor-pointer font-recorder text-[11px] tracking-[0.3em] uppercase transition-all duration-300 hover:opacity-80"
+            style={{ color: '#b69fbb' }}
           >
-            {speechMode === 'hd' ? 'HD' : 'API'}
+            Login · {speechMode === 'hd' ? 'HD' : 'STD'}
           </span>
 
           {/* Recording controls - only when recording */}

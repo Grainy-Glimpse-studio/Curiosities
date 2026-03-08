@@ -1,18 +1,18 @@
 /**
  * HD 语音识别服务
- * 统一入口，根据语言选择使用阿里云或 Deepgram
+ * 统一入口，根据用户配置选择使用 Deepgram 或 DashScope
  *
  * 游客模式：
- * - Auto / 中文 → 阿里云（支持中英混合）
- * - English → Deepgram
+ * - 使用 Deepgram（开发者 Key，有配额限制）
  *
  * 用户模式：
  * - 根据用户配置的 API 选择
+ * - 如果配置了多个 API，使用 primarySpeechApi 指定的
  */
 
-import { AliyunTranscriber, checkVisitorQuota as checkAliyunQuota } from './aliyunService';
 import { DeepgramTranscriber, checkDeepgramQuota } from './deepgramService';
 import { DeepgramDualTranscriber } from './deepgramDualService';
+import { DashScopeTranscriber } from './dashscopeService';
 
 export interface TranscriptionResult {
   text: string;
@@ -23,21 +23,21 @@ export type LanguageMode = 'auto' | 'zh' | 'en';
 
 export interface HDServiceConfig {
   // 用户自己的 API Keys（可选）
-  aliyun?: {
-    accessKeyId: string;
-    accessKeySecret: string;
-    appKey: string;
-  };
   deepgram?: {
     apiKey: string;
   };
+  dashscope?: {
+    apiKey: string;
+  };
+  // 当配置了多个 API 时，选择主要使用哪个
+  primarySpeechApi?: 'deepgram' | 'dashscope';
 }
 
 export class HDService {
-  private aliyunTranscriber: AliyunTranscriber | null = null;
   private deepgramTranscriber: DeepgramTranscriber | null = null;
   private deepgramDualTranscriber: DeepgramDualTranscriber | null = null;
-  private activeTranscriber: AliyunTranscriber | DeepgramTranscriber | DeepgramDualTranscriber | null = null;
+  private dashscopeTranscriber: DashScopeTranscriber | null = null;
+  private activeTranscriber: DeepgramTranscriber | DeepgramDualTranscriber | DashScopeTranscriber | null = null;
   private languageMode: LanguageMode = 'auto';
   private config: HDServiceConfig = {};
   private onNewTextCallback: ((text: string, isFinal: boolean) => void) | null = null;
@@ -48,30 +48,25 @@ export class HDService {
   setConfig(config: HDServiceConfig): void {
     this.config = config;
 
-    // 如果有阿里云配置
-    if (config.aliyun) {
-      this.aliyunTranscriber = new AliyunTranscriber();
-      this.aliyunTranscriber.setUserCredentials(
-        config.aliyun.accessKeyId,
-        config.aliyun.accessKeySecret,
-        config.aliyun.appKey
-      );
-    }
-
     // 如果有 Deepgram 配置
     if (config.deepgram) {
       this.deepgramTranscriber = new DeepgramTranscriber(config.deepgram.apiKey);
+    }
+
+    // 如果有 DashScope 配置
+    if (config.dashscope) {
+      this.dashscopeTranscriber = new DashScopeTranscriber(config.dashscope.apiKey);
     }
   }
 
   // 清除用户配置（切换到游客模式）
   clearConfig(): void {
     this.config = {};
-    if (this.aliyunTranscriber) {
-      this.aliyunTranscriber.clearUserCredentials();
-    }
     if (this.deepgramTranscriber) {
       this.deepgramTranscriber.clearUserApiKey();
+    }
+    if (this.dashscopeTranscriber) {
+      this.dashscopeTranscriber.clearUserApiKey();
     }
   }
 
@@ -136,18 +131,33 @@ export class HDService {
   }
 
   // 选择使用哪个 API
-  // Auto 模式使用双路并行 Deepgram（中英同时识别，比较 confidence）
-  // 中文/英文模式使用单路 Deepgram
-  private selectTranscriber(): 'aliyun' | 'deepgram' | 'deepgram-dual' {
-    // 用户模式：如果只配置了阿里云，用阿里云
-    if (this.config.aliyun && !this.config.deepgram) {
-      return 'aliyun';
+  // 优先级：
+  // 1. 如果设置了 primarySpeechApi，使用用户选择的
+  // 2. 如果只配置了一个 API，使用那个
+  // 3. 默认使用 Deepgram（游客模式）
+  private selectTranscriber(): 'deepgram' | 'deepgram-dual' | 'dashscope' {
+    // 如果设置了首选 API
+    if (this.config.primarySpeechApi === 'dashscope' && this.config.dashscope) {
+      return 'dashscope';
     }
+    if (this.config.primarySpeechApi === 'deepgram' && this.config.deepgram) {
+      // Auto 模式使用双路并行
+      if (this.languageMode === 'auto') {
+        return 'deepgram-dual';
+      }
+      return 'deepgram';
+    }
+
+    // 如果只配置了 DashScope，使用 DashScope
+    if (this.config.dashscope && !this.config.deepgram) {
+      return 'dashscope';
+    }
+
+    // 默认使用 Deepgram（游客模式或用户只配置了 Deepgram）
     // Auto 模式使用双路并行
     if (this.languageMode === 'auto') {
       return 'deepgram-dual';
     }
-    // 中文/英文模式使用单路
     return 'deepgram';
   }
 
@@ -168,23 +178,22 @@ export class HDService {
     const service = this.selectTranscriber();
     console.log(`[HDService] Language mode: ${this.languageMode}, Selected service: ${service}`);
 
-    if (service === 'aliyun') {
-      // 使用阿里云
-      console.log('[HDService] Creating/using AliyunTranscriber');
-      if (!this.aliyunTranscriber) {
-        this.aliyunTranscriber = new AliyunTranscriber();
+    if (service === 'dashscope') {
+      // 使用 DashScope
+      console.log('[HDService] Creating/using DashScopeTranscriber');
+      if (!this.dashscopeTranscriber) {
+        this.dashscopeTranscriber = new DashScopeTranscriber(this.config.dashscope?.apiKey);
       }
-      this.aliyunTranscriber.onNewText(this.onNewTextCallback);
-      this.activeTranscriber = this.aliyunTranscriber;
+      this.dashscopeTranscriber.setLanguage(this.languageMode === 'zh' ? 'zh' : this.languageMode === 'en' ? 'en' : 'auto');
+      this.dashscopeTranscriber.onNewText(this.onNewTextCallback);
+      this.activeTranscriber = this.dashscopeTranscriber;
 
-      const success = await this.aliyunTranscriber.start();
+      const success = await this.dashscopeTranscriber.start();
       if (!success) {
-        const isQuota = this.aliyunTranscriber.isQuotaExceeded;
-        const error = this.aliyunTranscriber.lastError;
-        console.error('[HDService] Aliyun start failed:', { isQuota, error });
-        return { success: false, service: 'aliyun', quotaExceeded: isQuota, error };
+        console.error('[HDService] DashScope start failed');
+        return { success: false, service: 'dashscope', error: 'Failed to start DashScope transcription' };
       }
-      return { success: true, service: 'aliyun' };
+      return { success: true, service: 'dashscope' };
 
     } else if (service === 'deepgram-dual') {
       // Auto 模式：使用双路并行 Deepgram（中英同时识别）
@@ -232,10 +241,9 @@ export class HDService {
   }
 }
 
-// 检查游客配额（两个 API 共享配额）
+// 检查游客配额（使用 Deepgram 配额）
 export async function checkHDQuota(): Promise<{ allowed: boolean; usedSeconds: number; remainingSeconds: number }> {
-  // 检查阿里云配额（两个 API 共享同一个配额）
-  return await checkAliyunQuota();
+  return await checkDeepgramQuota();
 }
 
 // 创建单例
