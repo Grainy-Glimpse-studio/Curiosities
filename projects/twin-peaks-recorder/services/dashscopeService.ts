@@ -177,7 +177,7 @@ export class DashScopeTranscriber {
               task_group: 'audio',
               task: 'asr',
               function: 'recognition',
-              model: 'paraformer-realtime-v2',
+              model: 'fun-asr-realtime-2025-11-07',
               parameters: {
                 format: 'pcm',
                 sample_rate: 16000,

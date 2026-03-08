@@ -15,15 +15,6 @@ const API_INFO = {
     freeCredits: '$200 free (~435 hours)',
     signupUrl: 'https://console.deepgram.com/signup',
   },
-  dashscope: {
-    name: '千问 (百炼)',
-    description: '阿里云实时语音识别。支持中英日混合，20+ 种中文方言。',
-    pros: ['中英日混合识别', '支持粤语/闽南语等方言', '价格便宜'],
-    cons: ['需要阿里云账号'],
-    price: '¥1.2/hour (~$0.17)',
-    freeCredits: '新用户有免费额度',
-    signupUrl: 'https://bailian.console.aliyun.com/',
-  },
   openai: {
     name: 'OpenAI',
     description: 'For cleaning up transcripts, auto-tagging, and summarization.',
@@ -44,9 +35,7 @@ const UserPage: React.FC = () => {
 
   // API keys (local state for editing)
   const [deepgramKey, setDeepgramKey] = useState('');
-  const [dashscopeKey, setDashscopeKey] = useState('');
   const [openaiKey, setOpenaiKey] = useState('');
-  const [primarySpeechApi, setPrimarySpeechApi] = useState<'deepgram' | 'dashscope'>('deepgram');
 
   // Info popover
   const [showInfo, setShowInfo] = useState<string | null>(null);
@@ -60,9 +49,7 @@ const UserPage: React.FC = () => {
   useEffect(() => {
     if (apiKeys) {
       setDeepgramKey(apiKeys.deepgram || '');
-      setDashscopeKey(apiKeys.dashscope || '');
       setOpenaiKey(apiKeys.openai || '');
-      setPrimarySpeechApi(apiKeys.primarySpeechApi || 'deepgram');
     }
   }, [apiKeys]);
 
@@ -83,9 +70,7 @@ const UserPage: React.FC = () => {
     try {
       await saveKeys({
         deepgram: deepgramKey || undefined,
-        dashscope: dashscopeKey || undefined,
         openai: openaiKey || undefined,
-        primarySpeechApi: primarySpeechApi,
       });
 
       setSaved(true);
@@ -192,22 +177,9 @@ const UserPage: React.FC = () => {
                   info={API_INFO.deepgram}
                   value={deepgramKey}
                   onChange={setDeepgramKey}
-                  isPrimary={primarySpeechApi === 'deepgram'}
-                  onSetPrimary={() => setPrimarySpeechApi('deepgram')}
-                  showBothConfigured={!!deepgramKey && !!dashscopeKey}
-                  showInfo={showInfo}
-                  onToggleInfo={setShowInfo}
-                />
-
-                {/* DashScope / 千问 */}
-                <SpeechApiInput
-                  api="dashscope"
-                  info={API_INFO.dashscope}
-                  value={dashscopeKey}
-                  onChange={setDashscopeKey}
-                  isPrimary={primarySpeechApi === 'dashscope'}
-                  onSetPrimary={() => setPrimarySpeechApi('dashscope')}
-                  showBothConfigured={!!deepgramKey && !!dashscopeKey}
+                  isPrimary={true}
+                  onSetPrimary={() => {}}
+                  showBothConfigured={false}
                   showInfo={showInfo}
                   onToggleInfo={setShowInfo}
                 />

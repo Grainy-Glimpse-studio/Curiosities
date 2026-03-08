@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Text Animation Playground</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 100%);
+      min-height: 100vh;
+      font-family: Georgia, serif;
+      color: white;
+      padding: 40px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 40px;
+      font-weight: normal;
+      opacity: 0.7;
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 30px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .demo-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+      padding: 30px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .demo-card h2 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      opacity: 0.5;
+      margin-bottom: 20px;
+      font-weight: normal;
+    }
+
+    .demo-area {
+      height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      position: relative;
+    }
+
+    .demo-btn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .demo-btn:hover {
+      background: rgba(255,255,255,0.2);
+    }
+
+    /* ========== 1. Gooey Morph ========== */
+    .gooey-container {
+      position: relative;
+      filter: url(#gooey-filter);
+    }
+
+    .gooey-text {
+      position: absolute;
+      white-space: nowrap;
+      transition: opacity 2.5s ease-in-out, filter 2.5s ease-in-out;
+    }
+
+    .gooey-text.front {
+      opacity: 1;
+      filter: blur(0px);
+    }
+
+    .gooey-text.back {
+      opacity: 0;
+      filter: blur(12px);
+    }
+
+    .gooey-container.flipped .front {
+      opacity: 0;
+      filter: blur(12px);
+    }
+
+    .gooey-container.flipped .back {
+      opacity: 1;
+      filter: blur(0px);
+    }
+
+    /* ========== 2. Scramble Text ========== */
+    .scramble-text {
+      font-family: 'Courier New', monospace;
+      letter-spacing: 2px;
+    }
+
+    /* ========== 3. Wave Dissolve ========== */
+    .wave-container {
+      position: relative;
+    }
+
+    .wave-text {
+      position: absolute;
+      display: flex;
+      white-space: nowrap;
+    }
+
+    .wave-char {
+      display: inline-block;
+      transition: all 1.2s ease;
+    }
+
+    /* ========== 4. Blur Crossfade ========== */
+    .blur-container {
+      position: relative;
+    }
+
+    .blur-text {
+      position: absolute;
+      white-space: nowrap;
+      transition: all 2s ease-in-out;
+    }
+
+    .blur-text.front {
+      opacity: 1;
+      filter: blur(0);
+      transform: scale(1);
+    }
+
+    .blur-text.back {
+      opacity: 0;
+      filter: blur(12px);
+      transform: scale(0.95);
+    }
+
+    .blur-container.flipped .front {
+      opacity: 0;
+      filter: blur(12px);
+      transform: scale(1.05);
+    }
+
+    .blur-container.flipped .back {
+      opacity: 1;
+      filter: blur(0);
+      transform: scale(1);
+    }
+
+    /* ========== 5. Letter Flip (3D) ========== */
+    .letter-flip-container {
+      perspective: 1000px;
+      display: flex;
+    }
+
+    .flip-letter {
+      display: inline-block;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 1.5s ease-in-out;
+    }
+
+    .flip-letter .front,
+    .flip-letter .back {
+      backface-visibility: hidden;
+    }
+
+    .flip-letter .back {
+      position: absolute;
+      left: 0;
+      transform: rotateX(180deg);
+    }
+
+    .flip-letter.flipped {
+      transform: rotateX(180deg);
+    }
+
+    /* ========== 6. Particle Dissolve ========== */
+    .particle-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .particle-text {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ========== 7. Typewriter Swap ========== */
+    .typewriter-text {
+      border-right: 2px solid rgba(255,255,255,0.5);
+      padding-right: 4px;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% { border-color: transparent; }
+    }
+
+    /* ========== 8. Slide Replace ========== */
+    .slide-container {
+      position: relative;
+      overflow: hidden;
+      height: 40px;
+    }
+
+    .slide-text {
+      position: absolute;
+      transition: all 1.5s ease-in-out;
+    }
+
+    .slide-text.front {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .slide-text.back {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+
+    .slide-container.flipped .front {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+
+    .slide-container.flipped .back {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <!-- SVG Filter for Gooey Effect -->
+  <svg style="position: absolute; width: 0; height: 0;">
+    <defs>
+      <filter id="gooey-filter">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+        <feColorMatrix in="blur" mode="matrix"
+          values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -10" result="gooey"/>
+      </filter>
+    </defs>
+  </svg>
+
+  <h1>Text Animation Playground</h1>
+
+  <div class="demo-grid">
+
+    <!-- 1. Gooey Morph -->
+    <div class="demo-card">
+      <h2>1. Gooey Morph (液态融合)</h2>
+      <div class="demo-area">
+        <div class="gooey-container" id="gooey-demo">
+          <span class="gooey-text front">The stars are bright</span>
+          <span class="gooey-text back">星光璀璨</span>
+        </div>
+      </div>
+      <button class="demo-btn" onclick="toggleGooey()">Toggle</button>
+    </div>
+
+    <!-- 2. Scramble Text -->
+    <div class="demo-card">
+      <h2>2. Scramble (乱码解码)</h2>
+      <div class="demo-area">
+        <span class="scramble-text" id="scramble-demo">The stars are bright</span>
+      </div>
+      <button class="demo-btn" onclick="toggleScramble()">Toggle</button>
+    </div>
+
+    <!-- 3. Wave Dissolve -->
+    <div class="demo-card">
+      <h2>3. Wave Dissolve (波浪消散)</h2>
+      <div class="demo-area">
+        <div class="wave-container" id="wave-demo">
+          <span class="wave-text front"></span>
+          <span class="wave-text back"></span>
+        </div>
+      </div>
+      <button class="demo-btn" onclick="toggleWave()">Toggle</button>
+    </div>
+
+    <!-- 4. Blur Crossfade -->
+    <div class="demo-card">
+      <h2>4. Blur Crossfade (模糊渐变)</h2>
+      <div class="demo-area">
+        <div class="blur-container" id="blur-demo">
+          <span class="blur-text front">The stars are bright</span>
+          <span class="blur-text back">星光璀璨</span>
+        </div>
+      </div>
+      <button class="demo-btn" onclick="toggleBlur()">Toggle</button>
+    </div>
+
+    <!-- 5. Letter Flip -->
+    <div class="demo-card">
+      <h2>5. Letter Flip (字母翻转)</h2>
+      <div class="demo-area">
+        <div class="letter-flip-container" id="letter-flip-demo"></div>
+      </div>
+      <button class="demo-btn" onclick="toggleLetterFlip()">Toggle</button>
+    </div>
+
+    <!-- 6. Slide Replace -->
+    <div class="demo-card">
+      <h2>6. Slide Replace (滑动替换)</h2>
+      <div class="demo-area">
+        <div class="slide-container" id="slide-demo">
+          <span class="slide-text front">The stars are bright</span>
+          <span class="slide-text back">星光璀璨</span>
+        </div>
+      </div>
+      <button class="demo-btn" onclick="toggleSlide()">Toggle</button>
+    </div>
+
+    <!-- 7. Typewriter -->
+    <div class="demo-card">
+      <h2>7. Typewriter (打字机)</h2>
+      <div class="demo-area">
+        <span class="typewriter-text" id="typewriter-demo">The stars are bright</span>
+      </div>
+      <button class="demo-btn" onclick="toggleTypewriter()">Toggle</button>
+    </div>
+
+    <!-- 8. Character Morph -->
+    <div class="demo-card">
+      <h2>8. Character Morph (字符渐变)</h2>
+      <div class="demo-area">
+        <span id="char-morph-demo">The stars are bright</span>
+      </div>
+      <button class="demo-btn" onclick="toggleCharMorph()">Toggle</button>
+    </div>
+
+  </div>
+
+  <script>
+    const textA = "The stars are bright";
+    const textB = "星光璀璨";
+
+    // ========== 1. Gooey Morph ==========
+    let gooeyFlipped = false;
+    function toggleGooey() {
+      gooeyFlipped = !gooeyFlipped;
+      document.getElementById('gooey-demo').classList.toggle('flipped', gooeyFlipped);
+    }
+
+    // ========== 2. Scramble ==========
+    let scrambleState = false;
+    const scrambleChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&*";
+
+    function toggleScramble() {
+      scrambleState = !scrambleState;
+      const target = scrambleState ? textB : textA;
+      const el = document.getElementById('scramble-demo');
+      let iteration = 0;
+      const maxIterations = 15;
+
+      const interval = setInterval(() => {
+        el.textContent = target.split('').map((char, i) => {
+          if (i < iteration) return target[i];
+          return scrambleChars[Math.floor(Math.random() * scrambleChars.length)];
+        }).join('');
+
+        iteration += 0.3;
+        if (iteration >= target.length) {
+          clearInterval(interval);
+          el.textContent = target;
+        }
+      }, 80);
+    }
+
+    // ========== 3. Wave Dissolve ==========
+    let waveFlipped = false;
+
+    function initWave() {
+      const container = document.getElementById('wave-demo');
+      const front = container.querySelector('.front');
+      const back = container.querySelector('.back');
+
+      front.innerHTML = textA.split('').map((c, i) =>
+        `<span class="wave-char" style="transition-delay: ${i * 80}ms">${c === ' ' ? '&nbsp;' : c}</span>`
+      ).join('');
+
+      back.innerHTML = textB.split('').map((c, i) =>
+        `<span class="wave-char" style="transition-delay: ${i * 80}ms; opacity: 0; transform: translateY(20px)">${c === ' ' ? '&nbsp;' : c}</span>`
+      ).join('');
+    }
+
+    function toggleWave() {
+      waveFlipped = !waveFlipped;
+      const container = document.getElementById('wave-demo');
+      const frontChars = container.querySelectorAll('.front .wave-char');
+      const backChars = container.querySelectorAll('.back .wave-char');
+
+      frontChars.forEach((c, i) => {
+        c.style.transitionDelay = `${i * 80}ms`;
+        c.style.opacity = waveFlipped ? '0' : '1';
+        c.style.transform = waveFlipped ? 'translateY(-20px) scale(0.8)' : 'translateY(0) scale(1)';
+        c.style.filter = waveFlipped ? 'blur(4px)' : 'blur(0)';
+      });
+
+      backChars.forEach((c, i) => {
+        c.style.transitionDelay = `${(waveFlipped ? i : (backChars.length - i)) * 80 + 600}ms`;
+        c.style.opacity = waveFlipped ? '1' : '0';
+        c.style.transform = waveFlipped ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.8)';
+        c.style.filter = waveFlipped ? 'blur(0)' : 'blur(4px)';
+      });
+    }
+
+    initWave();
+
+    // ========== 4. Blur Crossfade ==========
+    let blurFlipped = false;
+    function toggleBlur() {
+      blurFlipped = !blurFlipped;
+      document.getElementById('blur-demo').classList.toggle('flipped', blurFlipped);
+    }
+
+    // ========== 5. Letter Flip ==========
+    let letterFlipState = false;
+
+    function initLetterFlip() {
+      const container = document.getElementById('letter-flip-demo');
+      const maxLen = Math.max(textA.length, textB.length);
+
+      container.innerHTML = '';
+      for (let i = 0; i < maxLen; i++) {
+        const charA = textA[i] || ' ';
+        const charB = textB[i] || ' ';
+        const letter = document.createElement('span');
+        letter.className = 'flip-letter';
+        letter.style.transitionDelay = `${i * 100}ms`;
+        letter.innerHTML = `
+          <span class="front">${charA === ' ' ? '&nbsp;' : charA}</span>
+          <span class="back">${charB === ' ' ? '&nbsp;' : charB}</span>
+        `;
+        container.appendChild(letter);
+      }
+    }
+
+    function toggleLetterFlip() {
+      letterFlipState = !letterFlipState;
+      const letters = document.querySelectorAll('#letter-flip-demo .flip-letter');
+      letters.forEach(l => l.classList.toggle('flipped', letterFlipState));
+    }
+
+    initLetterFlip();
+
+    // ========== 6. Slide Replace ==========
+    let slideFlipped = false;
+    function toggleSlide() {
+      slideFlipped = !slideFlipped;
+      document.getElementById('slide-demo').classList.toggle('flipped', slideFlipped);
+    }
+
+    // ========== 7. Typewriter ==========
+    let typewriterState = false;
+
+    function toggleTypewriter() {
+      typewriterState = !typewriterState;
+      const target = typewriterState ? textB : textA;
+      const el = document.getElementById('typewriter-demo');
+
+      // Delete current text
+      let currentLen = el.textContent.length;
+      const deleteInterval = setInterval(() => {
+        currentLen--;
+        el.textContent = el.textContent.slice(0, currentLen);
+        if (currentLen <= 0) {
+          clearInterval(deleteInterval);
+          // Type new text
+          let newLen = 0;
+          const typeInterval = setInterval(() => {
+            newLen++;
+            el.textContent = target.slice(0, newLen);
+            if (newLen >= target.length) {
+              clearInterval(typeInterval);
+            }
+          }, 120);
+        }
+      }, 60);
+    }
+
+    // ========== 8. Character Morph ==========
+    let charMorphState = false;
+
+    function toggleCharMorph() {
+      charMorphState = !charMorphState;
+      const target = charMorphState ? textB : textA;
+      const el = document.getElementById('char-morph-demo');
+      const current = el.textContent;
+      const maxLen = Math.max(current.length, target.length);
+
+      // Create spans for each character
+      el.innerHTML = '';
+      for (let i = 0; i < maxLen; i++) {
+        const span = document.createElement('span');
+        span.style.display = 'inline-block';
+        span.style.transition = `all 0.8s ease ${i * 100}ms`;
+        span.textContent = current[i] || '';
+        el.appendChild(span);
+      }
+
+      // Animate to target
+      requestAnimationFrame(() => {
+        const spans = el.querySelectorAll('span');
+        spans.forEach((span, i) => {
+          const targetChar = target[i] || '';
+          if (targetChar !== span.textContent) {
+            span.style.opacity = '0';
+            span.style.transform = 'scale(0.5) translateY(-10px)';
+            span.style.filter = 'blur(4px)';
+
+            setTimeout(() => {
+              span.textContent = targetChar === ' ' ? '\u00A0' : targetChar;
+              span.style.opacity = '1';
+              span.style.transform = 'scale(1) translateY(0)';
+              span.style.filter = 'blur(0)';
+            }, 400 + i * 100);
+          }
+        });
+      });
+    }
+  </script>
+</body>
+</html>

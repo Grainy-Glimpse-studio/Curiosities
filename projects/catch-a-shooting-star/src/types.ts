@@ -17,6 +17,8 @@ export interface ContentItem {
   // Random font assignment (set when caught)
   _fontFamily?: string;
   _fontSize?: number;
+  // Translation (set when caught or after API call)
+  _translation?: string;
 }
 
 // Display mode

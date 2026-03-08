@@ -128,16 +128,12 @@ const GuestbookMode: React.FC<GuestbookModeProps> = ({
         onSubmit={handleSubmit}
       />
 
-      {/* Controls */}
-      <div className="fixed bottom-6 left-6 z-50 text-white/30 text-xs tracking-widest uppercase">
-        {interactionMode === 'keyboard' ? 'space to catch' : 'grab to catch'}
-      </div>
-
       {/* Back button */}
       {onBack && (
         <button
           onClick={onBack}
-          className="fixed top-6 left-6 z-50 text-white/40 hover:text-white/70 text-xs tracking-widest uppercase transition-colors"
+          className="fixed top-6 left-6 z-50 text-white/40 hover:text-white/70 transition-colors"
+          style={{ fontFamily: "'Tango', sans-serif", fontSize: '16px' }}
         >
           back
         </button>
@@ -146,20 +142,21 @@ const GuestbookMode: React.FC<GuestbookModeProps> = ({
       {/* Leave message button */}
       <button
         onClick={() => setShowInput(true)}
-        className="fixed top-6 right-6 z-50 text-white/40 hover:text-white/70 text-xs tracking-widest uppercase transition-colors border border-white/20 px-3 py-1 rounded hover:border-white/40"
+        className="fixed top-6 right-6 z-50 text-white/40 hover:text-white/70 transition-colors"
+        style={{ fontFamily: "'Tango', sans-serif", fontSize: '16px' }}
       >
-        leave a message
+        write
       </button>
 
       {/* Initial hint */}
       {!currentMessage && (
         <motion.div
           initial={{ opacity: 0 }}
-          animate={{ opacity: 0.5 }}
-          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/40 text-sm tracking-widest text-center"
+          animate={{ opacity: 0.4 }}
+          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white text-center"
+          style={{ fontFamily: "'Tango', sans-serif", fontSize: '20px' }}
         >
-          <p>catch a shooting star</p>
-          <p className="mt-2 text-white/20 text-xs">to read messages from others</p>
+          <p>catch a star to read</p>
         </motion.div>
       )}
     </div>

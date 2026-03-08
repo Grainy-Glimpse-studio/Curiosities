@@ -65,15 +65,11 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSubmit, isOpen, onClose }
             {/* Close button */}
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 text-white/40 hover:text-white/70 text-sm"
+              className="absolute top-4 right-4 text-white/40 hover:text-white/70"
+              style={{ fontSize: '18px' }}
             >
-              ✕
+              ×
             </button>
-
-            {/* Title */}
-            <h3 className="text-white/80 text-sm tracking-widest uppercase mb-4">
-              Leave a message
-            </h3>
 
             {/* Success state */}
             {success ? (
@@ -81,9 +77,10 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSubmit, isOpen, onClose }
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="text-center py-8"
+                style={{ fontFamily: "'Tango', sans-serif" }}
               >
-                <div className="text-white/60 text-sm">
-                  Your star is now in the sky ✨
+                <div className="text-white/50 text-lg">
+                  sent
                 </div>
               </motion.div>
             ) : (
@@ -95,18 +92,19 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSubmit, isOpen, onClose }
                     setText(e.target.value);
                     setError(null);
                   }}
-                  placeholder="Write something nice..."
+                  placeholder="write something..."
                   maxLength={200}
-                  className="w-full h-24 bg-white/5 border border-white/20 rounded-lg p-3 text-white/90 text-sm placeholder:text-white/30 resize-none focus:outline-none focus:border-white/40"
+                  className="w-full h-28 bg-white/5 border border-white/15 rounded-lg p-4 text-white/80 placeholder:text-white/25 resize-none focus:outline-none focus:border-white/30"
+                  style={{ fontFamily: "'Tango', sans-serif", fontSize: '18px' }}
                 />
 
-                {/* Character count */}
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-white/30 text-xs">
+                {/* Character count & error */}
+                <div className="flex justify-between items-center mt-3">
+                  <span className="text-white/25" style={{ fontSize: '14px' }}>
                     {text.length}/200
                   </span>
                   {error && (
-                    <span className="text-red-400/80 text-xs">
+                    <span className="text-red-400/60" style={{ fontSize: '14px' }}>
                       {error}
                     </span>
                   )}
@@ -116,9 +114,10 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSubmit, isOpen, onClose }
                 <button
                   onClick={handleSubmit}
                   disabled={isSubmitting || text.trim().length === 0}
-                  className="w-full mt-4 py-2 bg-white/10 hover:bg-white/20 disabled:bg-white/5 disabled:text-white/30 text-white/70 text-sm tracking-widest uppercase rounded transition-colors"
+                  className="w-full mt-5 py-3 bg-white/10 hover:bg-white/15 disabled:bg-white/5 disabled:text-white/20 text-white/60 rounded transition-colors"
+                  style={{ fontFamily: "'Tango', sans-serif", fontSize: '16px' }}
                 >
-                  {isSubmitting ? 'sending...' : 'send to the stars'}
+                  {isSubmitting ? '...' : 'send'}
                 </button>
               </>
             )}

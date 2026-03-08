@@ -1,6 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ContentItem } from '../types';
+import { isChinese, getRandomFont, type FontConfig } from '../utils/fonts';
+import ScrambleText from '../components/ScrambleText';
 
 // Floating animation for individual characters - more noticeable
 const floatKeyframes = `
@@ -14,43 +16,93 @@ const floatKeyframes = `
 }
 `;
 
-// Blow away animation - simple fade out for now (TODO: improve later)
+// Blow away animation - gentle sway and dissolve
 const BlowAwayText: React.FC<{
   text: string;
   style?: React.CSSProperties;
   className?: string;
   onComplete?: () => void;
-}> = ({ text, style, className, onComplete }) => {
+  initialOpacity?: number; // Match the floating text opacity
+}> = ({ text, style, className, onComplete, initialOpacity = 0.7 }) => {
+  const chars = text.split('');
   const [isAnimating, setIsAnimating] = React.useState(true);
+
+  // Animation timing constants
+  const CHAR_DELAY = 0.04; // seconds per character
+  const ANIM_DURATION = 3; // seconds for each character's animation
+
+  // Calculate total duration based on character count
+  const lastCharDelay = chars.length * CHAR_DELAY;
+  const totalDuration = (lastCharDelay + ANIM_DURATION + 0.5) * 1000; // +0.5s buffer
+
+  // Generate random sway values once on mount
+  const swayValues = React.useMemo(() =>
+    chars.map(() => ({
+      // Initial Y offset to match FloatingText's floating position (0 to -2px)
+      initY: -Math.random() * 2,
+      sway1: (Math.random() - 0.5) * 3,
+      sway2: (Math.random() - 0.5) * 4,
+      sway3: (Math.random() - 0.5) * 5,
+      sway4: (Math.random() - 0.5) * 6,
+    })), [chars.length]
+  );
 
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setIsAnimating(false);
       onComplete?.();
-    }, 1500);
+    }, totalDuration);
     return () => clearTimeout(timer);
-  }, [onComplete]);
+  }, [onComplete, totalDuration]);
 
   if (!isAnimating) return null;
 
   return (
-    <span
-      className={className}
-      style={{
-        ...style,
-        animation: 'simpleFadeOut 1.2s ease-out forwards',
-      }}
-    >
-      {text}
+    <span className={className} style={style}>
+      {chars.map((char, i) => (
+        <span
+          key={i}
+          style={{
+            display: 'inline-block',
+            willChange: 'transform, opacity',
+            animation: `swayDissolve ${ANIM_DURATION}s ease-in-out ${i * CHAR_DELAY}s forwards`,
+            opacity: initialOpacity, // Start at same opacity as floating text
+            '--init-y': `${swayValues[i].initY}px`,
+            '--sway1': `${swayValues[i].sway1}px`,
+            '--sway2': `${swayValues[i].sway2}px`,
+            '--sway3': `${swayValues[i].sway3}px`,
+            '--sway4': `${swayValues[i].sway4}px`,
+          } as React.CSSProperties}
+        >
+          {char === ' ' ? '\u00A0' : char}
+        </span>
+      ))}
       <style>{`
-        @keyframes simpleFadeOut {
+        @keyframes swayDissolve {
           0% {
-            opacity: 1;
-            filter: blur(0px);
+            transform: translateX(0) translateY(var(--init-y));
+            opacity: ${initialOpacity};
+          }
+          15% {
+            transform: translateX(var(--sway1)) translateY(-1px);
+            opacity: ${initialOpacity * 0.95};
+          }
+          35% {
+            transform: translateX(var(--sway2)) translateY(0);
+            opacity: ${initialOpacity * 0.8};
+          }
+          55% {
+            transform: translateX(var(--sway3)) translateY(-2px);
+            opacity: ${initialOpacity * 0.55};
+          }
+          75% {
+            transform: translateX(var(--sway3)) translateY(-4px);
+            opacity: ${initialOpacity * 0.3};
           }
           100% {
+            transform: translateX(var(--sway4)) translateY(-8px);
             opacity: 0;
-            filter: blur(3px);
+            filter: blur(1px);
           }
         }
       `}</style>
@@ -102,6 +154,9 @@ interface SingleViewProps {
   fontSize?: number;
   canReply?: boolean;
   blowAway?: boolean; // Trigger blow away animation
+  isFlipped?: boolean; // Translation flip state
+  onFlip?: () => void; // Callback when flipped via keyboard
+  palmPosition?: { x: number; y: number } | null; // Palm position for glow effect
   onItemClick?: (item: ContentItem) => void;
   onItemDoubleClick?: (item: ContentItem) => void;
   onInputSubmit?: (content: string) => void;
@@ -118,6 +173,9 @@ const SingleView: React.FC<SingleViewProps> = ({
   fontSize = 18,
   canReply = false,
   blowAway = false,
+  isFlipped = false,
+  onFlip,
+  palmPosition,
   onItemClick,
   onItemDoubleClick,
   onInputSubmit,
@@ -131,18 +189,141 @@ const SingleView: React.FC<SingleViewProps> = ({
   const [showSent, setShowSent] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Track detected language and selected font for input
+  const [detectedLanguage, setDetectedLanguage] = useState<'chinese' | 'english' | null>(null);
+  const [inputFont, setInputFont] = useState<FontConfig | null>(null);
+
+  // Generate random font for translation (back side) - memoized per item
+  const translationFont = useMemo(() => {
+    if (!item?._translation) return null;
+    const lang = isChinese(item._translation) ? 'chinese' : 'english';
+    return getRandomFont(lang);
+  }, [item?.id, item?._translation]);
+
   useEffect(() => {
     if (item?.type === 'input' && textareaRef.current) {
       setTimeout(() => textareaRef.current?.focus(), 500);
     }
     setShowSent(false);
     setInputValue('');
+    setDetectedLanguage(null);
+    setInputFont(null);
   }, [item]);
 
+  // Keyboard shortcuts: Tab to flip, Escape to close
+  const lastTabRef = useRef(0);
+
+  useEffect(() => {
+    if (!item || blowAway) return;
+
+    const TAB_COOLDOWN = 2500; // ms - match animation duration
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Tab to flip translation (text content only)
+      if (e.key === 'Tab' && item.type === 'text') {
+        e.preventDefault();
+        const now = Date.now();
+        if (now - lastTabRef.current < TAB_COOLDOWN) return;
+        lastTabRef.current = now;
+        onFlip?.();
+      }
+      // Escape to close any content
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose?.();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [item, blowAway, onFlip, onClose]);
+
+  // Mouse swipe detection for translation flip (keyboard mode)
+  const swipeRef = useRef<{
+    startX: number | null;
+    startTime: number | null;
+    lastTrigger: number;
+  }>({ startX: null, startTime: null, lastTrigger: 0 });
+
+  useEffect(() => {
+    if (!item || item.type !== 'text' || blowAway || isFlipped === undefined) return;
+
+    const SWIPE_DISTANCE = 100; // pixels
+    const SWIPE_TIMEOUT = 500; // ms
+    const COOLDOWN = 2500; // ms - wait for animation to complete before allowing another swipe
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const now = Date.now();
+      const swipe = swipeRef.current;
+
+      // Cooldown after triggering
+      if (now - swipe.lastTrigger < COOLDOWN) return;
+
+      if (swipe.startX === null) {
+        swipe.startX = e.clientX;
+        swipe.startTime = now;
+        return;
+      }
+
+      // Reset if too much time passed
+      if (swipe.startTime && now - swipe.startTime > SWIPE_TIMEOUT) {
+        swipe.startX = e.clientX;
+        swipe.startTime = now;
+        return;
+      }
+
+      // Check swipe distance
+      const distance = Math.abs(e.clientX - swipe.startX);
+      if (distance >= SWIPE_DISTANCE && swipe.startTime) {
+        onFlip?.();
+        // Reset and set cooldown
+        swipe.startX = null;
+        swipe.startTime = null;
+        swipe.lastTrigger = now;
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      swipeRef.current = { startX: null, startTime: null, lastTrigger: 0 };
+    };
+  }, [item, blowAway, isFlipped, onFlip]);
+
+  // Detect language and set font when input changes
+  const handleInputChange = (value: string) => {
+    setInputValue(value);
+
+    // If empty, reset
+    if (!value.trim()) {
+      setDetectedLanguage(null);
+      setInputFont(null);
+      return;
+    }
+
+    // Detect language from content
+    const hasChinese = isChinese(value);
+    const newLanguage = hasChinese ? 'chinese' : 'english';
+
+    // Only change font if language changed or no font set yet
+    if (newLanguage !== detectedLanguage) {
+      setDetectedLanguage(newLanguage);
+      setInputFont(getRandomFont(newLanguage));
+    }
+  };
+
+  // Check if content has meaningful characters (not just punctuation/spaces)
+  const hasMeaningfulContent = (text: string): boolean => {
+    // Remove all whitespace and common punctuation
+    const cleaned = text.replace(/[\s.,。，、！!?？…·\-_—–''""\"\'`~～@#$%^&*()（）\[\]【】{}｛｝<>《》/\\|｜:：;；+=]+/g, '');
+    return cleaned.length > 0;
+  };
+
   const handleSubmit = async () => {
-    if (!inputValue.trim() || isSubmitting) return;
+    const trimmed = inputValue.trim();
+    if (!trimmed || !hasMeaningfulContent(trimmed) || isSubmitting) return;
     setIsSubmitting(true);
-    onInputSubmit?.(inputValue.trim());
+    onInputSubmit?.(trimmed);
     setShowSent(true);
     setInputValue('');
     setIsSubmitting(false);
@@ -153,6 +334,7 @@ const SingleView: React.FC<SingleViewProps> = ({
       e.preventDefault();
       handleSubmit();
     }
+    // Note: Escape is handled by the global keyboard handler
   };
 
   return (
@@ -173,36 +355,60 @@ const SingleView: React.FC<SingleViewProps> = ({
             {/* Text content - floating directly on starfield, no card */}
             {item.type === 'text' && (
               <div className="w-[60vw] max-w-lg p-8">
-                <p
-                  className="leading-relaxed italic text-center"
-                  style={{
-                    fontFamily: item._fontFamily || fontFamily || 'inherit',
-                    color: `rgba(255, 255, 255, ${fontOpacity})`,
-                    fontSize: `${item._fontSize || fontSize}px`,
-                    textShadow: '0 0 20px rgba(0,0,0,0.5)',
-                  }}
-                >
-                  {blowAway ? (
-                    <BlowAwayText text={`"${item.content || ''}"`} onComplete={onBlowAwayComplete} />
-                  ) : (
-                    <>
-                      "<FloatingText text={item.content || ''} />"
-                    </>
-                  )}
-                </p>
-                {!blowAway && canReply && onReply && (
+                {blowAway ? (
+                  <p
+                    className="leading-relaxed italic text-center"
+                    style={{
+                      fontFamily: item._fontFamily || fontFamily || 'inherit',
+                      color: `rgba(255, 255, 255, ${fontOpacity})`,
+                      fontSize: `${item._fontSize || fontSize}px`,
+                      textShadow: '0 0 20px rgba(0,0,0,0.5)',
+                      minHeight: '1.5em',
+                    }}
+                  >
+                    <BlowAwayText text={`"${item.content || ''}"`} onComplete={onBlowAwayComplete} initialOpacity={fontOpacity * 0.7} />
+                  </p>
+                ) : (
+                  <ScrambleText
+                    frontText={`"${item.content || ''}"`}
+                    backText={item._translation ? `"${item._translation}"` : `"${item.content || ''}"`}
+                    fontFamily={item._fontFamily || fontFamily || 'inherit'}
+                    fontSize={item._fontSize || fontSize}
+                    backFontFamily={translationFont?.name}
+                    backFontSize={translationFont?.size}
+                    fontOpacity={fontOpacity}
+                    isFlipped={isFlipped}
+                    onFlip={onFlip}
+                    glowEnabled={!!palmPosition}
+                    glowPosition={palmPosition}
+                    glowRadius={200}
+                    scrambleDuration={1500}
+                    className="leading-relaxed text-center"
+                    style={{
+                      textShadow: '0 0 20px rgba(0,0,0,0.5)',
+                      minHeight: '1.5em',
+                    }}
+                  />
+                )}
+                {/* Reply button - use visibility to prevent layout shift */}
+                {canReply && onReply && (
                   <motion.button
                     initial={{ opacity: 0 }}
-                    animate={{ opacity: 0.4 }}
-                    whileHover={{ opacity: 0.8 }}
+                    animate={{ opacity: blowAway ? 0 : 0.5 }}
+                    whileHover={{ opacity: blowAway ? 0 : 0.9 }}
                     onClick={(e) => {
+                      if (blowAway) return;
                       e.stopPropagation();
                       onReply(item);
                     }}
-                    className="mt-6 text-white/40 text-sm tracking-widest hover:text-white/70 transition-colors block mx-auto"
-                    style={{ fontFamily: "'Tango', sans-serif" }}
+                    className="mt-8 text-white transition-colors block mx-auto"
+                    style={{
+                      fontFamily: "'Tango', sans-serif",
+                      fontSize: '16px',
+                      pointerEvents: blowAway ? 'none' : 'auto',
+                    }}
                   >
-                    reply ↩
+                    reply
                   </motion.button>
                 )}
               </div>
@@ -237,13 +443,13 @@ const SingleView: React.FC<SingleViewProps> = ({
                     className="text-center py-8"
                   >
                     <p
-                      className="text-white/70 text-2xl tracking-widest mb-3"
+                      className="text-white/60 text-2xl mb-4"
                       style={{ fontFamily: "'Tango', sans-serif" }}
                     >
-                      <FloatingText text="released" /> ✧
+                      <FloatingText text="released" />
                     </p>
                     <p
-                      className="text-white/40 text-base"
+                      className="text-white/40 text-lg"
                       style={{ fontFamily: "'Tango', sans-serif" }}
                     >
                       <FloatingText text="your words drift among the stars" />
@@ -253,17 +459,11 @@ const SingleView: React.FC<SingleViewProps> = ({
                   <>
                     {item.quotedContent && (
                       <div className="mb-6 pb-4">
-                        <div
-                          className="text-white/40 text-sm mb-2 tracking-wider"
-                          style={{ fontFamily: "'Tango', sans-serif" }}
-                        >
-                          replying to:
-                        </div>
                         <blockquote
-                          className="text-white/50 text-base italic pl-4"
+                          className="text-white/40 text-base italic pl-4"
                           style={{
                             fontFamily: "'Tango', sans-serif",
-                            borderLeft: '2px solid rgba(255,255,255,0.2)',
+                            borderLeft: '2px solid rgba(255,255,255,0.15)',
                           }}
                         >
                           "{truncateQuote(item.quotedContent)}"
@@ -273,14 +473,14 @@ const SingleView: React.FC<SingleViewProps> = ({
                     <textarea
                       ref={textareaRef}
                       value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
+                      onChange={(e) => handleInputChange(e.target.value)}
                       onKeyDown={handleKeyDown}
                       placeholder={item.quotedContent ? 'your reply...' : (item.placeholder || 'write something...')}
                       className="w-full bg-transparent border-none outline-none resize-none leading-relaxed placeholder:text-white/25 text-center"
                       style={{
-                        fontFamily: "'Tango', sans-serif",
+                        fontFamily: inputFont ? `'${inputFont.name}', sans-serif` : "'Tango', sans-serif",
                         color: `rgba(255, 255, 255, ${fontOpacity})`,
-                        fontSize: '24px',
+                        fontSize: inputFont ? `${inputFont.size}px` : '24px',
                         minHeight: item.quotedContent ? '80px' : '120px',
                         caretColor: 'rgba(255, 255, 255, 0.7)',
                       }}
@@ -288,39 +488,39 @@ const SingleView: React.FC<SingleViewProps> = ({
                       disabled={isSubmitting}
                     />
                     <div
-                      className="flex items-center justify-center gap-6 mt-6"
-                      style={{ fontFamily: "'Tango', sans-serif" }}
+                      className="flex items-center justify-center gap-8 mt-8"
+                      style={{ fontFamily: "'Tango', sans-serif", fontSize: '16px' }}
                     >
                       {onClose && (
                         <motion.button
                           initial={{ opacity: 0 }}
-                          animate={{ opacity: 0.3 }}
-                          whileHover={{ opacity: 0.7 }}
+                          animate={{ opacity: 0.4 }}
+                          whileHover={{ opacity: 0.9 }}
                           onClick={(e) => {
                             e.stopPropagation();
                             onClose();
                           }}
-                          className="text-white/30 text-sm tracking-widest hover:text-white/60 transition-colors"
+                          className="text-white transition-colors"
                         >
-                          ← back
+                          back
                         </motion.button>
                       )}
-                      <div className="text-white/30 text-sm">
-                        <span className={inputValue.length > 450 ? 'text-yellow-500/60' : ''}>
+                      <div className="text-white/30">
+                        <span className={inputValue.length > 450 ? 'text-yellow-500/50' : ''}>
                           {inputValue.length}
                         </span>
                         /500
                       </div>
-                      {inputValue.trim() && (
+                      {inputValue.trim() && hasMeaningfulContent(inputValue) && (
                         <motion.button
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 0.5 }}
                           whileHover={{ opacity: 0.9 }}
                           onClick={handleSubmit}
                           disabled={isSubmitting}
-                          className="text-white/50 text-sm tracking-widest hover:text-white transition-colors"
+                          className="text-white transition-colors"
                         >
-                          {isSubmitting ? '...' : '⌘↵ release'}
+                          {isSubmitting ? '...' : 'send'}
                         </motion.button>
                       )}
                     </div>

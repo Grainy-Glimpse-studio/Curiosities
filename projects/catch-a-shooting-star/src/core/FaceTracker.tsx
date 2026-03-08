@@ -53,14 +53,46 @@ const FaceTracker: React.FC<FaceTrackerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const faceMeshRef = useRef<any>(null);
   const cameraRef = useRef<any>(null);
+  const initializedRef = useRef(false);
+  const enabledRef = useRef(enabled);
+
+  // Store callbacks in refs to avoid re-initialization
+  const onBlowStartRef = useRef(onBlowStart);
+  const onBlowEndRef = useRef(onBlowEnd);
+  const onBlowRef = useRef(onBlow);
+  const blowDurationRef = useRef(blowDuration);
+
+  // Update refs when props change
+  useEffect(() => {
+    onBlowStartRef.current = onBlowStart;
+    onBlowEndRef.current = onBlowEnd;
+    onBlowRef.current = onBlow;
+    blowDurationRef.current = blowDuration;
+  }, [onBlowStart, onBlowEnd, onBlow, blowDuration]);
+
+  // Update enabled ref and reset blow state when enabled changes
+  useEffect(() => {
+    enabledRef.current = enabled;
+
+    // Reset blow state when enabled changes (new item appeared or item dismissed)
+    if (enabled) {
+      isBlowingRef.current = false;
+      blowStartTimeRef.current = null;
+      blowTriggeredRef.current = false;
+    }
+  }, [enabled]);
 
   // Blow detection state
   const isBlowingRef = useRef(false);
   const blowStartTimeRef = useRef<number | null>(null);
   const blowTriggeredRef = useRef(false);
+  const [blowProgress, setBlowProgress] = useState(0); // 0-100 progress for visual feedback
+  const [faceDetected, setFaceDetected] = useState(false); // Show face detection indicator
 
+  // Initialize only once
   useEffect(() => {
-    if (!enabled) return;
+    if (initializedRef.current) return;
+    initializedRef.current = true;
 
     let mounted = true;
 
@@ -93,59 +125,57 @@ const FaceTracker: React.FC<FaceTrackerProps> = ({
         faceMesh.onResults((results: any) => {
           if (!mounted) return;
 
-          if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-            const landmarks = results.multiFaceLandmarks[0];
+          // Update face detection state
+          const hasFace = results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0;
+          setFaceDetected(hasFace);
 
-            // Lip landmarks (MediaPipe Face Mesh indices)
-            // Upper lip: 13 (center top)
-            // Lower lip: 14 (center bottom)
-            // Left corner: 61
-            // Right corner: 291
-            // Upper lip outer: 0
-            // Lower lip outer: 17
+          if (hasFace) {
+            // Only process blow if enabled (content is showing)
+            if (!enabledRef.current) {
+              return;
+            }
+            const landmarks = results.multiFaceLandmarks[0];
 
             const upperLip = landmarks[13];
             const lowerLip = landmarks[14];
             const leftCorner = landmarks[61];
             const rightCorner = landmarks[291];
 
-            // Calculate lip metrics
             const lipOpenDistance = Math.abs(upperLip.y - lowerLip.y);
             const lipWidth = Math.abs(leftCorner.x - rightCorner.x);
-
-            // O-shape detection:
-            // - Lips slightly open (not too wide, not closed)
-            // - Lip width is narrow (pursed)
-            // Ratio: lipOpenDistance / lipWidth
-            // When pursing lips for blowing: width decreases, opening is moderate
-
             const ratio = lipOpenDistance / lipWidth;
 
-            // Thresholds (may need tuning)
-            // O-shape: ratio > 0.3 (lips open enough) and lipWidth < 0.15 (pursed)
-            const isOShape = ratio > 0.25 && lipWidth < 0.18 && lipOpenDistance > 0.01;
+            // More lenient O-shape detection:
+            // - ratio > 0.2 (was 0.25) - mouth more open relative to width
+            // - lipWidth < 0.22 (was 0.18) - allow slightly wider mouths
+            // - lipOpenDistance > 0.008 (was 0.01) - detect smaller openings
+            const isOShape = ratio > 0.2 && lipWidth < 0.22 && lipOpenDistance > 0.008;
 
             if (isOShape) {
               if (!isBlowingRef.current) {
-                // Started blowing
                 isBlowingRef.current = true;
                 blowStartTimeRef.current = Date.now();
                 blowTriggeredRef.current = false;
-                onBlowStart?.();
+                setBlowProgress(0);
+                onBlowStartRef.current?.();
               } else if (!blowTriggeredRef.current && blowStartTimeRef.current) {
-                // Check if held long enough
                 const elapsed = Date.now() - blowStartTimeRef.current;
-                if (elapsed >= blowDuration) {
+                const progress = Math.min(100, (elapsed / blowDurationRef.current) * 100);
+                setBlowProgress(progress);
+
+                if (elapsed >= blowDurationRef.current) {
                   blowTriggeredRef.current = true;
-                  onBlow?.();
+                  setBlowProgress(0);
+                  console.log('💨 FaceTracker: Blow triggered!');
+                  onBlowRef.current?.();
                 }
               }
             } else {
               if (isBlowingRef.current) {
-                // Stopped blowing
                 isBlowingRef.current = false;
                 blowStartTimeRef.current = null;
-                onBlowEnd?.();
+                setBlowProgress(0);
+                onBlowEndRef.current?.();
               }
             }
           }
@@ -166,6 +196,7 @@ const FaceTracker: React.FC<FaceTrackerProps> = ({
 
           cameraRef.current = camera;
           await camera.start();
+          console.log('👤 FaceTracker: Camera started successfully');
 
           if (mounted) {
             setIsLoading(false);
@@ -191,9 +222,7 @@ const FaceTracker: React.FC<FaceTrackerProps> = ({
         faceMeshRef.current.close();
       }
     };
-  }, [enabled, blowDuration, onBlowStart, onBlowEnd, onBlow]);
-
-  if (!enabled) return null;
+  }, []); // Empty deps - only run once
 
   return (
     <>
@@ -205,21 +234,41 @@ const FaceTracker: React.FC<FaceTrackerProps> = ({
         muted
       />
 
-      {/* Small status indicator */}
-      {(isLoading || error) && (
-        <div className="fixed bottom-6 left-6 z-50">
-          {isLoading && (
-            <div className="text-white/40 text-xs px-3 py-1.5 bg-black/30 rounded-lg backdrop-blur-sm">
-              Loading face tracking...
-            </div>
-          )}
-          {error && (
-            <div className="text-red-400/60 text-xs px-3 py-1.5 bg-black/30 rounded-lg backdrop-blur-sm">
-              {error}
-            </div>
-          )}
+      {/* Blow progress indicator - shows when blowing */}
+      {blowProgress > 0 && enabled && (
+        <div className="fixed bottom-1/4 left-1/2 -translate-x-1/2 z-50">
+          <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-white/60 rounded-full transition-all duration-75"
+              style={{ width: `${blowProgress}%` }}
+            />
+          </div>
+          <div className="text-white/30 text-xs text-center mt-1">
+            blowing...
+          </div>
         </div>
       )}
+
+      {/* Face detection indicator - bottom left */}
+      <div className="fixed bottom-6 left-6 z-50">
+        {isLoading && (
+          <div className="text-white/40 text-xs px-3 py-1.5 bg-black/30 rounded-lg backdrop-blur-sm">
+            Loading face tracking...
+          </div>
+        )}
+        {error && (
+          <div className="text-red-400/60 text-xs px-3 py-1.5 bg-black/30 rounded-lg backdrop-blur-sm">
+            {error}
+          </div>
+        )}
+        {!isLoading && !error && (
+          <div className={`text-xs px-2 py-1 rounded-lg backdrop-blur-sm transition-colors ${
+            faceDetected ? 'bg-green-500/20 text-green-400/70' : 'bg-black/20 text-white/20'
+          }`}>
+            {faceDetected ? '👤' : '·'}
+          </div>
+        )}
+      </div>
     </>
   );
 };

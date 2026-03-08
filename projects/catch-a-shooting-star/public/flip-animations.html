@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flip Animation Comparison</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0a0a0f;
+      min-height: 100vh;
+      font-family: 'Georgia', serif;
+      color: white;
+      overflow: hidden;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 40px;
+    }
+
+    .animation-area {
+      position: relative;
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      perspective: 1000px;
+    }
+
+    .text-layer {
+      font-size: 28px;
+      font-style: italic;
+      text-align: center;
+      max-width: 600px;
+      line-height: 1.6;
+    }
+
+    .text-layer span {
+      display: inline-block;
+    }
+
+    .controls {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .controls button {
+      padding: 12px 24px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .controls button:hover {
+      background: rgba(255,255,255,0.2);
+    }
+
+    .controls button.active {
+      background: rgba(255,255,255,0.3);
+      border-color: rgba(255,255,255,0.5);
+    }
+
+    .status {
+      position: fixed;
+      top: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.5);
+      font-size: 16px;
+    }
+
+    .hint {
+      position: fixed;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.3);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="animation-area" id="animationArea">
+      <div class="text-layer" id="textLayer"></div>
+    </div>
+  </div>
+
+  <div class="status" id="status">Click animation type to preview</div>
+  <div class="hint">Press <kbd style="background:rgba(255,255,255,0.1);padding:2px 8px;border-radius:4px;">Space</kbd> to replay</div>
+
+  <div class="controls">
+    <button onclick="playAnimation('crossfade')" id="btn-crossfade">1. Crossfade</button>
+    <button onclick="playAnimation('flip3d')" id="btn-flip3d">2. 3D Flip</button>
+    <button onclick="playAnimation('scatter')" id="btn-scatter">3. Scatter</button>
+    <button onclick="playAnimation('wave')" id="btn-wave">4. Wave</button>
+    <button onclick="playAnimation('glass')" id="btn-glass">5. Glass</button>
+    <button onclick="playAnimation('sink')" id="btn-sink">6. Sink & Rise</button>
+  </div>
+
+  <script>
+    const frontText = '"catch a shooting star"';
+    const backText = '"抓住一颗流星"';
+
+    let currentAnimation = 'crossfade';
+    let isShowingFront = true;
+    let isAnimating = false;
+
+    const textLayer = document.getElementById('textLayer');
+    const statusEl = document.getElementById('status');
+
+    function renderText(text, options = {}) {
+      textLayer.innerHTML = '';
+      text.split('').forEach((char, i) => {
+        const span = document.createElement('span');
+        span.textContent = char === ' ' ? '\u00A0' : char;
+        span.dataset.index = i;
+        if (options.style) {
+          Object.assign(span.style, options.style);
+        }
+        textLayer.appendChild(span);
+      });
+    }
+
+    function setActiveButton(type) {
+      document.querySelectorAll('.controls button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.getElementById(`btn-${type}`)?.classList.add('active');
+    }
+
+    // ============================================
+    // Animation 1: Crossfade (current implementation)
+    // ============================================
+    async function animateCrossfade() {
+      const duration = 2000;
+      const startTime = Date.now();
+      const fromText = isShowingFront ? frontText : backText;
+      const toText = isShowingFront ? backText : frontText;
+
+      // Create two layers
+      textLayer.innerHTML = `
+        <div class="front-layer" style="position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;">${fromText}</div>
+        <div class="back-layer" style="position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;opacity:0;">${toText}</div>
+      `;
+
+      const frontLayer = textLayer.querySelector('.front-layer');
+      const backLayer = textLayer.querySelector('.back-layer');
+
+      return new Promise(resolve => {
+        function animate() {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(1, elapsed / duration);
+          const eased = progress < 0.5
+            ? 2 * progress * progress
+            : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+          const blur = eased * (1 - eased) * 12;
+          frontLayer.style.opacity = 1 - eased;
+          frontLayer.style.filter = `blur(${blur}px)`;
+          backLayer.style.opacity = eased;
+          backLayer.style.filter = `blur(${blur}px)`;
+
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            textLayer.innerHTML = '';
+            renderText(toText);
+            resolve();
+          }
+        }
+        requestAnimationFrame(animate);
+      });
+    }
+
+    // ============================================
+    // Animation 2: 3D Flip (like flipping a card)
+    // ============================================
+    async function animateFlip3d() {
+      const duration = 1200;
+      const startTime = Date.now();
+      const fromText = isShowingFront ? frontText : backText;
+      const toText = isShowingFront ? backText : frontText;
+
+      textLayer.style.transformStyle = 'preserve-3d';
+      textLayer.innerHTML = `
+        <div class="front-layer" style="position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;backface-visibility:hidden;">${fromText}</div>
+        <div class="back-layer" style="position:absolute;left:50%;transform:translateX(-50%) rotateY(180deg);white-space:nowrap;backface-visibility:hidden;">${toText}</div>
+      `;
+
+      return new Promise(resolve => {
+        function animate() {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(1, elapsed / duration);
+          // Ease out cubic
+          const eased = 1 - Math.pow(1 - progress, 3);
+
+          const rotation = eased * 180;
+          textLayer.style.transform = `rotateY(${rotation}deg)`;
+
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            textLayer.style.transform = '';
+            textLayer.style.transformStyle = '';
+            textLayer.innerHTML = '';
+            renderText(toText);
+            resolve();
+          }
+        }
+        requestAnimationFrame(animate);
+      });
+    }
+
+    // ============================================
+    // Animation 3: Scatter & Reform
+    // ============================================
+    async function animateScatter() {
+      const duration = 2000;
+      const startTime = Date.now();
+      const fromText = isShowingFront ? frontText : backText;
+      const toText = isShowingFront ? backText : frontText;
+
+      // Render front text with random scatter values
+      renderText(fromText);
+      const chars = textLayer.querySelectorAll('span');
+      const scatterData = Array.from(chars).map(() => ({
+        x: (Math.random() - 0.5) * 300,
+        y: (Math.random() - 0.5) * 200,
+        rotation: (Math.random() - 0.5) * 360,
+      }));
+
+      return new Promise(resolve => {
+        function animate() {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(1, elapsed / duration);
+
+          // First half: scatter out
+          // Second half: reform as new text
+          if (progress < 0.5) {
+            const scatterProgress = progress * 2;
+            const eased = scatterProgress * scatterProgress;
+
+            chars.forEach((span, i) => {
+              const d = scatterData[i];
+              span.style.transform = `translate(${d.x * eased}px, ${d.y * eased}px) rotate(${d.rotation * eased}deg)`;
+              span.style.opacity = 1 - eased;
+              span.style.filter = `blur(${eased * 4}px)`;
+            });
+          } else {
+            // Switch to back text at midpoint
+            if (progress >= 0.5 && textLayer.dataset.switched !== 'true') {
+              textLayer.dataset.switched = 'true';
+              renderText(toText);
+              const newChars = textLayer.querySelectorAll('span');
+              // Pre-scatter new chars
+              newChars.forEach((span, i) => {
+                const d = scatterData[i % scatterData.length];
+                span.style.transform = `translate(${d.x}px, ${d.y}px) rotate(${d.rotation}deg)`;
+                span.style.opacity = 0;
+                span.style.filter = 'blur(4px)';
+              });
+            }
+
+            const reformProgress = (progress - 0.5) * 2;
+            const eased = 1 - Math.pow(1 - reformProgress, 3);
+            const newChars = textLayer.querySelectorAll('span');
+
+            newChars.forEach((span, i) => {
+              const d = scatterData[i % scatterData.length];
+              span.style.transform = `translate(${d.x * (1 - eased)}px, ${d.y * (1 - eased)}px) rotate(${d.rotation * (1 - eased)}deg)`;
+              span.style.opacity = eased;
+              span.style.filter = `blur(${(1 - eased) * 4}px)`;
+            });
+          }
+
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            textLayer.dataset.switched = '';
+            renderText(toText);
+            resolve();
+          }
+        }
+        requestAnimationFrame(animate);
+      });
+    }
+
+    // ============================================
+    // Animation 4: Wave Ripple (from center)
+    // ============================================
+    async function animateWave() {
+      const duration = 2000;
+      const startTime = Date.now();
+      const fromText = isShowingFront ? frontText : backText;
+      const toText = isShowingFront ? backText : frontText;
+
+      // Two layers for wave effect
+      textLayer.innerHTML = `
+        <div class="front-layer" style="position:relative;white-space:nowrap;"></div>
+        <div class="back-layer" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);white-space:nowrap;"></div>
+      `;
+
+      const frontLayer = textLayer.querySelector('.front-layer');
+      const backLayer = textLayer.querySelector('.back-layer');
+
+      // Render characters
+      fromText.split('').forEach((char, i) => {
+        const span = document.createElement('span');
+        span.textContent = char === ' ' ? '\u00A0' : char;
+        span.dataset.index = i;
+        frontLayer.appendChild(span);
+      });
+
+      toText.split('').forEach((char, i) => {
+        const span = document.createElement('span');
+        span.textContent = char === ' ' ? '\u00A0' : char;
+        span.dataset.index = i;
+        span.style.opacity = '0';
+        backLayer.appendChild(span);
+      });
+
+      const frontChars = frontLayer.querySelectorAll('span');
+      const backChars = backLayer.querySelectorAll('span');
+      const centerIndex = Math.floor(fromText.length / 2);
+
+      return new Promise(resolve => {
+        function animate() {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(1, elapsed / duration);
+
+          frontChars.forEach((span, i) => {
+            const distFromCenter = Math.abs(i - centerIndex);
+            const delay = distFromCenter * 0.05;
+            const charProgress = Math.max(0, Math.min(1, (progress - delay) / 0.4));
+            const eased = charProgress * charProgress;
+
+            span.style.opacity = 1 - eased;
+            span.style.transform = `translateY(${eased * -20}px) scale(${1 - eased * 0.3})`;
+            span.style.filter = `blur(${eased * 3}px)`;
+          });
+
+          backChars.forEach((span, i) => {
+            const distFromCenter = Math.abs(i - Math.floor(toText.length / 2));
+            const delay = 0.3 + distFromCenter * 0.05;
+            const charProgress = Math.max(0, Math.min(1, (progress - delay) / 0.4));
+            const eased = 1 - Math.pow(1 - charProgress, 3);
+
+            span.style.opacity = eased;
+            span.style.transform = `translateY(${(1 - eased) * 20}px) scale(${0.7 + eased * 0.3})`;
+            span.style.filter = `blur(${(1 - eased) * 3}px)`;
+          });
+
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            textLayer.innerHTML = '';
+            renderText(toText);
+            resolve();
+          }
+        }
+        requestAnimationFrame(animate);
+      });
+    }
+
+    // ============================================
+    // Animation 5: Frosted Glass (heavy blur + color shift)
+    // ============================================
+    async function animateGlass() {
+      const duration = 2500;
+      const startTime = Date.now();
+      const fromText = isShowingFront ? frontText : backText;
+      const toText = isShowingFront ? backText : frontText;
+
+      textLayer.innerHTML = `
+        <div class="front-layer" style="position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;">${fromText}</div>
+        <div class="back-layer" style="position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;opacity:0;">${toText}</div>
+      `;
+
+      const frontLayer = textLayer.querySelector('.front-layer');
+      const backLayer = textLayer.querySelector('.back-layer');
+
+      return new Promise(resolve => {
+        function animate() {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(1, elapsed / duration);
+
+          // More dramatic easing
+          let phase;
+          if (progress < 0.4) {
+            // Phase 1: blur out front
+            phase = 1;
+            const p = progress / 0.4;
+            const eased = p * p;
+            frontLayer.style.filter = `blur(${eased * 25}px) brightness(${1 + eased * 0.5})`;
+            frontLayer.style.opacity = 1;
+            backLayer.style.opacity = 0;
+          } else if (progress < 0.6) {
+            // Phase 2: crossfade at max blur
+            phase = 2;
+            const p = (progress - 0.4) / 0.2;
+            frontLayer.style.filter = 'blur(25px) brightness(1.5)';
+            frontLayer.style.opacity = 1 - p;
+            backLayer.style.filter = 'blur(25px) brightness(1.5)';
+            backLayer.style.opacity = p;
+          } else {
+            // Phase 3: unblur back
+            phase = 3;
+            const p = (progress - 0.6) / 0.4;
+            const eased = 1 - Math.pow(1 - p, 2);
+            frontLayer.style.opacity = 0;
+            backLayer.style.filter = `blur(${(1 - eased) * 25}px) brightness(${1 + (1 - eased) * 0.5})`;
+            backLayer.style.opacity = 1;
+          }
+
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            textLayer.innerHTML = '';
+            renderText(toText);
+            resolve();
+          }
+        }
+        requestAnimationFrame(animate);
+      });
+    }
+
+    // ============================================
+    // Animation 6: Sink & Rise
+    // On dark background:
+    // - Float = bright white + glow
+    // - Sink = dim gray + no glow + move away
+    // ============================================
+    async function animateSink() {
+      const duration = 2500;
+      const startTime = Date.now();
+      const fromText = isShowingFront ? frontText : backText;
+      const toText = isShowingFront ? backText : frontText;
+
+      // Create two layers
+      textLayer.innerHTML = `
+        <div class="front-layer" style="position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;"></div>
+        <div class="back-layer" style="position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;"></div>
+      `;
+
+      const frontLayer = textLayer.querySelector('.front-layer');
+      const backLayer = textLayer.querySelector('.back-layer');
+
+      // Front: starts bright white with glow (floating)
+      fromText.split('').forEach((char, i) => {
+        const span = document.createElement('span');
+        span.textContent = char === ' ' ? '\u00A0' : char;
+        span.style.display = 'inline-block';
+        span.style.color = 'rgba(255,255,255,0.9)';
+        span.style.textShadow = '0 0 20px rgba(255,255,255,0.6), 0 0 40px rgba(255,255,255,0.3)';
+        frontLayer.appendChild(span);
+      });
+
+      // Back: starts dim (sunk in background)
+      toText.split('').forEach((char, i) => {
+        const span = document.createElement('span');
+        span.textContent = char === ' ' ? '\u00A0' : char;
+        span.style.display = 'inline-block';
+        span.style.color = 'rgba(255,255,255,0.1)';
+        span.style.textShadow = 'none';
+        backLayer.appendChild(span);
+      });
+
+      const frontChars = frontLayer.querySelectorAll('span');
+      const backChars = backLayer.querySelectorAll('span');
+
+      return new Promise(resolve => {
+        function animate() {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(1, elapsed / duration);
+
+          // Front: sink - move left, dim down, lose glow
+          frontChars.forEach((span, i) => {
+            const delay = i * 0.025;
+            const charProgress = Math.max(0, Math.min(1, (progress - delay) / 0.45));
+            const eased = charProgress * charProgress;
+
+            const moveX = -25 * eased;
+            const brightness = 0.9 - 0.8 * eased; // 0.9 -> 0.1
+            const glowOpacity = 0.6 * (1 - eased);
+            const glowSize = 20 * (1 - eased);
+
+            span.style.transform = `translateX(${moveX}px) scale(${1 - 0.1 * eased})`;
+            span.style.color = `rgba(255,255,255,${brightness})`;
+            span.style.textShadow = glowOpacity > 0.05
+              ? `0 0 ${glowSize}px rgba(255,255,255,${glowOpacity}), 0 0 ${glowSize * 2}px rgba(255,255,255,${glowOpacity * 0.5})`
+              : 'none';
+          });
+
+          // Back: rise - move from right to center, brighten, gain glow
+          backChars.forEach((span, i) => {
+            const delay = 0.35 + i * 0.025;
+            const charProgress = Math.max(0, Math.min(1, (progress - delay) / 0.45));
+            const eased = 1 - Math.pow(1 - charProgress, 3);
+
+            const moveX = 25 * (1 - eased);
+            const brightness = 0.1 + 0.8 * eased; // 0.1 -> 0.9
+            const glowOpacity = 0.6 * eased;
+            const glowSize = 20 * eased;
+
+            span.style.transform = `translateX(${moveX}px) scale(${0.9 + 0.1 * eased})`;
+            span.style.color = `rgba(255,255,255,${brightness})`;
+            span.style.textShadow = glowOpacity > 0.05
+              ? `0 0 ${glowSize}px rgba(255,255,255,${glowOpacity}), 0 0 ${glowSize * 2}px rgba(255,255,255,${glowOpacity * 0.5})`
+              : 'none';
+          });
+
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            textLayer.innerHTML = '';
+            renderText(toText);
+            resolve();
+          }
+        }
+        requestAnimationFrame(animate);
+      });
+    }
+
+    // ============================================
+    // Main
+    // ============================================
+    async function playAnimation(type) {
+      if (isAnimating) return;
+      isAnimating = true;
+      currentAnimation = type;
+      setActiveButton(type);
+
+      const names = {
+        crossfade: 'Crossfade',
+        flip3d: '3D Flip',
+        scatter: 'Scatter & Reform',
+        wave: 'Wave Ripple',
+        glass: 'Frosted Glass',
+        sink: 'Sink & Rise'
+      };
+      statusEl.textContent = `Playing: ${names[type]}`;
+
+      switch (type) {
+        case 'crossfade': await animateCrossfade(); break;
+        case 'flip3d': await animateFlip3d(); break;
+        case 'scatter': await animateScatter(); break;
+        case 'wave': await animateWave(); break;
+        case 'glass': await animateGlass(); break;
+        case 'sink': await animateSink(); break;
+      }
+
+      isShowingFront = !isShowingFront;
+      isAnimating = false;
+      statusEl.textContent = `${names[type]} - Press Space to replay`;
+    }
+
+    // Keyboard
+    document.addEventListener('keydown', (e) => {
+      if (e.key === ' ') {
+        e.preventDefault();
+        playAnimation(currentAnimation);
+      } else if (e.key >= '1' && e.key <= '6') {
+        const types = ['crossfade', 'flip3d', 'scatter', 'wave', 'glass', 'sink'];
+        playAnimation(types[parseInt(e.key) - 1]);
+      }
+    });
+
+    // Init
+    renderText(frontText);
+  </script>
+</body>
+</html>

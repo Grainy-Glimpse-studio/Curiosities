@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glow + Switch Animation Playground</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0a0a0f;
+      min-height: 100vh;
+      font-family: 'Georgia', serif;
+      color: white;
+      overflow: hidden;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 40px;
+    }
+
+    .word-container {
+      position: relative;
+      font-size: 32px;
+      font-style: italic;
+    }
+
+    .word-layer {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      justify-content: center;
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 600px;
+      /* No CSS transition - JavaScript handles the animation */
+    }
+
+    .word-layer.hidden {
+      pointer-events: none;
+    }
+
+    .word-layer span {
+      display: inline-block;
+      transition: all 0.2s ease-out;
+    }
+
+    .instructions {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      color: rgba(255,255,255,0.4);
+      font-size: 16px;
+    }
+
+    .instructions kbd {
+      display: inline-block;
+      padding: 4px 12px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      margin: 0 4px;
+    }
+
+    .status {
+      position: fixed;
+      top: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.3);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="word-container" id="wordContainer">
+      <div class="word-layer" id="primaryWord"></div>
+      <div class="word-layer" id="alternateWord"></div>
+    </div>
+  </div>
+
+  <div class="status" id="status">Move mouse over text to reveal</div>
+
+  <div class="instructions">
+    <kbd>Tab</kbd> instant switch &nbsp;|&nbsp;
+    <kbd>R</kbd> reset
+  </div>
+
+  <script>
+    // Two examples - switch with number keys
+    const examples = {
+      short: {
+        primary: '"catch a shooting star"',
+        alternate: '"抓住一颗流星"'
+      },
+      long: {
+        primary: '"The stars are not afraid to appear like fireflies, and the sun is not afraid to appear like a lamp."',
+        alternate: '"星星不怕像萤火虫一样出现，太阳也不怕像灯一样出现。"'
+      }
+    };
+
+    let currentExample = 'short';
+    let primaryText = examples.short.primary;
+    let alternateText = examples.short.alternate;
+
+    const GLOW_RADIUS = 300;
+    const GLOW_COLOR = '255,255,255';
+    const BASE_OPACITY = 0.7;
+    const TRANSITION_DURATION = 2000;
+
+    // Swipe detection settings
+    const SWIPE_DISTANCE = 60; // pixels needed to count as swipe (lowered)
+    const SWIPE_TIME_WINDOW = 800; // ms - must move this distance within this time
+
+    let currentWord = 'primary';
+    let wordTransition = 0;
+    let isTransitioning = false;
+    let mousePos = { x: 0, y: 0 };
+
+    // Swipe tracking
+    let swipeStartPos = null;
+    let swipeStartTime = null;
+    let isInTextArea = false;
+
+    const primaryWordEl = document.getElementById('primaryWord');
+    const alternateWordEl = document.getElementById('alternateWord');
+    const statusEl = document.getElementById('status');
+
+    function getDisplayText() {
+      return currentWord === 'primary' ? primaryText : alternateText;
+    }
+
+    function renderWords() {
+      // Render primary word
+      primaryWordEl.innerHTML = '';
+      primaryText.split('').forEach((char, i) => {
+        const span = document.createElement('span');
+        span.textContent = char === ' ' ? '\u00A0' : char;
+        span.dataset.index = i;
+        span.dataset.word = 'primary';
+        primaryWordEl.appendChild(span);
+      });
+
+      // Render alternate word
+      alternateWordEl.innerHTML = '';
+      alternateText.split('').forEach((char, i) => {
+        const span = document.createElement('span');
+        span.textContent = char === ' ' ? '\u00A0' : char;
+        span.dataset.index = i;
+        span.dataset.word = 'alternate';
+        alternateWordEl.appendChild(span);
+      });
+
+      updateWordOpacity();
+    }
+
+    function updateWordOpacity() {
+      const primaryOpacity = currentWord === 'primary' ? 1 - wordTransition : wordTransition;
+      const alternateOpacity = currentWord === 'primary' ? wordTransition : 1 - wordTransition;
+
+      // Opacity
+      primaryWordEl.style.opacity = primaryOpacity;
+      alternateWordEl.style.opacity = alternateOpacity;
+
+      // Blur effect during transition
+      const blurAmount = wordTransition * (1 - wordTransition) * 8; // Max blur at 50% transition
+      primaryWordEl.style.filter = primaryOpacity < 1 ? `blur(${blurAmount}px)` : 'none';
+      alternateWordEl.style.filter = alternateOpacity < 1 ? `blur(${blurAmount}px)` : 'none';
+
+      primaryWordEl.classList.toggle('hidden', primaryOpacity < 0.3);
+      alternateWordEl.classList.toggle('hidden', alternateOpacity < 0.3);
+    }
+
+    function isMouseInTextArea() {
+      // Use the active word layer's actual bounding box
+      const activeEl = currentWord === 'primary' ? primaryWordEl : alternateWordEl;
+      const rect = activeEl.getBoundingClientRect();
+
+      // Add generous padding around the text
+      const padding = 80;
+      const inArea = (
+        mousePos.x >= rect.left - padding &&
+        mousePos.x <= rect.right + padding &&
+        mousePos.y >= rect.top - padding &&
+        mousePos.y <= rect.bottom + padding
+      );
+
+      return inArea;
+    }
+
+    function updateGlow() {
+      const activeEl = currentWord === 'primary' ? primaryWordEl : alternateWordEl;
+      const chars = activeEl.querySelectorAll('span');
+
+      // Apply glow effect to characters
+      chars.forEach((span, i) => {
+        const rect = span.getBoundingClientRect();
+        const charX = rect.left + rect.width / 2;
+        const charY = rect.top + rect.height / 2;
+
+        const distance = Math.sqrt(
+          Math.pow(mousePos.x - charX, 2) +
+          Math.pow(mousePos.y - charY, 2)
+        );
+
+        const glowIntensity = Math.max(0, 1 - distance / GLOW_RADIUS);
+
+        // Apply glow effect
+        const opacity = BASE_OPACITY + glowIntensity * 0.3;
+
+        span.style.color = `rgba(${GLOW_COLOR}, ${opacity})`;
+        span.style.textShadow = glowIntensity > 0.1
+          ? `0 0 ${8 + glowIntensity * 35}px rgba(${GLOW_COLOR}, ${0.05 + glowIntensity * 0.5}), 0 0 ${25 + glowIntensity * 70}px rgba(${GLOW_COLOR}, ${glowIntensity * 0.3})`
+          : 'none';
+
+        span.style.transform = glowIntensity > 0.3
+          ? `scale(${1 + glowIntensity * 0.05})`
+          : 'scale(1)';
+      });
+
+      // Swipe detection
+      if (isTransitioning) return;
+
+      const inTextArea = isMouseInTextArea();
+
+      // Debug: show text area bounds (reuse activeEl from above)
+      const rect = activeEl.getBoundingClientRect();
+      console.log('Mouse:', mousePos.x, mousePos.y, 'Text area:', rect.left, rect.top, rect.right, rect.bottom, 'In area:', inTextArea);
+
+      if (inTextArea) {
+        const now = Date.now();
+
+        if (!swipeStartPos) {
+          // Start tracking swipe
+          swipeStartPos = { x: mousePos.x, y: mousePos.y };
+          swipeStartTime = now;
+          console.log('Swipe start:', swipeStartPos);
+          statusEl.textContent = 'Swipe to translate...';
+        } else {
+          // Check if we've swiped enough distance
+          const dx = mousePos.x - swipeStartPos.x;
+          const dy = mousePos.y - swipeStartPos.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const elapsed = now - swipeStartTime;
+
+          console.log('Distance:', distance, 'Elapsed:', elapsed);
+
+          // Reset if too much time passed without enough movement
+          if (elapsed > SWIPE_TIME_WINDOW) {
+            swipeStartPos = { x: mousePos.x, y: mousePos.y };
+            swipeStartTime = now;
+            console.log('Reset swipe - timeout');
+          }
+
+          // Trigger if moved enough distance within time window
+          if (distance >= SWIPE_DISTANCE && elapsed <= SWIPE_TIME_WINDOW) {
+            console.log('TRIGGER!');
+            triggerSwitch();
+            swipeStartPos = null;
+            swipeStartTime = null;
+          } else {
+            statusEl.textContent = `Swipe: ${Math.round(distance)}px / ${SWIPE_DISTANCE}px (${elapsed}ms)`;
+          }
+        }
+      } else {
+        // Left text area, reset swipe tracking
+        if (swipeStartPos) {
+          swipeStartPos = null;
+          swipeStartTime = null;
+          statusEl.textContent = 'Move mouse over text';
+        }
+      }
+    }
+
+    function triggerSwitch() {
+      if (isTransitioning) return;
+
+      isTransitioning = true;
+      statusEl.textContent = 'Switching...';
+
+      // Animate wordTransition from 0 to 1
+      const startTime = Date.now();
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        wordTransition = Math.min(1, elapsed / TRANSITION_DURATION);
+        updateWordOpacity();
+
+        if (wordTransition < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          // Switch complete
+          currentWord = currentWord === 'primary' ? 'alternate' : 'primary';
+          wordTransition = 0;
+          updateWordOpacity();
+
+          setTimeout(() => {
+            isTransitioning = false;
+            statusEl.textContent = 'Move mouse over text to reveal';
+          }, 300);
+        }
+      };
+
+      requestAnimationFrame(animate);
+    }
+
+    function instantSwitch() {
+      if (isTransitioning) return;
+
+      isTransitioning = true;
+      statusEl.textContent = 'Switching...';
+
+      const startTime = Date.now();
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        wordTransition = Math.min(1, elapsed / (TRANSITION_DURATION / 2));
+        updateWordOpacity();
+
+        if (wordTransition < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          currentWord = currentWord === 'primary' ? 'alternate' : 'primary';
+          wordTransition = 0;
+          updateWordOpacity();
+
+          setTimeout(() => {
+            isTransitioning = false;
+            statusEl.textContent = 'Move mouse over text to reveal';
+          }, 300);
+        }
+      };
+
+      requestAnimationFrame(animate);
+    }
+
+    // Mouse move
+    document.addEventListener('mousemove', (e) => {
+      mousePos = { x: e.clientX, y: e.clientY };
+      updateGlow();
+    });
+
+    // Keyboard
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        instantSwitch();
+      } else if (e.key === 'r' || e.key === 'R') {
+        currentWord = 'primary';
+        wordTransition = 0;
+        isTransitioning = false;
+        swipeStartPos = null;
+        swipeStartTime = null;
+        updateWordOpacity();
+        statusEl.textContent = 'Reset';
+      } else if (e.key === '1') {
+        // Switch to short example
+        currentExample = 'short';
+        primaryText = examples.short.primary;
+        alternateText = examples.short.alternate;
+        currentWord = 'primary';
+        wordTransition = 0;
+        isTransitioning = false;
+        renderWords();
+        statusEl.textContent = 'Short example';
+      } else if (e.key === '2') {
+        // Switch to long example
+        currentExample = 'long';
+        primaryText = examples.long.primary;
+        alternateText = examples.long.alternate;
+        currentWord = 'primary';
+        wordTransition = 0;
+        isTransitioning = false;
+        renderWords();
+        statusEl.textContent = 'Long example';
+      }
+    });
+
+    // Initialize
+    renderWords();
+  </script>
+</body>
+</html>

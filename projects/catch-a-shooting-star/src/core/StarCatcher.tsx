@@ -3,8 +3,10 @@ import Starfield from './Starfield';
 import ShootingStar from './ShootingStar';
 import HandTracker from './HandTracker';
 import FaceTracker from './FaceTracker';
+import HolisticTracker from './HolisticTracker';
 import SingleView from '../modes/SingleView';
 import GalleryView from '../modes/GalleryView';
+import FlashlightCursor from '../components/FlashlightCursor';
 import type { StarCatcherConfig, ContentItem, InteractionMode } from '../types';
 
 // Font configs for random selection
@@ -44,6 +46,24 @@ const getRandomFontForText = (text: string): FontConfig => {
   return config[Math.floor(Math.random() * config.length)];
 };
 
+// Simple translation map for demo (will be replaced by DeepL API)
+const DEMO_TRANSLATIONS: Record<string, string> = {
+  // Chinese -> English
+  '星空之下，每一顆流星都承載著一個願望。在這漫漫長夜裡，我們仰望蒼穹，等待那一道劃破天際的光芒。也許是對遠方的思念，也許是對未來的期盼。':
+    'Under the starry sky, every shooting star carries a wish. In this long night, we gaze at the heavens, waiting for that streak of light across the sky. Perhaps it is longing for the distance, perhaps hope for the future.',
+  '在漫長的黑夜裡，我們都是追逐星光的人。穿越時間的洪流，跨過命運的山河，只為在某個瞬間，與那顆屬於自己的星相遇。星光不問趕路人，歲月不負有心人。':
+    'In the long night, we are all chasers of starlight. Crossing the currents of time, traversing the mountains and rivers of fate, just to meet that star of our own in a certain moment.',
+  '抬頭仰望，繁星點點，彷彿訴說著古老的故事。每一顆星都是一段傳說，每一道光都是一次輪迴。在這無邊的宇宙裡，我們渺小如塵埃，卻依然懷抱著最璀璨的夢想。':
+    'Looking up, the stars twinkle as if telling ancient stories. Each star is a legend, each ray of light a cycle of rebirth. In this boundless universe, we are as small as dust, yet still hold the brightest dreams.',
+  // English -> Chinese
+  'The stars are not what they seem. Behind each twinkling light lies a story untold, a mystery waiting to be unraveled. In the vast expanse of the cosmos, we search for meaning among the constellations.':
+    '星星并非表面所见。每一道闪烁的光芒背后，都隐藏着一个未曾诉说的故事，一个等待被揭开的谜团。在浩瀚的宇宙中，我们在星座间寻找意义。',
+  'Every shooting star carries a wish, burning bright across the midnight sky. They say if you catch one, your deepest desires will come true. But perhaps the magic lies not in the catching, but in the hoping itself.':
+    '每一颗流星都承载着一个愿望，在午夜的天空中燃烧。人们说，如果你抓住一颗，你最深的愿望就会实现。但也许魔力不在于抓住，而在于希望本身。',
+  'Catch a shooting star, make a wish upon its fleeting light. Let your dreams take flight on cosmic winds, dancing through nebulae and spiraling past distant galaxies. The universe is listening.':
+    '抓住一颗流星，在它转瞬即逝的光芒上许下愿望。让你的梦想乘着宇宙之风飞翔，穿过星云，盘旋过遥远的星系。宇宙在倾听。',
+};
+
 interface StarCatcherProps {
   config: StarCatcherConfig;
   interactionMode: InteractionMode;
@@ -80,6 +100,8 @@ const StarCatcher = forwardRef<StarCatcherRef, StarCatcherProps>(({
   const [grabPositions, setGrabPositions] = useState<{ x: number; y: number }[]>([]);
   const [isPaused, setIsPaused] = useState(false); // Pause star generation while content is showing
   const [isBlowingAway, setIsBlowingAway] = useState(false); // Blow away animation in progress
+  const [isFlipped, setIsFlipped] = useState(false); // Translation flip state
+  const [palmPosition, setPalmPosition] = useState<{ x: number; y: number } | null>(null); // Palm position for glow
   const galleryViewRef = useRef<{ stackCards: () => void }>(null);
 
   // Content protection: pause stars based on content type
@@ -157,7 +179,7 @@ const StarCatcher = forwardRef<StarCatcherRef, StarCatcherProps>(({
     const baseItem = items[currentIndex % items.length];
     setCurrentIndex(prev => prev + 1);
 
-    // Assign random font for text items
+    // Assign random font and translation for text items
     let nextItem = { ...baseItem };
     if (baseItem.type === 'text' && baseItem.content) {
       const fontConfig = getRandomFontForText(baseItem.content);
@@ -165,6 +187,7 @@ const StarCatcher = forwardRef<StarCatcherRef, StarCatcherProps>(({
         ...baseItem,
         _fontFamily: `'${fontConfig.name}', sans-serif`,
         _fontSize: fontConfig.size,
+        _translation: DEMO_TRANSLATIONS[baseItem.content],
       };
     }
 
@@ -241,6 +264,47 @@ const StarCatcher = forwardRef<StarCatcherRef, StarCatcherProps>(({
   const handleBlowAwayComplete = useCallback(() => {
     setIsBlowingAway(false);
     setCurrentItem(null);
+    setIsFlipped(false);
+  }, []);
+
+  // Handle palm move for glow effect (gesture mode)
+  const handlePalmMove = useCallback((position: { x: number; y: number } | null, isOpen: boolean) => {
+    if (isOpen && position) {
+      setPalmPosition(position);
+    } else {
+      setPalmPosition(null);
+    }
+  }, []);
+
+  // Handle mouse move for glow effect (keyboard mode)
+  const handleMouseMove = useCallback((position: { x: number; y: number } | null) => {
+    setPalmPosition(position);
+  }, []);
+
+  // Handle swipe gesture to trigger translation flip (up = to back, down = to front)
+  const handleSwipeGesture = useCallback((direction: 'up' | 'down') => {
+    console.log('👋 handleSwipeGesture called:', { direction, hasItem: !!currentItem, isBlowingAway, isFlipped });
+    if (currentItem && !isBlowingAway) {
+      const shouldFlipToBack = direction === 'up';
+      // Only flip if we're going in the right direction
+      if (shouldFlipToBack && !isFlipped) {
+        console.log('👋 Swipe UP - flipping to back');
+        setIsFlipped(true);
+      } else if (!shouldFlipToBack && isFlipped) {
+        console.log('👋 Swipe DOWN - flipping to front');
+        setIsFlipped(false);
+      } else {
+        console.log('👋 No flip needed:', { shouldFlipToBack, isFlipped });
+      }
+    } else {
+      console.log('👋 Cannot flip:', { hasItem: !!currentItem, isBlowingAway });
+    }
+  }, [currentItem, isBlowingAway, isFlipped]);
+
+  // Reset flip state when item changes
+  const handleItemChange = useCallback((item: ContentItem | null) => {
+    setCurrentItem(item);
+    setIsFlipped(false);
   }, []);
 
   // Determine keyboard scheme based on mode and config
@@ -282,17 +346,20 @@ const StarCatcher = forwardRef<StarCatcherRef, StarCatcherProps>(({
         uiFontOpacity={style?.uiFontOpacity}
       />
 
-      {/* Hand Tracker (gesture mode only) */}
-      {interactionMode === 'gesture' && (
-        <HandTracker onGrabChange={handleGrabChange} />
+      {/* Flashlight cursor (keyboard mode) */}
+      {interactionMode === 'keyboard' && (
+        <FlashlightCursor onMouseMove={handleMouseMove} />
       )}
 
-      {/* Face Tracker for blow detection (gesture mode only) */}
+      {/* Holistic Tracker - combined hand + face (gesture mode only) */}
       {interactionMode === 'gesture' && (
-        <FaceTracker
+        <HolisticTracker
+          onGrabChange={handleGrabChange}
+          onPalmMove={handlePalmMove}
+          onSwipeGesture={handleSwipeGesture}
           onBlow={handleBlow}
           blowDuration={600}
-          enabled={currentItem !== null} // Only track when content is showing
+          blowEnabled={currentItem !== null}
         />
       )}
 
@@ -306,11 +373,14 @@ const StarCatcher = forwardRef<StarCatcherRef, StarCatcherProps>(({
           fontSize={style?.fontSize}
           canReply={canReply}
           blowAway={isBlowingAway}
+          isFlipped={isFlipped}
+          onFlip={() => setIsFlipped(prev => !prev)}
+          palmPosition={palmPosition}
           onItemClick={onItemClick}
           onItemDoubleClick={onItemDoubleClick}
           onInputSubmit={handleInputSubmit}
           onReply={handleReply}
-          onClose={() => setCurrentItem(null)}
+          onClose={() => handleItemChange(null)}
           onBlowAwayComplete={handleBlowAwayComplete}
         />
       ) : (

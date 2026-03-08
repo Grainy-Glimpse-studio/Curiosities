@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Face Detection Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #feedback {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 150px;
+      transition: all 0.3s;
+      pointer-events: none;
+    }
+
+    #status {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      font-size: 14px;
+      color: rgba(255,255,255,0.5);
+    }
+
+    #debug {
+      position: fixed;
+      top: 60px;
+      left: 20px;
+      font-size: 12px;
+      font-family: monospace;
+      color: rgba(255,255,255,0.4);
+    }
+
+    #log {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      max-height: 150px;
+      overflow-y: auto;
+      font-size: 12px;
+      font-family: monospace;
+      color: rgba(255,255,255,0.7);
+      background: rgba(0,0,0,0.5);
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    #log .entry { margin-bottom: 4px; }
+    #log .success { color: #0f0; }
+    #log .warning { color: #ff0; }
+
+    #progress {
+      position: fixed;
+      bottom: 200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 200px;
+      height: 10px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    #progress-bar {
+      height: 100%;
+      background: rgba(255,255,255,0.6);
+      width: 0%;
+      transition: width 0.1s;
+    }
+
+    #progress-label {
+      position: fixed;
+      bottom: 220px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 14px;
+      color: rgba(255,255,255,0.4);
+    }
+
+    #canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1);
+      pointer-events: none;
+    }
+
+    video { display: none; }
+
+    #blow-count {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      font-size: 48px;
+      color: rgba(255,255,255,0.3);
+    }
+  </style>
+</head>
+<body>
+  <div id="feedback">·</div>
+  <div id="status">Loading face tracking...</div>
+  <div id="debug"></div>
+  <div id="blow-count">0</div>
+
+  <div id="progress-label">Make O shape with mouth to blow</div>
+  <div id="progress">
+    <div id="progress-bar"></div>
+  </div>
+
+  <div id="log"></div>
+
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="canvas"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const feedback = document.getElementById('feedback');
+    const status = document.getElementById('status');
+    const debug = document.getElementById('debug');
+    const logEl = document.getElementById('log');
+    const progressBar = document.getElementById('progress-bar');
+    const blowCountEl = document.getElementById('blow-count');
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let blowCount = 0;
+    let isBlowing = false;
+    let blowStartTime = null;
+    let blowTriggered = false;
+    const BLOW_DURATION = 600; // ms
+
+    function log(message, type = '') {
+      const entry = document.createElement('div');
+      entry.className = 'entry ' + type;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logEl.insertBefore(entry, logEl.firstChild);
+      while (logEl.children.length > 15) {
+        logEl.removeChild(logEl.lastChild);
+      }
+    }
+
+    function showBlowFeedback() {
+      feedback.textContent = '💨';
+      feedback.style.transform = 'translate(-50%, -50%) scale(1.5)';
+      setTimeout(() => {
+        feedback.style.transform = 'translate(-50%, -50%) scale(1)';
+      }, 300);
+
+      blowCount++;
+      blowCountEl.textContent = blowCount;
+      log('💨 BLOW triggered!', 'success');
+    }
+
+    async function init() {
+      try {
+        log('Initializing FaceMesh...');
+
+        const faceMesh = new FaceMesh({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        });
+
+        faceMesh.setOptions({
+          maxNumFaces: 1,
+          refineLandmarks: true,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
+
+        faceMesh.onResults((results) => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+            const landmarks = results.multiFaceLandmarks[0];
+
+            // Draw face outline - bright and visible
+            ctx.fillStyle = 'rgba(100, 200, 255, 0.8)';
+            ctx.shadowColor = 'rgba(100, 200, 255, 0.6)';
+            ctx.shadowBlur = 6;
+            for (let i = 0; i < landmarks.length; i += 2) {
+              const lm = landmarks[i];
+              const x = lm.x * canvas.width;
+              const y = lm.y * canvas.height;
+              ctx.beginPath();
+              ctx.arc(x, y, 3, 0, 2 * Math.PI);
+              ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+
+            // Get lip landmarks
+            const upperLip = landmarks[13];
+            const lowerLip = landmarks[14];
+            const leftCorner = landmarks[61];
+            const rightCorner = landmarks[291];
+
+            const lipOpenDistance = Math.abs(upperLip.y - lowerLip.y);
+            const lipWidth = Math.abs(leftCorner.x - rightCorner.x);
+            const ratio = lipOpenDistance / lipWidth;
+
+            // Debug info
+            debug.innerHTML = `
+              Lip Open: ${lipOpenDistance.toFixed(3)}<br>
+              Lip Width: ${lipWidth.toFixed(3)}<br>
+              Ratio: ${ratio.toFixed(3)}<br>
+              O-Shape: ratio > 0.2 && width < 0.22 && open > 0.008
+            `;
+
+            // Draw mouth area
+            ctx.strokeStyle = 'rgba(255, 200, 100, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(
+              (leftCorner.x + rightCorner.x) / 2 * canvas.width,
+              (upperLip.y + lowerLip.y) / 2 * canvas.height,
+              lipWidth * canvas.width / 2,
+              0, 2 * Math.PI
+            );
+            ctx.stroke();
+
+            // O-shape detection (more lenient)
+            const isOShape = ratio > 0.2 && lipWidth < 0.22 && lipOpenDistance > 0.008;
+
+            if (isOShape) {
+              feedback.textContent = '😮';
+              status.textContent = 'O-shape detected! Hold for blow...';
+
+              if (!isBlowing) {
+                isBlowing = true;
+                blowStartTime = Date.now();
+                blowTriggered = false;
+                log('Started O-shape', 'warning');
+              } else if (!blowTriggered) {
+                const elapsed = Date.now() - blowStartTime;
+                const progress = Math.min(100, (elapsed / BLOW_DURATION) * 100);
+                progressBar.style.width = progress + '%';
+
+                if (elapsed >= BLOW_DURATION) {
+                  blowTriggered = true;
+                  progressBar.style.width = '0%';
+                  showBlowFeedback();
+                }
+              }
+            } else {
+              feedback.textContent = '👤';
+              status.textContent = 'Face detected - make O shape to blow';
+              progressBar.style.width = '0%';
+
+              if (isBlowing) {
+                isBlowing = false;
+                blowStartTime = null;
+                log('O-shape ended');
+              }
+            }
+          } else {
+            feedback.textContent = '·';
+            status.textContent = 'No face detected';
+            debug.innerHTML = '';
+            progressBar.style.width = '0%';
+            isBlowing = false;
+            blowStartTime = null;
+          }
+        });
+
+        log('Starting camera...');
+
+        const camera = new Camera(video, {
+          onFrame: async () => {
+            await faceMesh.send({ image: video });
+          },
+          width: 640,
+          height: 480
+        });
+
+        await camera.start();
+        status.textContent = 'Face tracking ready!';
+        log('✅ Camera started successfully', 'success');
+
+      } catch (err) {
+        console.error(err);
+        status.textContent = 'Error: ' + err.message;
+        log('❌ Error: ' + err.message);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

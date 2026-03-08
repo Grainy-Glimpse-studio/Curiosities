@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blow Away Animation Playground</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0a0a0f;
+      min-height: 100vh;
+      font-family: 'Georgia', serif;
+      color: white;
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      text-align: center;
+      font-weight: 300;
+      letter-spacing: 4px;
+      margin-bottom: 40px;
+      opacity: 0.7;
+    }
+
+    .demo-section {
+      margin-bottom: 60px;
+      padding: 40px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 12px;
+    }
+
+    .demo-title {
+      font-size: 14px;
+      letter-spacing: 2px;
+      opacity: 0.5;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+
+    .demo-text {
+      font-size: 28px;
+      font-style: italic;
+      text-align: center;
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 30px;
+    }
+
+    .demo-text span {
+      display: inline-block;
+      will-change: transform, opacity;
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+
+    button {
+      display: block;
+      margin: 0 auto;
+      padding: 12px 32px;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.6);
+      font-size: 14px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.3s;
+    }
+
+    button:hover {
+      border-color: rgba(255,255,255,0.5);
+      color: rgba(255,255,255,0.9);
+    }
+
+    /* ====== Effect 1: Gentle Drift Apart ====== */
+    .drift-apart span {
+      animation: driftApart 3s ease-out forwards;
+    }
+
+    @keyframes driftApart {
+      0% {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      100% {
+        transform: translateX(var(--drift));
+        opacity: 0;
+      }
+    }
+
+    /* ====== Effect 2: Float Up & Fade ====== */
+    .float-up span {
+      animation: floatUp 3.5s ease-out forwards;
+    }
+
+    @keyframes floatUp {
+      0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(-30px) rotate(var(--rotate));
+        opacity: 0;
+        filter: blur(1px);
+      }
+    }
+
+    /* ====== Effect 3: Scatter Like Leaves ====== */
+    .scatter span {
+      animation: scatter 2.5s ease-out forwards;
+    }
+
+    @keyframes scatter {
+      0% {
+        transform: translate(0, 0) rotate(0deg) scale(1);
+        opacity: 1;
+      }
+      30% {
+        opacity: 0.8;
+      }
+      100% {
+        transform: translate(var(--tx), var(--ty)) rotate(var(--rotate)) scale(0.8);
+        opacity: 0;
+      }
+    }
+
+    /* ====== Effect 4: Gentle Sway & Dissolve ====== */
+    .sway-dissolve span {
+      animation: swayDissolve 4s ease-in-out forwards;
+    }
+
+    @keyframes swayDissolve {
+      0% {
+        transform: translateX(0) translateY(0);
+        opacity: 1;
+      }
+      25% {
+        transform: translateX(var(--sway1)) translateY(-2px);
+      }
+      50% {
+        transform: translateX(var(--sway2)) translateY(0);
+        opacity: 0.7;
+      }
+      75% {
+        transform: translateX(var(--sway3)) translateY(-3px);
+        opacity: 0.4;
+      }
+      100% {
+        transform: translateX(var(--sway4)) translateY(-8px);
+        opacity: 0;
+        filter: blur(1px);
+      }
+    }
+
+    /* ====== Effect 5: Breath / Mist ====== */
+    .mist span {
+      animation: mist 3s ease-out forwards;
+    }
+
+    @keyframes mist {
+      0% {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+        filter: blur(0);
+      }
+      50% {
+        opacity: 0.5;
+      }
+      100% {
+        transform: translateX(var(--drift)) scale(1.1);
+        opacity: 0;
+        filter: blur(3px);
+      }
+    }
+
+    /* ====== Effect 6: Letter Spacing Expand ====== */
+    .expand {
+      animation: expandLetters 3s ease-out forwards;
+    }
+
+    @keyframes expandLetters {
+      0% {
+        letter-spacing: 0;
+        opacity: 1;
+        filter: blur(0);
+      }
+      100% {
+        letter-spacing: 30px;
+        opacity: 0;
+        filter: blur(2px);
+      }
+    }
+
+    /* ====== Effect 7: Sway + Mist Combined ====== */
+    .sway-mist span {
+      animation: swayMist 4s ease-in-out forwards;
+    }
+
+    @keyframes swayMist {
+      0% {
+        transform: translateX(0) translateY(0) scale(1);
+        opacity: 1;
+        filter: blur(0);
+      }
+      20% {
+        transform: translateX(var(--sway1)) translateY(-1px) scale(1);
+        opacity: 0.95;
+      }
+      40% {
+        transform: translateX(calc(var(--drift) * 0.3 + var(--sway2))) translateY(1px) scale(1);
+        opacity: 0.8;
+        filter: blur(0.3px);
+      }
+      60% {
+        transform: translateX(calc(var(--drift) * 0.6 + var(--sway3))) translateY(-1px) scale(1.02);
+        opacity: 0.5;
+        filter: blur(1px);
+      }
+      80% {
+        transform: translateX(calc(var(--drift) * 0.85 + var(--sway4))) translateY(0) scale(1.05);
+        opacity: 0.25;
+        filter: blur(2px);
+      }
+      100% {
+        transform: translateX(var(--drift)) translateY(-2px) scale(1.08);
+        opacity: 0;
+        filter: blur(3px);
+      }
+    }
+
+    /* ====== Effect 8: Sway + Drift (no blur) ====== */
+    .sway-drift span {
+      animation: swayDrift 4s ease-in-out forwards;
+    }
+
+    @keyframes swayDrift {
+      0% {
+        transform: translate3d(0, 0, 0) scale(1);
+        opacity: 1;
+      }
+      20% {
+        transform: translate3d(var(--sway1), -1px, 0) scale(1);
+        opacity: 0.9;
+      }
+      40% {
+        transform: translate3d(calc(var(--drift) * 0.3 + var(--sway2)), 1px, 0) scale(1);
+        opacity: 0.75;
+      }
+      60% {
+        transform: translate3d(calc(var(--drift) * 0.6 + var(--sway3)), -1px, 0) scale(1);
+        opacity: 0.5;
+      }
+      80% {
+        transform: translate3d(calc(var(--drift) * 0.85), 0, 0) scale(1);
+        opacity: 0.25;
+      }
+      100% {
+        transform: translate3d(var(--drift), -2px, 0) scale(1);
+        opacity: 0;
+      }
+    }
+
+    /* Floating animation for idle state */
+    .floating span {
+      animation: charFloat 3s ease-in-out infinite;
+    }
+
+    @keyframes charFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Blow Away Animations</h1>
+
+    <!-- Effect 1: Drift Apart -->
+    <div class="demo-section">
+      <div class="demo-title">1. Drift Apart (字符向两边散开)</div>
+      <div class="demo-text" id="demo1"></div>
+      <button onclick="playDemo1()">Play</button>
+    </div>
+
+    <!-- Effect 2: Float Up -->
+    <div class="demo-section">
+      <div class="demo-title">2. Float Up (轻轻向上飘)</div>
+      <div class="demo-text" id="demo2"></div>
+      <button onclick="playDemo2()">Play</button>
+    </div>
+
+    <!-- Effect 3: Scatter -->
+    <div class="demo-section">
+      <div class="demo-title">3. Scatter (像落叶一样四散)</div>
+      <div class="demo-text" id="demo3"></div>
+      <button onclick="playDemo3()">Play</button>
+    </div>
+
+    <!-- Effect 4: Sway & Dissolve -->
+    <div class="demo-section">
+      <div class="demo-title">4. Sway & Dissolve (轻轻摇曳然后消散)</div>
+      <div class="demo-text" id="demo4"></div>
+      <button onclick="playDemo4()">Play</button>
+    </div>
+
+    <!-- Effect 5: Mist -->
+    <div class="demo-section">
+      <div class="demo-title">5. Mist (像雾气一样模糊消散)</div>
+      <div class="demo-text" id="demo5"></div>
+      <button onclick="playDemo5()">Play</button>
+    </div>
+
+    <!-- Effect 6: Letter Spacing -->
+    <div class="demo-section">
+      <div class="demo-title">6. Expand (字间距慢慢变大)</div>
+      <div class="demo-text" id="demo6"></div>
+      <button onclick="playDemo6()">Play</button>
+    </div>
+
+    <!-- Effect 7: Sway + Mist Combined -->
+    <div class="demo-section" style="border: 1px solid rgba(255,255,255,0.2);">
+      <div class="demo-title">⭐ 7. Sway + Mist (摇曳 + 向两边散开 + 雾气)</div>
+      <div class="demo-text" id="demo7"></div>
+      <button onclick="playDemo7()">Play</button>
+    </div>
+
+    <!-- Effect 8: Sway + Drift (no blur, more performant) -->
+    <div class="demo-section" style="border: 1px solid rgba(255,255,255,0.2);">
+      <div class="demo-title">⭐ 8. Sway + Drift (无模糊，更流畅)</div>
+      <div class="demo-text" id="demo8"></div>
+      <button onclick="playDemo8()">Play</button>
+    </div>
+  </div>
+
+  <script>
+    const text = '"catch a shooting star"';
+
+    function createChars(container, text, className) {
+      container.innerHTML = '';
+      container.className = 'demo-text';
+
+      const wrapper = document.createElement('span');
+      text.split('').forEach((char, i) => {
+        const span = document.createElement('span');
+        span.textContent = char === ' ' ? '\u00A0' : char;
+        span.style.animationDelay = `${i * 0.03}s`;
+        wrapper.appendChild(span);
+      });
+      container.appendChild(wrapper);
+
+      return wrapper;
+    }
+
+    function resetDemo(id) {
+      const container = document.getElementById(id);
+      createChars(container, text, 'floating');
+    }
+
+    // Initialize all demos
+    ['demo1', 'demo2', 'demo3', 'demo4', 'demo5', 'demo6', 'demo7', 'demo8'].forEach(id => resetDemo(id));
+
+    // Effect 1: Drift Apart
+    function playDemo1() {
+      const container = document.getElementById('demo1');
+      const wrapper = createChars(container, text, '');
+      const chars = wrapper.querySelectorAll('span');
+      const center = chars.length / 2;
+
+      chars.forEach((span, i) => {
+        const drift = (i - center) * 8;
+        span.style.setProperty('--drift', `${drift}px`);
+      });
+
+      wrapper.classList.add('drift-apart');
+      setTimeout(() => resetDemo('demo1'), 3500);
+    }
+
+    // Effect 2: Float Up
+    function playDemo2() {
+      const container = document.getElementById('demo2');
+      const wrapper = createChars(container, text, '');
+      const chars = wrapper.querySelectorAll('span');
+
+      chars.forEach((span, i) => {
+        const rotate = (Math.random() - 0.5) * 10;
+        span.style.setProperty('--rotate', `${rotate}deg`);
+        span.style.animationDelay = `${i * 0.05}s`;
+      });
+
+      wrapper.classList.add('float-up');
+      setTimeout(() => resetDemo('demo2'), 4500);
+    }
+
+    // Effect 3: Scatter
+    function playDemo3() {
+      const container = document.getElementById('demo3');
+      const wrapper = createChars(container, text, '');
+      const chars = wrapper.querySelectorAll('span');
+
+      chars.forEach((span, i) => {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 30 + Math.random() * 50;
+        const tx = Math.cos(angle) * distance;
+        const ty = Math.sin(angle) * distance;
+        const rotate = (Math.random() - 0.5) * 60;
+
+        span.style.setProperty('--tx', `${tx}px`);
+        span.style.setProperty('--ty', `${ty}px`);
+        span.style.setProperty('--rotate', `${rotate}deg`);
+        span.style.animationDelay = `${i * 0.02 + Math.random() * 0.1}s`;
+      });
+
+      wrapper.classList.add('scatter');
+      setTimeout(() => resetDemo('demo3'), 3500);
+    }
+
+    // Effect 4: Sway & Dissolve
+    function playDemo4() {
+      const container = document.getElementById('demo4');
+      const wrapper = createChars(container, text, '');
+      const chars = wrapper.querySelectorAll('span');
+
+      chars.forEach((span, i) => {
+        // Very gentle sway values
+        span.style.setProperty('--sway1', `${(Math.random() - 0.5) * 3}px`);
+        span.style.setProperty('--sway2', `${(Math.random() - 0.5) * 4}px`);
+        span.style.setProperty('--sway3', `${(Math.random() - 0.5) * 5}px`);
+        span.style.setProperty('--sway4', `${(Math.random() - 0.5) * 6}px`);
+        span.style.animationDelay = `${i * 0.06}s`;
+      });
+
+      wrapper.classList.add('sway-dissolve');
+      setTimeout(() => resetDemo('demo4'), 5000);
+    }
+
+    // Effect 5: Mist
+    function playDemo5() {
+      const container = document.getElementById('demo5');
+      const wrapper = createChars(container, text, '');
+      const chars = wrapper.querySelectorAll('span');
+      const center = chars.length / 2;
+
+      chars.forEach((span, i) => {
+        const drift = (i - center) * 4;
+        span.style.setProperty('--drift', `${drift}px`);
+        span.style.animationDelay = `${i * 0.04}s`;
+      });
+
+      wrapper.classList.add('mist');
+      setTimeout(() => resetDemo('demo5'), 4000);
+    }
+
+    // Effect 6: Letter Spacing
+    function playDemo6() {
+      const container = document.getElementById('demo6');
+      container.innerHTML = `<span class="expand">${text}</span>`;
+      setTimeout(() => resetDemo('demo6'), 3500);
+    }
+
+    // Effect 7: Sway + Mist Combined
+    function playDemo7() {
+      const container = document.getElementById('demo7');
+      const wrapper = createChars(container, text, '');
+      const chars = wrapper.querySelectorAll('span');
+      const center = chars.length / 2;
+
+      chars.forEach((span, i) => {
+        // Drift outward based on position (left chars go left, right chars go right)
+        const drift = (i - center) * 6;
+        span.style.setProperty('--drift', `${drift}px`);
+
+        // Gentle sway values
+        span.style.setProperty('--sway1', `${(Math.random() - 0.5) * 2}px`);
+        span.style.setProperty('--sway2', `${(Math.random() - 0.5) * 3}px`);
+        span.style.setProperty('--sway3', `${(Math.random() - 0.5) * 2}px`);
+        span.style.setProperty('--sway4', `${(Math.random() - 0.5) * 2}px`);
+
+        span.style.animationDelay = `${i * 0.05}s`;
+      });
+
+      wrapper.classList.add('sway-mist');
+      setTimeout(() => resetDemo('demo7'), 5000);
+    }
+
+    // Effect 8: Sway + Drift (no blur, performant)
+    function playDemo8() {
+      const container = document.getElementById('demo8');
+      const wrapper = createChars(container, text, '');
+      const chars = wrapper.querySelectorAll('span');
+      const center = chars.length / 2;
+
+      chars.forEach((span, i) => {
+        const drift = (i - center) * 6;
+        span.style.setProperty('--drift', `${drift}px`);
+        span.style.setProperty('--sway1', `${(Math.random() - 0.5) * 2}px`);
+        span.style.setProperty('--sway2', `${(Math.random() - 0.5) * 3}px`);
+        span.style.setProperty('--sway3', `${(Math.random() - 0.5) * 2}px`);
+        span.style.animationDelay = `${i * 0.05}s`;
+      });
+
+      wrapper.classList.add('sway-drift');
+      setTimeout(() => resetDemo('demo8'), 5000);
+    }
+  </script>
+</body>
+</html>

@@ -423,16 +423,16 @@ const ShootingStar: React.FC<ShootingStarProps> = ({
         {showHint && mode === 'keyboard' && (
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.5 }}
+            animate={{ opacity: 0.4 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.8, ease: 'easeInOut' }}
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white tracking-widest"
+            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white"
             style={{
               fontFamily: "'Tango', sans-serif",
-              fontSize: '32px',
+              fontSize: '28px',
             }}
           >
-            <FloatingText text="space to catch" />
+            <FloatingText text="press space" />
           </motion.div>
         )}
 

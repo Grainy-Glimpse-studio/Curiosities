@@ -115,10 +115,10 @@ const ModeSelector: React.FC<ModeSelectorProps> = ({ onSelect }) => {
           <FloatingText text="Catch A Shooting Star" />
         </h1>
         <p
-          className="text-white/50 text-2xl tracking-widest mb-20"
+          className="text-white/40 text-xl mb-20"
           style={{ fontFamily: "'Tango', sans-serif" }}
         >
-          <FloatingText text="How would you like to interact?" />
+          <FloatingText text="choose your way" />
         </p>
 
         <div className="flex gap-16 justify-center">

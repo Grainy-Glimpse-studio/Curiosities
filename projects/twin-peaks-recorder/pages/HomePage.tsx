@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import { AnimatePresence, motion } from 'framer-motion';
 import RecorderUI from '../components/RecorderUI';
-import TapeDrawer from '../components/TapeDrawer';
+import TapeDrawer from '../components/TapeDrawerComponent';
 import FloatingWords from '../components/FloatingWords';
 import FocusMode from '../components/FocusMode';
 import FloatingTranscript from '../components/FloatingTranscript';

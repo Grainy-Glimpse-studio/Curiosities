@@ -508,7 +508,9 @@ const App: React.FC = () => {
   if (isLoading) {
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center">
-        <div className="text-white/40 text-sm tracking-widest">loading...</div>
+        <div className="text-white/30" style={{ fontFamily: "'Tango', sans-serif", fontSize: '18px' }}>
+          loading
+        </div>
       </div>
     );
   }
@@ -532,18 +534,21 @@ const App: React.FC = () => {
       />
 
       {galleryTitle && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 text-white/50 text-sm tracking-widest uppercase">
+        <div
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-50 text-white/40"
+          style={{ fontFamily: "'Tango', sans-serif", fontSize: '16px' }}
+        >
           {galleryTitle}
         </div>
       )}
 
-      {/* Minimal back arrow - very subtle, visible on hover */}
+      {/* Minimal back button */}
       <button
         onClick={() => setInteractionMode(null)}
-        className="fixed top-6 left-6 z-50 text-white/15 hover:text-white/50 transition-all duration-300 text-2xl"
-        title="Back"
+        className="fixed top-6 left-6 z-50 text-white/20 hover:text-white/50 transition-colors"
+        style={{ fontFamily: "'Tango', sans-serif", fontSize: '16px' }}
       >
-        ←
+        back
       </button>
 
       {/* Text Mode & Style Controls (Dev Tool) */}

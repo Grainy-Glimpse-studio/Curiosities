@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flip Gesture Capture</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #main-ui {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 100;
+    }
+
+    #state-indicator {
+      font-size: 100px;
+      margin-bottom: 20px;
+    }
+
+    #instruction {
+      font-size: 28px;
+      color: rgba(255,255,255,0.8);
+      margin-bottom: 10px;
+    }
+
+    #sub-instruction {
+      font-size: 16px;
+      color: rgba(255,255,255,0.4);
+    }
+
+    #countdown {
+      font-size: 150px;
+      color: rgba(255,255,255,0.2);
+    }
+
+    #data-display {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      background: rgba(0,0,0,0.8);
+      padding: 15px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    #data-display h3 {
+      color: #0f0;
+      margin-bottom: 10px;
+    }
+
+    #data-display .row {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 5px;
+    }
+
+    #data-display .label {
+      color: rgba(255,255,255,0.5);
+      width: 80px;
+    }
+
+    #data-display .value {
+      color: #fff;
+    }
+
+    #data-display .change-positive {
+      color: #0f0;
+    }
+
+    #data-display .change-negative {
+      color: #f44;
+    }
+
+    #canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1);
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
+    video { display: none; }
+
+    #live-data {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      font-family: monospace;
+      font-size: 14px;
+      color: rgba(255,255,255,0.6);
+      background: rgba(0,0,0,0.5);
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    #test-count {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      font-size: 24px;
+      color: rgba(255,255,255,0.3);
+    }
+  </style>
+</head>
+<body>
+  <!-- Recording zone indicator - matches text area (60vw, max 512px, centered) -->
+  <div id="record-zone" style="
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(60vw, 512px);
+    height: 200px;
+    border: 2px dashed rgba(255,255,255,0.2);
+    border-radius: 12px;
+    pointer-events: none;
+  ">
+    <div style="position:absolute; top:-25px; left:50%; transform:translateX(-50%);
+      font-size:12px; color:rgba(255,255,255,0.3);">
+      Text Area
+    </div>
+  </div>
+
+  <div id="main-ui">
+    <div id="state-indicator">⏸️</div>
+    <div id="instruction">Press SPACE to record your flip</div>
+    <div id="sub-instruction">Recording will last 2 seconds</div>
+    <div id="countdown"></div>
+  </div>
+
+  <div id="live-data">
+    Palm X: -<br>
+    Palm Y: -<br>
+    Palm Z: -<br>
+    Wrist angle: -
+  </div>
+
+  <div id="test-count">Test #0</div>
+
+  <div id="data-display">
+    <h3>Recorded Data (press SPACE to start)</h3>
+    <div id="recorded-data">No data yet</div>
+  </div>
+
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="canvas"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const stateIndicator = document.getElementById('state-indicator');
+    const instruction = document.getElementById('instruction');
+    const subInstruction = document.getElementById('sub-instruction');
+    const countdownEl = document.getElementById('countdown');
+    const liveData = document.getElementById('live-data');
+    const dataDisplay = document.getElementById('data-display');
+    const recordedDataEl = document.getElementById('recorded-data');
+    const testCountEl = document.getElementById('test-count');
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let isRecording = false;
+    let recordedFrames = [];
+    let testCount = 0;
+
+    function startRecording() {
+      testCount++;
+      testCountEl.textContent = `Test #${testCount}`;
+
+      // Preparation countdown (3 seconds to get ready)
+      stateIndicator.textContent = '⏳';
+      instruction.textContent = 'Get ready...';
+      subInstruction.textContent = 'Move your hand to camera';
+
+      let prepTime = 3;
+      countdownEl.textContent = prepTime;
+
+      const prepInterval = setInterval(() => {
+        prepTime--;
+        countdownEl.textContent = prepTime > 0 ? prepTime : '';
+
+        if (prepTime <= 0) {
+          clearInterval(prepInterval);
+          // NOW start actual recording
+          actuallyStartRecording();
+        }
+      }, 1000);
+    }
+
+    function actuallyStartRecording() {
+      isRecording = true;
+      recordedFrames = [];
+      console.log('=== RECORDING STARTED ===');
+
+      stateIndicator.textContent = '🔴';
+      instruction.textContent = 'RECORDING - Do your flip NOW!';
+      subInstruction.textContent = '';
+
+      // 2 second recording
+      let timeLeft = 2;
+      countdownEl.textContent = timeLeft;
+
+      const interval = setInterval(() => {
+        timeLeft--;
+        countdownEl.textContent = timeLeft > 0 ? timeLeft : '';
+
+        if (timeLeft <= 0) {
+          clearInterval(interval);
+          finishRecording();
+        }
+      }, 1000);
+    }
+
+    function finishRecording() {
+      isRecording = false;
+      stateIndicator.textContent = '✅';
+      instruction.textContent = 'Recording complete!';
+      subInstruction.textContent = 'Press SPACE to record again';
+      countdownEl.textContent = '';
+
+      // Analyze and display the recorded data
+      analyzeRecording();
+    }
+
+    function analyzeRecording() {
+      if (recordedFrames.length === 0) {
+        recordedDataEl.innerHTML = '<span style="color:#f44">No hand detected during recording!</span>';
+        return;
+      }
+
+      // Calculate changes
+      const first = recordedFrames[0];
+      const last = recordedFrames[recordedFrames.length - 1];
+
+      // Find min/max for each dimension
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      let minZ = Infinity, maxZ = -Infinity;
+      let minAngle = Infinity, maxAngle = -Infinity;
+
+      let framesInZone = 0;
+      recordedFrames.forEach(f => {
+        minX = Math.min(minX, f.palmX);
+        maxX = Math.max(maxX, f.palmX);
+        minY = Math.min(minY, f.palmY);
+        maxY = Math.max(maxY, f.palmY);
+        minZ = Math.min(minZ, f.palmZ);
+        maxZ = Math.max(maxZ, f.palmZ);
+        minAngle = Math.min(minAngle, f.wristAngle);
+        maxAngle = Math.max(maxAngle, f.wristAngle);
+        if (f.isInZone) framesInZone++;
+      });
+
+      const deltaX = last.palmX - first.palmX;
+      const deltaY = last.palmY - first.palmY;
+      const deltaZ = last.palmZ - first.palmZ;
+      const deltaAngle = last.wristAngle - first.wristAngle;
+
+      const rangeX = maxX - minX;
+      const rangeY = maxY - minY;
+      const rangeZ = maxZ - minZ;
+      const rangeAngle = maxAngle - minAngle;
+
+      // Determine which movement was most significant
+      const movements = [
+        { name: 'X (left-right)', range: rangeX, delta: deltaX, unit: 'px' },
+        { name: 'Y (up-down)', range: rangeY, delta: deltaY, unit: 'px' },
+        { name: 'Z (depth)', range: rangeZ * 1000, delta: deltaZ * 1000, unit: '' },
+        { name: 'Wrist angle', range: rangeAngle, delta: deltaAngle, unit: '°' }
+      ];
+
+      movements.sort((a, b) => b.range - a.range);
+
+      let html = `
+        <div style="margin-bottom:15px">
+          <strong>Frames recorded:</strong> ${recordedFrames.length}<br>
+          <strong>In zone:</strong> ${framesInZone} (${Math.round(framesInZone/recordedFrames.length*100)}%)<br>
+          <strong>Duration:</strong> ~2 seconds
+        </div>
+        <div style="margin-bottom:15px">
+          <strong>Movement Analysis (sorted by magnitude):</strong>
+        </div>
+      `;
+
+      movements.forEach((m, i) => {
+        const isTop = i === 0;
+        const color = isTop ? '#0f0' : 'rgba(255,255,255,0.6)';
+        const deltaColor = m.delta > 0 ? '#0f0' : '#f44';
+        html += `
+          <div style="color:${color}; margin-bottom:8px">
+            ${isTop ? '→ ' : '  '}${m.name}:
+            Range=${m.range.toFixed(0)}${m.unit},
+            Delta=<span style="color:${deltaColor}">${m.delta > 0 ? '+' : ''}${m.delta.toFixed(0)}${m.unit}</span>
+          </div>
+        `;
+      });
+
+      // Show trajectory
+      html += `
+        <div style="margin-top:15px; color:#888">
+          <strong>Palm trajectory (first 10 frames → last 10 frames):</strong><br>
+          Start: X=${first.palmX.toFixed(0)}, Y=${first.palmY.toFixed(0)}, Z=${(first.palmZ*1000).toFixed(0)}<br>
+          End: X=${last.palmX.toFixed(0)}, Y=${last.palmY.toFixed(0)}, Z=${(last.palmZ*1000).toFixed(0)}
+        </div>
+      `;
+
+      // Conclusion
+      const topMovement = movements[0];
+      html += `
+        <div style="margin-top:15px; padding:10px; background:rgba(255,255,255,0.1); border-radius:4px">
+          <strong>Detected primary motion:</strong><br>
+          <span style="color:#0f0; font-size:16px">${topMovement.name}</span>
+          moved ${topMovement.range.toFixed(0)}${topMovement.unit}
+          (${topMovement.delta > 0 ? 'positive' : 'negative'} direction)
+        </div>
+      `;
+
+      recordedDataEl.innerHTML = html;
+
+      // Log to console for debugging
+      console.log('=== Recording #' + testCount + ' ===');
+      console.log('Frames:', recordedFrames.length);
+      console.log('Movements:', movements);
+      console.log('Raw data:', recordedFrames);
+    }
+
+    // Keyboard handler
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !isRecording) {
+        e.preventDefault();
+        startRecording();
+      }
+    });
+
+    async function init() {
+      try {
+        const hands = new Hands({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+          maxNumHands: 1,
+          modelComplexity: 1, // Higher complexity for better tracking
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
+
+        hands.onResults((results) => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const landmarks = results.multiHandLandmarks[0];
+
+            // Draw hand
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.7)';
+            ctx.shadowBlur = 10;
+            for (const landmark of landmarks) {
+              const x = landmark.x * canvas.width;
+              const y = landmark.y * canvas.height;
+              ctx.beginPath();
+              ctx.arc(x, y, 5, 0, 2 * Math.PI);
+              ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+
+            // Get key points
+            const wrist = landmarks[0];
+            const middleBase = landmarks[9];
+            const middleTip = landmarks[12];
+            const indexTip = landmarks[8];
+
+            // Calculate palm position (screen coordinates)
+            const palmX = (1 - wrist.x) * window.innerWidth;
+            const palmY = wrist.y * window.innerHeight;
+            const palmZ = wrist.z; // Depth (negative = closer to camera)
+
+            // Calculate wrist angle (rotation of hand)
+            const dx = middleBase.x - wrist.x;
+            const dy = middleBase.y - wrist.y;
+            const wristAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+            // Check finger states
+            const indexExtended = landmarks[8].y < landmarks[5].y;
+            const middleExtended = landmarks[12].y < landmarks[9].y;
+            const ringExtended = landmarks[16].y < landmarks[13].y;
+            const pinkyExtended = landmarks[20].y < landmarks[17].y;
+            const isPalmOpen = indexExtended && middleExtended && ringExtended;
+            const isGrabbing = !indexExtended && !middleExtended && !ringExtended;
+
+            // Check if hand is in recording zone (matches text area)
+            // Zone: 60vw or max 512px, centered, 200px tall
+            const zoneWidth = Math.min(window.innerWidth * 0.6, 512);
+            const zoneHeight = 200;
+            const zoneCenterX = window.innerWidth / 2;
+            const zoneCenterY = window.innerHeight / 2;
+            const zoneLeft = zoneCenterX - zoneWidth / 2;
+            const zoneRight = zoneCenterX + zoneWidth / 2;
+            const zoneTop = zoneCenterY - zoneHeight / 2;
+            const zoneBottom = zoneCenterY + zoneHeight / 2;
+
+            const isInZone = palmX >= zoneLeft && palmX <= zoneRight &&
+                             palmY >= zoneTop && palmY <= zoneBottom;
+
+            // Update live display with zone info
+            liveData.innerHTML = `
+              Palm X: ${palmX.toFixed(0)}px<br>
+              Palm Y: ${palmY.toFixed(0)}px<br>
+              Palm Z: ${(palmZ * 1000).toFixed(0)} (depth)<br>
+              Wrist angle: ${wristAngle.toFixed(0)}°<br>
+              <span style="color:${isPalmOpen ? '#0f0' : '#888'}">Palm: ${isPalmOpen ? 'OPEN' : 'closed'}</span><br>
+              <span style="color:${isInZone ? '#0f0' : '#f44'}">Zone: ${isInZone ? 'IN ✓' : 'OUT'}</span>
+            `;
+
+            // Draw palm position indicator (a crosshair at palm location)
+            // Note: canvas is mirrored, so we need to un-mirror the x coordinate
+            const canvasPalmX = wrist.x * canvas.width; // Use original (not mirrored) for canvas
+            const canvasPalmY = palmY / window.innerHeight * canvas.height;
+            ctx.strokeStyle = isInZone ? 'rgba(0, 255, 100, 0.8)' : 'rgba(255, 100, 100, 0.8)';
+            ctx.lineWidth = 2;
+            // Vertical line
+            ctx.beginPath();
+            ctx.moveTo(canvasPalmX, canvasPalmY - 30);
+            ctx.lineTo(canvasPalmX, canvasPalmY + 30);
+            ctx.stroke();
+            // Horizontal line
+            ctx.beginPath();
+            ctx.moveTo(canvasPalmX - 30, canvasPalmY);
+            ctx.lineTo(canvasPalmX + 30, canvasPalmY);
+            ctx.stroke();
+
+            // Highlight zone when hand is inside
+            const zoneEl = document.getElementById('record-zone');
+            if (zoneEl) {
+              zoneEl.style.borderColor = isInZone ? 'rgba(0,255,100,0.5)' : 'rgba(255,255,255,0.2)';
+              zoneEl.style.background = isInZone ? 'rgba(0,255,100,0.05)' : 'transparent';
+            }
+
+            // Record ALL frames when recording (removed zone restriction)
+            if (isRecording) {
+              recordedFrames.push({
+                time: Date.now(),
+                palmX,
+                palmY,
+                palmZ,
+                wristAngle,
+                isPalmOpen,
+                isGrabbing,
+                indexExtended,
+                middleExtended,
+                ringExtended,
+                pinkyExtended,
+                isInZone  // Include zone info for analysis
+              });
+            }
+
+          } else {
+            liveData.innerHTML = 'No hand detected';
+          }
+        });
+
+        const camera = new Camera(video, {
+          onFrame: async () => {
+            await hands.send({ image: video });
+          },
+          width: 640,
+          height: 480
+        });
+
+        await camera.start();
+        instruction.textContent = 'Press SPACE to record your flip';
+
+      } catch (err) {
+        console.error(err);
+        instruction.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
