@@ -32,42 +32,67 @@ interface KaraokeTextProps {
 }
 
 const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily, wordTimestamps }) => {
-  // 如果有词级时间戳，使用精确的卡拉OK效果
+  // 发光样式
+  const glowStyle = {
+    color: '#fff',
+    textShadow: '0 0 8px rgba(255,255,255,0.8), 0 0 16px rgba(255,255,255,0.5), 0 0 24px rgba(255,255,255,0.3)',
+  };
+  const dimStyle = {
+    color: 'rgba(255,255,255,0.6)',
+  };
+
+  // 如果有词级时间戳，保留原文格式，按词应用发光效果
   if (wordTimestamps && wordTimestamps.length > 0) {
+    // 按段落分割原文
+    const paragraphs = text.split(/\n\n+/);
+    let wordIndex = 0;
+
     return (
       <div
-        className="text-white text-base leading-relaxed whitespace-pre-wrap"
+        className="text-white text-base leading-relaxed"
         style={{ fontFamily }}
       >
-        {wordTimestamps.map((w, i) => {
-          const isPlayed = currentTime >= w.start;
+        {paragraphs.map((para, pIdx) => {
+          // 按空格/换行分割段落内的词
+          const wordsInPara = para.split(/(\s+)/);
+
           return (
-            <span
-              key={i}
-              style={isPlayed ? {
-                color: '#fff',
-                textShadow: '0 0 8px rgba(255,255,255,0.8), 0 0 16px rgba(255,255,255,0.5), 0 0 24px rgba(255,255,255,0.3)',
-              } : {
-                color: 'rgba(255,255,255,0.6)',
-              }}
-            >
-              {w.word}{' '}
-            </span>
+            <p key={pIdx} className="mb-4">
+              {wordsInPara.map((segment, sIdx) => {
+                // 如果是空白字符，直接保留
+                if (/^\s+$/.test(segment)) {
+                  return <span key={sIdx}>{segment.replace(/\n/g, '\n')}</span>;
+                }
+
+                // 是词，查找对应的时间戳
+                const timestamp = wordTimestamps[wordIndex];
+                const isPlayed = timestamp && currentTime >= timestamp.start;
+                wordIndex++;
+
+                return (
+                  <span key={sIdx} style={isPlayed ? glowStyle : dimStyle}>
+                    {segment}
+                  </span>
+                );
+              })}
+            </p>
           );
         })}
       </div>
     );
   }
 
-  // 没有时间戳时，回退到基于文本长度的简单模式（不太准确）
+  // 没有时间戳时，保留原文格式，全部暗色显示
   return (
     <div
-      className="text-white text-base leading-relaxed whitespace-pre-wrap"
+      className="text-white text-base leading-relaxed"
       style={{ fontFamily }}
     >
-      <span style={{ color: 'rgba(255,255,255,0.6)' }}>
-        {text}
-      </span>
+      {text.split(/\n\n+/).map((para, idx) => (
+        <p key={idx} className="mb-4" style={dimStyle}>
+          {para}
+        </p>
+      ))}
     </div>
   );
 };
