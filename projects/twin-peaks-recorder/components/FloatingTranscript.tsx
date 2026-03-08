@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import emailjs from '@emailjs/browser';
-import { X, Minus, Maximize2, Minimize2, Play, Pause, Square, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2, Save, Mic, Subtitles } from 'lucide-react';
+import { X, Minus, Maximize2, Minimize2, Play, Pause, Square, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2, Save, Mic, Subtitles, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { Memo } from '../types';
 import MarkdownEditor, { MarkdownEditorRef } from './MarkdownEditor';
 
@@ -86,6 +86,47 @@ const generateDefaultTitle = (text: string): string => {
   if (firstLine.length <= 30) return firstLine;
   // 截取并加省略号
   return firstLine.substring(0, 30).trim() + '...';
+};
+
+// 目录项结构
+interface TOCItem {
+  id: string;
+  text: string;
+  level: number; // 1 = H1, 2 = H2, etc.
+}
+
+// 从编辑器 JSON 结构中提取标题
+const extractTOCFromEditor = (editor: any): TOCItem[] => {
+  if (!editor) return [];
+  const toc: TOCItem[] = [];
+  const json = editor.getJSON();
+
+  const traverse = (node: any, index: number = 0) => {
+    if (node.type === 'heading' && node.attrs?.level) {
+      // 提取标题文本
+      let text = '';
+      if (node.content) {
+        node.content.forEach((child: any) => {
+          if (child.type === 'text' && child.text) {
+            text += child.text;
+          }
+        });
+      }
+      if (text.trim()) {
+        toc.push({
+          id: `heading-${toc.length}`,
+          text: text.trim(),
+          level: node.attrs.level,
+        });
+      }
+    }
+    if (node.content) {
+      node.content.forEach((child: any, idx: number) => traverse(child, idx));
+    }
+  };
+
+  traverse(json);
+  return toc;
 };
 
 // 卡拉OK式高亮文本组件
@@ -362,7 +403,13 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 左侧目录栏状态
+  const [showTOC, setShowTOC] = useState(false);
+  const [tocItems, setTocItems] = useState<TOCItem[]>([]);
+  const contentRef = useRef<HTMLDivElement>(null);
+
   // 侧边栏宽度
+  const TOC_SIDEBAR_WIDTH = 180;
   const AI_SIDEBAR_WIDTH = 220;
   const CUSTOM_PANEL_WIDTH = 280;
 
@@ -404,6 +451,51 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       totalDurationRef.current = cumulative;
     }
   }, [memo]);
+
+  // 更新目录（当编辑器内容变化时）
+  useEffect(() => {
+    if (editorRef.current?.editor && !isPlayingInModal) {
+      const items = extractTOCFromEditor(editorRef.current.editor);
+      setTocItems(items);
+    }
+  }, [isPlayingInModal, hasUnsavedChanges]); // 编辑后更新
+
+  // 滚动到指定标题
+  const scrollToHeading = (headingIndex: number) => {
+    const editor = editorRef.current?.editor;
+    if (!editor || !contentRef.current) return;
+
+    // 找到对应的 heading 节点位置
+    const json = editor.getJSON();
+    let headingCount = 0;
+    let targetPos = 0;
+
+    const findPosition = (node: any, pos: number): number => {
+      if (node.type === 'heading' && node.attrs?.level) {
+        if (headingCount === headingIndex) {
+          targetPos = pos;
+          return -1; // 找到了，停止遍历
+        }
+        headingCount++;
+      }
+      if (node.content) {
+        let currentPos = pos + 1; // 开始位置
+        for (const child of node.content) {
+          const result = findPosition(child, currentPos);
+          if (result === -1) return -1;
+          currentPos += (child.text?.length || 0) + 2; // 粗略估计位置
+        }
+      }
+      return pos;
+    };
+
+    findPosition(json, 0);
+
+    // 使用编辑器的 scrollIntoView
+    if (targetPos > 0) {
+      editor.chain().focus().setTextSelection(targetPos).scrollIntoView().run();
+    }
+  };
 
   // 播放控制 - 支持多段音频
   const playInModal = () => {
@@ -915,14 +1007,64 @@ Sent from Diane`
             transition={{ duration: 0.3 }}
             className="fixed z-[200] flex flex-row backdrop-blur-2xl rounded-2xl shadow-2xl overflow-hidden border border-white/60"
             style={{
-              left: position.x - (showAISidebar ? (AI_SIDEBAR_WIDTH + (selectedAIFeatures.includes('custom') ? CUSTOM_PANEL_WIDTH : 0)) / 2 : 0),
+              left: position.x - (showTOC ? TOC_SIDEBAR_WIDTH / 2 : 0) - (showAISidebar ? (AI_SIDEBAR_WIDTH + (selectedAIFeatures.includes('custom') ? CUSTOM_PANEL_WIDTH : 0)) / 2 : 0),
               top: position.y,
-              width: isMinimized ? 300 : (size.width + (showAISidebar ? AI_SIDEBAR_WIDTH : 0) + (showAISidebar && selectedAIFeatures.includes('custom') ? CUSTOM_PANEL_WIDTH : 0)),
+              width: isMinimized ? 300 : (size.width + (showTOC ? TOC_SIDEBAR_WIDTH : 0) + (showAISidebar ? AI_SIDEBAR_WIDTH : 0) + (showAISidebar && selectedAIFeatures.includes('custom') ? CUSTOM_PANEL_WIDTH : 0)),
               height: isMinimized ? 48 : size.height,
               backgroundColor: 'rgba(255, 255, 255, 0)',
               transition: 'left 0.3s ease, width 0.3s ease',
             }}
           >
+            {/* 左侧目录栏 (TOC) */}
+            <AnimatePresence>
+              {showTOC && !isMinimized && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: TOC_SIDEBAR_WIDTH, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  className="flex flex-col border-r border-white/20 overflow-hidden bg-black/20"
+                  style={{ minWidth: TOC_SIDEBAR_WIDTH }}
+                >
+                  {/* 目录标题 */}
+                  <div className="px-3 py-3 border-b border-white/20 flex items-center justify-between shrink-0">
+                    <span className="text-white/60 text-xs font-medium uppercase tracking-wider">Contents</span>
+                    <button
+                      onClick={() => setShowTOC(false)}
+                      className="p-1 text-white/40 hover:text-white transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+
+                  {/* 目录列表 */}
+                  <div className="flex-1 overflow-y-auto py-2">
+                    {tocItems.length === 0 ? (
+                      <div className="px-3 py-4 text-white/40 text-xs text-center">
+                        No headings found.<br/>
+                        <span className="text-white/30">Use H1/H2 to create sections</span>
+                      </div>
+                    ) : (
+                      tocItems.map((item, index) => (
+                        <button
+                          key={item.id}
+                          onClick={() => scrollToHeading(index)}
+                          className="w-full text-left px-3 py-1.5 text-sm text-white/70 hover:text-white hover:bg-white/10 transition-colors truncate"
+                          style={{
+                            paddingLeft: `${8 + (item.level - 1) * 12}px`,
+                            fontSize: item.level === 1 ? '13px' : '12px',
+                            fontWeight: item.level === 1 ? 500 : 400,
+                          }}
+                          title={item.text}
+                        >
+                          {item.text}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             {/* 主内容区 */}
             <div className="flex flex-col flex-1 min-w-0">
             {/* 暂时去掉自定义selection样式，测试原生选择是否正常 */}
@@ -1034,6 +1176,24 @@ Sent from Diane`
                 {/* 工具栏 - 格式化按钮 */}
                 {!isPlayingInModal && editorRef.current?.editor && (
                 <div className="px-6 py-2 border-b border-white/20 flex flex-wrap items-center gap-1 shrink-0">
+                    {/* TOC 切换按钮 */}
+                    <button
+                      onClick={() => {
+                        // 打开时更新 TOC
+                        if (!showTOC && editorRef.current?.editor) {
+                          const items = extractTOCFromEditor(editorRef.current.editor);
+                          setTocItems(items);
+                        }
+                        setShowTOC(!showTOC);
+                      }}
+                      className={`p-2 rounded hover:bg-white/20 transition-colors ${showTOC ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
+                      title="Table of Contents"
+                    >
+                      {showTOC ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
+                    </button>
+
+                    <div className="w-px h-5 bg-white/20 mx-1" />
+
                     <button
                       onClick={() => editorRef.current?.editor?.chain().focus().toggleBold().run()}
                       className={`p-2 rounded hover:bg-white/20 transition-colors ${editorRef.current?.editor?.isActive('bold') ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
@@ -1230,7 +1390,7 @@ Sent from Diane`
                 )}
 
                 {/* 文本内容 */}
-                <div className="flex-1 overflow-y-auto p-6 relative">
+                <div ref={contentRef} className="flex-1 overflow-y-auto p-6 relative">
                   {/* 项目介绍 - 暗房显影效果 */}
                   <AnimatePresence>
                     {showProjectInfo && (
