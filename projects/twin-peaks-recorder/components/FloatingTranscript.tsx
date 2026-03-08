@@ -33,9 +33,7 @@ interface KaraokeTextProps {
 
 const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily, wordTimestamps }) => {
   // 计算词的发光强度（0-1），基于当前时间在词时间范围内的位置
-  const getGlowIntensity = (timestamp: { start: number; end: number } | undefined): number => {
-    if (!timestamp) return 0;
-
+  const getGlowIntensity = (timestamp: { start: number; end: number }): number => {
     // 还没到这个词
     if (currentTime < timestamp.start) return 0;
 
@@ -69,43 +67,58 @@ const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily
     };
   };
 
-  // 如果有词级时间戳，保留原文格式，按词应用发光效果
+  // 检测是否包含中文字符
+  const hasChinese = (str: string) => /[\u4e00-\u9fa5]/.test(str);
+
+  // 如果有词级时间戳，直接用时间戳数组渲染（支持中英文混合）
   if (wordTimestamps && wordTimestamps.length > 0) {
-    // 按段落分割原文
-    const paragraphs = text.split(/\n\n+/);
-    let wordIndex = 0;
+    // 根据时间戳间隔来分段落（间隔 > 2秒 视为新段落）
+    const paragraphs: Array<Array<{ word: string; start: number; end: number }>> = [];
+    let currentParagraph: Array<{ word: string; start: number; end: number }> = [];
+
+    wordTimestamps.forEach((ts, idx) => {
+      if (idx > 0) {
+        const gap = ts.start - wordTimestamps[idx - 1].end;
+        // 如果间隔超过 2 秒，或者遇到分隔符，开始新段落
+        if (gap > 2 || ts.word.includes('———')) {
+          if (currentParagraph.length > 0) {
+            paragraphs.push(currentParagraph);
+            currentParagraph = [];
+          }
+          // 跳过分隔符本身
+          if (ts.word.includes('———')) {
+            return;
+          }
+        }
+      }
+      currentParagraph.push(ts);
+    });
+
+    // 添加最后一个段落
+    if (currentParagraph.length > 0) {
+      paragraphs.push(currentParagraph);
+    }
 
     return (
       <div
         className="text-white text-base leading-relaxed"
         style={{ fontFamily }}
       >
-        {paragraphs.map((para, pIdx) => {
-          // 按空格/换行分割段落内的词
-          const wordsInPara = para.split(/(\s+)/);
+        {paragraphs.map((para, pIdx) => (
+          <p key={pIdx} className="mb-4">
+            {para.map((ts, wIdx) => {
+              const intensity = getGlowIntensity(ts);
+              const needsSpace = wIdx > 0 && !hasChinese(ts.word) && !hasChinese(para[wIdx - 1].word);
 
-          return (
-            <p key={pIdx} className="mb-4">
-              {wordsInPara.map((segment, sIdx) => {
-                // 如果是空白字符，直接保留
-                if (/^\s+$/.test(segment)) {
-                  return <span key={sIdx}>{segment.replace(/\n/g, '\n')}</span>;
-                }
-
-                // 是词，查找对应的时间戳
-                const timestamp = wordTimestamps[wordIndex];
-                const intensity = getGlowIntensity(timestamp);
-                wordIndex++;
-
-                return (
-                  <span key={sIdx} style={getWordStyle(intensity)}>
-                    {segment}
-                  </span>
-                );
-              })}
-            </p>
-          );
-        })}
+              return (
+                <span key={wIdx}>
+                  {needsSpace && ' '}
+                  <span style={getWordStyle(intensity)}>{ts.word}</span>
+                </span>
+              );
+            })}
+          </p>
+        ))}
       </div>
     );
   }
