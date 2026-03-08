@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import emailjs from '@emailjs/browser';
-import { X, Minus, Maximize2, Minimize2, Play, Pause, Square, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2, Save, Mic } from 'lucide-react';
+import { X, Minus, Maximize2, Minimize2, Play, Pause, Square, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2, Save, Mic, Subtitles } from 'lucide-react';
 import { Memo } from '../types';
 import MarkdownEditor, { MarkdownEditorRef } from './MarkdownEditor';
 
@@ -12,6 +12,7 @@ interface FloatingTranscriptProps {
   onClose: () => void;
   onPlay: (memo: Memo) => void;
   onSave?: (memoId: string, newTranscription: string) => void; // 保存编辑
+  onTitleChange?: (memoId: string, newTitle: string) => void; // 修改标题
   onResume?: (memo: Memo) => void; // 继续录音
   titleFont: string;
   contentFont: string;
@@ -23,6 +24,69 @@ interface FloatingTranscriptProps {
   isSynced?: boolean;
   isLoggedIn?: boolean;
 }
+
+// SRT 时间格式转换：秒 -> HH:MM:SS,mmm
+const formatSRTTime = (seconds: number): string => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  const ms = Math.round((seconds % 1) * 1000);
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
+};
+
+// 生成 SRT 内容
+const generateSRT = (wordTimestamps: Array<{ word: string; start: number; end: number }>): string => {
+  if (!wordTimestamps || wordTimestamps.length === 0) {
+    return '';
+  }
+
+  // 把词组合成句子（每 8-12 个词一行，或遇到标点断句）
+  const subtitles: Array<{ start: number; end: number; text: string }> = [];
+  let currentWords: string[] = [];
+  let currentStart = wordTimestamps[0].start;
+  let currentEnd = wordTimestamps[0].end;
+
+  for (let i = 0; i < wordTimestamps.length; i++) {
+    const { word, start, end } = wordTimestamps[i];
+    currentWords.push(word);
+    currentEnd = end;
+
+    // 判断是否应该断句
+    const isPunctuation = /[.!?。！？]$/.test(word);
+    const isLongEnough = currentWords.length >= 8;
+    const isVeryLong = currentWords.length >= 12;
+    const isLast = i === wordTimestamps.length - 1;
+
+    if (isPunctuation || isVeryLong || isLast || (isLongEnough && i < wordTimestamps.length - 1 && wordTimestamps[i + 1].start - end > 0.5)) {
+      subtitles.push({
+        start: currentStart,
+        end: currentEnd,
+        text: currentWords.join(' '),
+      });
+      currentWords = [];
+      if (i < wordTimestamps.length - 1) {
+        currentStart = wordTimestamps[i + 1].start;
+      }
+    }
+  }
+
+  // 生成 SRT 格式
+  return subtitles.map((sub, index) => {
+    return `${index + 1}\n${formatSRTTime(sub.start)} --> ${formatSRTTime(sub.end)}\n${sub.text}\n`;
+  }).join('\n');
+};
+
+// 从文本生成默认标题（取前几个词）
+const generateDefaultTitle = (text: string): string => {
+  if (!text) return 'Untitled';
+  // 去掉分隔符和多余空白
+  const cleaned = text.replace(/———/g, '').trim();
+  // 取前30个字符或到第一个换行
+  const firstLine = cleaned.split('\n')[0];
+  if (firstLine.length <= 30) return firstLine;
+  // 截取并加省略号
+  return firstLine.substring(0, 30).trim() + '...';
+};
 
 // 卡拉OK式高亮文本组件
 interface KaraokeTextProps {
@@ -254,6 +318,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   onClose,
   onPlay,
   onSave,
+  onTitleChange,
   onResume,
   titleFont,
   contentFont,
@@ -275,7 +340,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showJoinMenu, setShowJoinMenu] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [customTitle, setCustomTitle] = useState('Transcript');
+  const [editableTitle, setEditableTitle] = useState('');
   const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [showProjectInfo, setShowProjectInfo] = useState(false); // 显示项目介绍
   const [isSyncing, setIsSyncing] = useState(false); // 云同步中
@@ -317,10 +382,13 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
         y: (window.innerHeight - size.height) / 2 + initialOffset,
       });
       // 重置状态
-      setCustomTitle('Transcript');
       setShowExportMenu(false);
+      // 设置标题（使用 memo.title 或自动生成）
+      if (memo) {
+        setEditableTitle(memo.title || generateDefaultTitle(memo.transcription));
+      }
     }
-  }, [isOpen, initialOffset]);
+  }, [isOpen, initialOffset, memo]);
 
   // 初始化音频时长信息
   useEffect(() => {
@@ -733,6 +801,31 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     setShowExportMenu(false);
   };
 
+  // 导出 SRT 字幕文件
+  const exportAsSRT = () => {
+    if (!memo) return;
+
+    if (!memo.wordTimestamps || memo.wordTimestamps.length === 0) {
+      alert('No timestamp data available. SRT export requires HD mode recording with word-level timestamps.');
+      return;
+    }
+
+    const srtContent = generateSRT(memo.wordTimestamps);
+    if (!srtContent) {
+      alert('Failed to generate SRT content.');
+      return;
+    }
+
+    const element = document.createElement("a");
+    const file = new Blob([srtContent], { type: 'text/plain;charset=utf-8' });
+    element.href = URL.createObjectURL(file);
+    element.download = `${editableTitle || formatDate(memo.createdAt)}.srt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    setShowExportMenu(false);
+  };
+
   // 从编辑器中提取所有下划线文本
   const extractUnderlinedText = (): string[] => {
     const editor = editorRef.current?.editor;
@@ -840,16 +933,32 @@ Sent from Diane`
               onMouseDown={handleDragStart}
             >
               <div className="flex flex-col">
+                {/* 可编辑标题 */}
                 <span
                   ref={titleRef}
                   contentEditable
                   suppressContentEditableWarning
-                  onBlur={(e) => setCustomTitle(e.currentTarget.textContent || 'Transcript')}
-                  className="text-[10px] text-white/60 font-bold tracking-widest uppercase outline-none cursor-text hover:text-white/80 focus:text-white transition-colors"
+                  onBlur={(e) => {
+                    const newTitle = e.currentTarget.textContent || generateDefaultTitle(memo.transcription);
+                    setEditableTitle(newTitle);
+                    if (onTitleChange && memo.id !== 'twin-peaks-pilot') {
+                      onTitleChange(memo.id, newTitle);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    // Enter 键确认编辑
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      (e.target as HTMLElement).blur();
+                    }
+                  }}
+                  className="text-white text-lg outline-none cursor-text hover:bg-white/10 focus:bg-white/10 rounded px-1 -mx-1 transition-colors"
+                  style={{ fontFamily: titleFont }}
                 >
-                  {customTitle}
+                  {editableTitle}
                 </span>
-                <span className="text-white text-lg" style={{ fontFamily: titleFont }}>
+                {/* 日期时间 */}
+                <span className="text-[10px] text-white/50 tracking-wider mt-0.5">
                   {formatDate(memo.createdAt)} · {formatTime(memo.createdAt)}
                 </span>
               </div>
@@ -1375,6 +1484,14 @@ Sent from Diane`
                           >
                             <File size={16} />
                             Word
+                          </button>
+                          <div className="mx-3 border-t border-white/20" />
+                          <button
+                            onClick={exportAsSRT}
+                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
+                          >
+                            <Subtitles size={16} />
+                            SRT Subtitles
                           </button>
                           <div className="mx-3 border-t border-white/20" />
                           <button

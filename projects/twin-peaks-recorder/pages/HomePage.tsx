@@ -369,6 +369,18 @@ const HomePage: React.FC = () => {
     console.log('[Save] Transcript saved for memo:', memoId);
   }, []);
 
+  // --- Title change handler ---
+  const handleTitleChange = useCallback((memoId: string, newTitle: string) => {
+    setMemos(prev => prev.map(m =>
+      m.id === memoId ? { ...m, title: newTitle } : m
+    ));
+    // Also update the openTranscripts
+    setOpenTranscripts(prev => prev.map(m =>
+      m.id === memoId ? { ...m, title: newTitle } : m
+    ));
+    console.log('[Save] Title changed for memo:', memoId, 'to:', newTitle);
+  }, []);
+
   // --- Resume recording handler ---
   const handleResume = useCallback((memo: Memo) => {
     // 不允许对默认 memo 进行追加录音
@@ -1012,6 +1024,7 @@ const HomePage: React.FC = () => {
           onClose={() => setOpenTranscripts(prev => prev.filter(m => m.id !== memo.id))}
           onPlay={playMemo}
           onSave={handleSaveTranscript}
+          onTitleChange={handleTitleChange}
           onResume={handleResume}
           titleFont={titleFont}
           contentFont={contentFont}

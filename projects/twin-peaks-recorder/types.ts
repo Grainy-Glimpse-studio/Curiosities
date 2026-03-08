@@ -7,6 +7,8 @@ export interface WordTimestamp {
 
 export interface Memo {
   id: string;
+  title?: string;                 // 用户自定义标题（可编辑）
+
   // 支持多段音频（Resume 功能）
   audioUrls: string[];           // 多段音频的 URL 数组
   blobs?: Blob[];                // 多段音频的 Blob 数组
