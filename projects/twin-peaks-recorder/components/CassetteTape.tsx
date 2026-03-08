@@ -382,7 +382,7 @@ const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onT
               onClick={(e) => { e.stopPropagation(); onPlay(memo); }}
               className="flex items-center gap-3 px-4 py-2 rounded-full bg-zinc-900 text-zinc-300 border border-zinc-800 hover:bg-zinc-800 hover:text-white active:scale-95 transition-all shadow-lg group/play"
             >
-              <Play size={14} fill="currentColor" className="group-hover/play:text-amber-500 transition-colors" />
+              <Play size={14} fill="currentColor" className="group-hover/play:text-[#b69fbb] transition-colors" />
               <span className="text-[10px] font-bold tracking-[0.2em] uppercase">Play</span>
             </button>
 
