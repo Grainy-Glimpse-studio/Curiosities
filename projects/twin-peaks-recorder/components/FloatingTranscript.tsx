@@ -32,13 +32,41 @@ interface KaraokeTextProps {
 }
 
 const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily, wordTimestamps }) => {
-  // 发光样式
-  const glowStyle = {
-    color: '#fff',
-    textShadow: '0 0 8px rgba(255,255,255,0.8), 0 0 16px rgba(255,255,255,0.5), 0 0 24px rgba(255,255,255,0.3)',
+  // 计算词的发光强度（0-1），基于当前时间在词时间范围内的位置
+  const getGlowIntensity = (timestamp: { start: number; end: number } | undefined): number => {
+    if (!timestamp) return 0;
+
+    // 还没到这个词
+    if (currentTime < timestamp.start) return 0;
+
+    // 已经播完这个词
+    if (currentTime >= timestamp.end) return 1;
+
+    // 正在播这个词，渐变效果
+    const progress = (currentTime - timestamp.start) / (timestamp.end - timestamp.start);
+    return Math.min(1, progress * 1.5); // 稍微加速，让效果更明显
   };
-  const dimStyle = {
-    color: 'rgba(255,255,255,0.6)',
+
+  // 根据强度生成样式
+  const getWordStyle = (intensity: number): React.CSSProperties => {
+    if (intensity === 0) {
+      return {
+        color: 'rgba(255,255,255,0.5)',
+        textShadow: 'none',
+        transition: 'color 0.15s ease-out, text-shadow 0.15s ease-out',
+      };
+    }
+
+    const alpha = 0.5 + intensity * 0.5; // 0.5 -> 1.0
+    const glowAlpha1 = intensity * 0.8;
+    const glowAlpha2 = intensity * 0.5;
+    const glowAlpha3 = intensity * 0.3;
+
+    return {
+      color: `rgba(255,255,255,${alpha})`,
+      textShadow: `0 0 ${8 * intensity}px rgba(255,255,255,${glowAlpha1}), 0 0 ${16 * intensity}px rgba(255,255,255,${glowAlpha2}), 0 0 ${24 * intensity}px rgba(255,255,255,${glowAlpha3})`,
+      transition: 'color 0.15s ease-out, text-shadow 0.15s ease-out',
+    };
   };
 
   // 如果有词级时间戳，保留原文格式，按词应用发光效果
@@ -66,11 +94,11 @@ const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily
 
                 // 是词，查找对应的时间戳
                 const timestamp = wordTimestamps[wordIndex];
-                const isPlayed = timestamp && currentTime >= timestamp.start;
+                const intensity = getGlowIntensity(timestamp);
                 wordIndex++;
 
                 return (
-                  <span key={sIdx} style={isPlayed ? glowStyle : dimStyle}>
+                  <span key={sIdx} style={getWordStyle(intensity)}>
                     {segment}
                   </span>
                 );
@@ -83,6 +111,10 @@ const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily
   }
 
   // 没有时间戳时，保留原文格式，全部暗色显示
+  const dimStyle: React.CSSProperties = {
+    color: 'rgba(255,255,255,0.5)',
+  };
+
   return (
     <div
       className="text-white text-base leading-relaxed"
