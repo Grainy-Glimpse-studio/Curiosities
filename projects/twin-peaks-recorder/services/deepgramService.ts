@@ -130,6 +130,11 @@ export class DeepgramTranscriber {
     }
   }
 
+  // 设置初始 transcript（用于语言切换时恢复之前的内容）
+  setInitialTranscript(text: string): void {
+    this.transcript = text;
+  }
+
   getCurrentTranscript(): string {
     return this.transcript;
   }

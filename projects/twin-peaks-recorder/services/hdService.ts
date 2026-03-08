@@ -87,6 +87,7 @@ export class HDService {
 
     // 保存当前已识别的文本
     const currentTranscript = this.activeTranscriber.getCurrentTranscript();
+    console.log(`[HDService] Saving current transcript (${currentTranscript.length} chars)`);
 
     // 停止当前连接（不报告用量，因为还要继续）
     if (this.activeTranscriber) {
@@ -100,9 +101,11 @@ export class HDService {
     const result = await this.start();
 
     if (result.success && this.activeTranscriber) {
-      // 恢复之前的文本（插入分隔符）
+      // 恢复之前的文本并添加分隔符
       if (currentTranscript.trim()) {
-        this.activeTranscriber.insertParagraphBreak();
+        const restoredTranscript = currentTranscript + '\n\n———\n\n';
+        this.activeTranscriber.setInitialTranscript(restoredTranscript);
+        console.log(`[HDService] Restored transcript with separator`);
       }
       console.log(`[HDService] Language switched successfully to ${newMode}`);
     }
