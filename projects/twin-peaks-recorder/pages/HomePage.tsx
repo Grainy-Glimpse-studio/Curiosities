@@ -80,26 +80,30 @@ interface SerializedMemo extends Omit<Memo, 'blob' | 'audioUrl'> {
 const loadMemosFromStorage = (): Memo[] => {
   try {
     const stored = localStorage.getItem(MEMOS_STORAGE_KEY);
-    if (!stored) return [DEFAULT_MEMO];
-
-    const serialized: SerializedMemo[] = JSON.parse(stored);
-    const memos = serialized.map(item => {
-      // Convert base64 back to blob and create URL
-      if (item.audioBase64) {
-        const blob = base64ToBlob(item.audioBase64);
-        const audioUrl = URL.createObjectURL(blob);
-        const { audioBase64, ...rest } = item;
-        return { ...rest, audioUrl, blob } as Memo;
-      }
-      // Static file (like DEFAULT_MEMO)
-      return item as unknown as Memo;
-    });
-
-    // Ensure DEFAULT_MEMO is always present
-    if (!memos.find(m => m.id === 'twin-peaks-pilot')) {
-      memos.push(DEFAULT_MEMO);
+    if (!stored) {
+      console.log('[Storage] No stored memos, returning DEFAULT_MEMO');
+      return [DEFAULT_MEMO];
     }
 
+    const serialized: SerializedMemo[] = JSON.parse(stored);
+    const memos = serialized
+      .filter(item => item.id !== 'twin-peaks-pilot') // Remove any stored DEFAULT_MEMO (we'll add fresh one)
+      .map(item => {
+        // Convert base64 back to blob and create URL
+        if (item.audioBase64) {
+          const blob = base64ToBlob(item.audioBase64);
+          const audioUrl = URL.createObjectURL(blob);
+          const { audioBase64, ...rest } = item;
+          return { ...rest, audioUrl, blob } as Memo;
+        }
+        // User memo without blob (shouldn't happen, but handle gracefully)
+        return item as unknown as Memo;
+      });
+
+    // Always add DEFAULT_MEMO at the end (it will appear last due to old date)
+    memos.push(DEFAULT_MEMO);
+
+    console.log(`[Storage] Loaded ${memos.length} memos (including DEFAULT_MEMO)`);
     return memos;
   } catch (e) {
     console.error('Failed to load memos from localStorage:', e);
@@ -197,9 +201,13 @@ const HomePage: React.FC = () => {
 
   // --- Load synced memo IDs when user logs in ---
   useEffect(() => {
+    console.log('[CloudSync] User state:', user ? `Logged in as ${user.email}` : 'Not logged in');
     if (user) {
       getSyncedMemoIds(user.id)
-        .then(ids => setSyncedMemoIds(ids))
+        .then(ids => {
+          console.log('[CloudSync] Synced memo IDs:', ids);
+          setSyncedMemoIds(ids);
+        })
         .catch(err => console.error('Failed to load synced memo IDs:', err));
     } else {
       setSyncedMemoIds(new Set());
@@ -623,6 +631,12 @@ const HomePage: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // Protect DEFAULT_MEMO from deletion
+    if (id === 'twin-peaks-pilot') {
+      console.log('Cannot delete the default Twin Peaks demo');
+      return;
+    }
+
     // Delete from cloud if synced
     if (user && syncedMemoIds.has(id)) {
       try {
