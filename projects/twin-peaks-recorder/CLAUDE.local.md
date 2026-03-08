@@ -476,3 +476,86 @@ Console 会显示：
   1. 设置了 Site URL 和 Redirect URLs
   2. 添加了 `emailRedirectTo: window.location.origin`
 - **下一步**：等 1 小时后重新测试
+
+---
+
+## 2026-03-08 暂停/继续录音功能（Resume）
+
+### ✅ 已完成
+
+#### 1. 数据结构修改 (types.ts)
+- [x] 添加 `audioUrls: string[]` - 多段音频 URL
+- [x] 添加 `blobs?: Blob[]` - 多段音频 Blob
+- [x] 添加 `segmentDurations?: number[]` - 每段时长
+- [x] 保留 `audioUrl` 和 `blob` 向后兼容
+
+#### 2. 存储层修改 (HomePage.tsx)
+- [x] `loadMemosFromStorage()` 支持新旧格式
+- [x] `saveMemosToStorage()` 支持多段 base64
+- [x] 数据迁移：旧格式自动转新格式
+- [x] 垃圾桶存储也支持多段
+
+#### 3. 录音逻辑修改 (HomePage.tsx)
+- [x] 添加 `resumingMemoId` 和 `resumingMemo` 状态
+- [x] 使用 `useRef` 避免闭包问题
+- [x] `onstop` 回调支持追加到现有 memo
+- [x] 暂停按钮改为停止并保存（不是真正暂停）
+
+#### 4. 麦克风共享
+- [x] HomePage 获取 stream 后传给 HD 服务
+- [x] 避免两个服务同时请求麦克风冲突
+- [x] `ownsStream` 标记控制 stream 释放
+
+#### 5. FloatingTranscript 修改
+- [x] 添加 `onResume` prop 和 Resume 按钮
+- [x] 多段音频顺序播放
+- [x] 进度条可点击/拖动跳转
+- [x] 显示当前时间 / 总时长
+
+#### 6. UI 指示
+- [x] 录音时显示 "RESUMING" 标记（左上角）
+- [x] 进度条始终可见（不只是播放时）
+
+### ❌ 待修复
+
+#### Bug: Resume 后 transcribe 文字没有保存
+- **现象**：
+  - 主页 floating words 能显示识别的文字
+  - 但停止后，卡带里没有新的 transcription
+- **已添加调试日志**：
+  - `[Resume Debug] currentResumingId:` 应该有值
+  - `[Resume Debug] newText:` 应该有识别到的文字
+  - `[Resume Debug] result:` 完整结果对象
+- **下一步**：查看 Console 输出，定位问题
+
+### 📁 相关文件
+
+| 文件 | 改动 |
+|------|------|
+| `types.ts` | Memo 接口添加多段音频字段 |
+| `pages/HomePage.tsx` | Resume 逻辑、存储、麦克风共享 |
+| `components/FloatingTranscript.tsx` | Resume 按钮、多段播放、进度条拖动 |
+| `components/CassetteTape.tsx` | 兼容 audioUrls |
+| `services/hdService.ts` | start() 接受外部 stream |
+| `services/deepgramService.ts` | start() 接受外部 stream，ownsStream 标记 |
+| `services/deepgramDualService.ts` | 同上 |
+| `services/dashscopeService.ts` | 同上 |
+
+### 🎯 功能流程
+
+```
+1. 用户正常录音
+2. 点击暂停/停止 → 保存为卡带
+3. 打开卡带浮动窗口
+4. 点击 Resume 按钮 → 关闭窗口，开始录音，左上角显示 RESUMING
+5. 说话（floating words 显示）
+6. 点击停止 → 新内容追加到原卡带（用 ——— 分隔）
+7. 重新打开卡带 → 应该看到合并后的内容
+```
+
+### 🔧 进度条拖动功能
+
+- **点击**：点击进度条任意位置跳转
+- **拖动**：按住拖动小圆点调整位置
+- **多段音频**：自动计算跳转到哪一段的哪个位置
+- **时间显示**：`0:00 / 1:30` 格式
