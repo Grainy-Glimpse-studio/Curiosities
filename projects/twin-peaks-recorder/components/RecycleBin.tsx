@@ -209,6 +209,9 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
     </AnimatePresence>
   );
 
+  // Only render portal when open
+  if (!isOpen) return null;
+
   if (typeof document !== 'undefined') {
     return createPortal(content, document.body);
   }
