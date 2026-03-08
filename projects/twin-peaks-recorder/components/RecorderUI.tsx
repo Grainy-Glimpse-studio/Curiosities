@@ -163,7 +163,7 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
               <div className="text-[10px] text-zinc-500 font-bold tracking-widest mb-1 font-recorder">INDEX</div>
               <div className="flex items-center bg-black/50 backdrop-blur-md p-2 rounded-lg border border-white/10 shadow-[inset_0_4px_8px_rgba(0,0,0,0.5)]">
                   {formatMechanicalCounter(elapsedTime).map((digit, i) => (
-                    <div key={i} className="w-6 h-9 bg-[#eee] text-[#111] font-mono font-bold text-2xl flex items-center justify-center mx-[1px] rounded-sm relative overflow-hidden shadow-inner">
+                    <div key={i} className="w-6 h-9 bg-[#e8e4dc] text-[#1a1a1a] font-mono font-bold text-2xl flex items-center justify-center mx-[1px] rounded-sm relative overflow-hidden shadow-inner">
                       {digit}
                       <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/20 pointer-events-none"></div>
                       <div className="absolute top-1/2 w-full h-px bg-black/10"></div>
@@ -202,7 +202,7 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
                ))}
 
                {/* Label */}
-               <div className="absolute inset-3 bg-[#fdfcf8] rounded-md border border-zinc-300 shadow-sm overflow-hidden">
+               <div className="absolute inset-3 bg-[#f0ede8] rounded-md border border-zinc-300 shadow-sm overflow-hidden">
                   <div className="w-full h-4 bg-[#903e4f] mt-3 shadow-sm"></div>
                   <div className="w-full h-1 bg-zinc-900 mt-1"></div>
                   

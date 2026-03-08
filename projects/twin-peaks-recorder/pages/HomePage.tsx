@@ -764,7 +764,7 @@ const HomePage: React.FC = () => {
           {/* Access Archive - right below recorder */}
           <button
             onClick={() => setIsDrawerOpen(true)}
-            className="shrink-0 mt-6 group flex flex-col items-center gap-3 transition-all duration-500 hover:-translate-y-1"
+            className="shrink-0 mt-3 group flex flex-col items-center gap-3 transition-all duration-500 hover:-translate-y-1"
           >
             <div className="relative">
               <div className="w-32 h-2.5 bg-[#1a1a1a] rounded-full border border-zinc-800 shadow-2xl group-hover:w-40 transition-all duration-500 overflow-hidden">
