@@ -342,7 +342,7 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
 
         {/* Feathered Edge - Horizontal Gradient */}
         <div
-          className="absolute inset-0 pointer-events-none z-10"
+          className="absolute inset-0 pointer-events-none z-[5]"
           style={{
             background: 'linear-gradient(to right, #000 0%, transparent 15%, transparent 85%, #000 100%)',
           }}
@@ -350,7 +350,7 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
 
         {/* Feathered Edge - Vertical Gradient */}
         <div
-          className="absolute inset-0 pointer-events-none z-10"
+          className="absolute inset-0 pointer-events-none z-[5]"
           style={{
             background: 'linear-gradient(to bottom, #000 0%, transparent 10%, transparent 90%, #000 100%)',
           }}
@@ -358,17 +358,18 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
 
         {/* Vignette Shadow */}
         <div
-          className="absolute inset-0 pointer-events-none z-10"
+          className="absolute inset-0 pointer-events-none z-[5]"
           style={{
             boxShadow: 'inset 0 0 150px 60px rgba(0,0,0,0.7)',
           }}
         />
 
         {/* Dark Overlay for readability */}
-        <div className="absolute inset-0 bg-black/40 pointer-events-none z-10" />
+        <div className="absolute inset-0 bg-black/40 pointer-events-none z-[5]" />
 
         {/* Background Text - ARCHIVE / EPHEMERA (stacked vertically, cross-dissolve on hover) */}
-        <div className="absolute top-0 bottom-0 select-none flex items-center justify-center z-[15] pointer-events-auto cursor-pointer" style={{ right: '80px' }}>
+        {/* z-[8]: above feathered edges (z-5), below canvas/cards (z-10) */}
+        <div className="absolute top-0 bottom-0 select-none flex items-center justify-center z-[8] pointer-events-auto cursor-pointer" style={{ right: '80px' }}>
           {/* Both words rendered, cross-dissolve via opacity */}
           {(['ARCHIVE', 'EPHEMERA'] as const).map((word) => {
             const isCurrentWord = bgWord === word;
