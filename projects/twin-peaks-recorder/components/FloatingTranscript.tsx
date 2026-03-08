@@ -532,28 +532,30 @@ Sent from Diane`
                     ))}
                   </div>
                   {/* 右侧：播放控制 */}
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={playInModal}
-                      className={`p-2 rounded hover:bg-white/20 transition-colors ${isPlayingInModal ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${isPlayingInModal ? 'text-white bg-white/20' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
                       title={isPlayingInModal ? 'Pause' : 'Play'}
                     >
-                      {isPlayingInModal ? <Pause size={16} /> : <Play size={16} />}
+                      {isPlayingInModal ? <Pause size={14} /> : <Play size={14} />}
+                      <span>{isPlayingInModal ? 'Pause' : 'Play'}</span>
                     </button>
                     <button
                       onClick={stopModalPlayback}
                       disabled={!isPlayingInModal && playbackProgress === 0}
-                      className={`p-2 rounded hover:bg-white/20 transition-colors ${
-                        isPlayingInModal || playbackProgress > 0 ? 'text-white/70 hover:text-white' : 'text-white/30'
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+                        isPlayingInModal || playbackProgress > 0 ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-white/30'
                       }`}
                       title="Stop"
                     >
-                      <Square size={14} fill="currentColor" />
+                      <Square size={12} fill="currentColor" />
+                      <span>Stop</span>
                     </button>
                     <button
                       onClick={() => setFlowEnabled(!flowEnabled)}
-                      className={`px-2 py-1 rounded text-xs transition-colors ${
-                        flowEnabled ? 'text-white bg-white/20' : 'text-white/50 hover:text-white/70'
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+                        flowEnabled ? 'text-white bg-white/20' : 'text-white/50 hover:text-white/70 hover:bg-white/10'
                       }`}
                       title="Toggle text flow effect during playback"
                     >
