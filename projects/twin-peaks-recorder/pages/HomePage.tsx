@@ -777,61 +777,77 @@ const HomePage: React.FC = () => {
             </div>
           </button>
 
-          {/* Recording hint */}
-          <AnimatePresence>
-            {recorderState === RecorderState.RECORDING && !focusModeOpen && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.5 }}
-                className="shrink-0 text-center py-2"
-              >
-                <p className="text-[10px] text-white/30 font-mono tracking-[0.2em] uppercase">
-                  click words to capture · focus mode for productivity
-                </p>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </main>
 
-        {/* Footer with star hint */}
+        {/* Footer with rotating hints */}
         <div className="shrink-0 pb-6 flex flex-col items-center gap-4">
-          {/* Star catch hint */}
-          {recorderState !== RecorderState.RECORDING && (
-            <motion.div
-              animate={{
-                opacity: starVisible ? [0.7, 1, 0.7] : 0.2
-              }}
-              transition={{
-                duration: starVisible ? 3 : 2,
-                ease: 'easeInOut',
-                repeat: starVisible ? Infinity : 0
-              }}
-              className="text-center"
-            >
-              <motion.p
-                animate={{
-                  textShadow: starVisible
-                    ? [
+          {/* Rotating hints area - fixed height to prevent jumping */}
+          <div className="h-6 flex items-center justify-center">
+            <AnimatePresence mode="wait">
+              {starVisible ? (
+                // Star is visible - show catch hint with glow
+                <motion.div
+                  key="star-hint"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="text-center"
+                >
+                  <motion.p
+                    animate={{
+                      opacity: [0.7, 1, 0.7],
+                      textShadow: [
                         '0 0 6px rgba(255,255,255,0.6), 0 0 12px rgba(255,255,255,0.4), 0 0 18px rgba(255,255,255,0.2)',
                         '0 0 12px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.6), 0 0 36px rgba(255,255,255,0.4)',
                         '0 0 6px rgba(255,255,255,0.6), 0 0 12px rgba(255,255,255,0.4), 0 0 18px rgba(255,255,255,0.2)'
                       ]
-                    : 'none'
-                }}
-                transition={{
-                  duration: 3,
-                  ease: 'easeInOut',
-                  repeat: starVisible ? Infinity : 0
-                }}
-                className="text-[14px] text-white tracking-[0.12em] whitespace-nowrap"
-                style={{ fontFamily: "'Consulate', monospace" }}
-              >
-                press space to catch the shooting star
-              </motion.p>
-            </motion.div>
-          )}
+                    }}
+                    transition={{
+                      duration: 3,
+                      ease: 'easeInOut',
+                      repeat: Infinity
+                    }}
+                    className="text-[14px] text-white tracking-[0.12em] whitespace-nowrap"
+                    style={{ fontFamily: "'Consulate', monospace" }}
+                  >
+                    press space to catch the shooting star
+                  </motion.p>
+                </motion.div>
+              ) : recorderState === RecorderState.RECORDING ? (
+                // Recording - show recording hints
+                <motion.div
+                  key="recording-hint"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="text-center"
+                >
+                  <p className="text-[10px] text-white/30 font-mono tracking-[0.2em] uppercase">
+                    click words to capture · focus mode for productivity
+                  </p>
+                </motion.div>
+              ) : (
+                // Idle - show star hint (dim)
+                <motion.div
+                  key="idle-hint"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 0.2 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="text-center"
+                >
+                  <p
+                    className="text-[14px] text-white tracking-[0.12em] whitespace-nowrap"
+                    style={{ fontFamily: "'Consulate', monospace" }}
+                  >
+                    press space to catch the shooting star
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           <p className="text-[9px] text-zinc-700 font-mono tracking-[0.2em] uppercase">
             Designed for Agent Cooper &bull; Twin Peaks, WA
