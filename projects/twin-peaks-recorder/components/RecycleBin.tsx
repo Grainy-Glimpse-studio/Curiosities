@@ -23,8 +23,10 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [position, setPosition] = useState({ x: 100, y: 100 });
-  const size = { width: 420, height: 400 };
+  const [size, setSize] = useState({ width: 420, height: 400 });
   const dragStartPos = useRef({ x: 0, y: 0 });
+  const resizeStartPos = useRef({ x: 0, y: 0 });
+  const resizeStartSize = useRef({ width: 0, height: 0 });
 
   // Center window on open
   useEffect(() => {
@@ -56,6 +58,47 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
 
     window.addEventListener('mousemove', handleDrag);
     window.addEventListener('mouseup', handleDragEnd);
+  };
+
+  // Resize handling
+  const handleResizeStart = (e: React.MouseEvent, direction: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizeStartPos.current = { x: e.clientX, y: e.clientY };
+    resizeStartSize.current = { width: size.width, height: size.height };
+    const startPosition = { ...position };
+
+    const handleResize = (e: MouseEvent) => {
+      const deltaX = e.clientX - resizeStartPos.current.x;
+      const deltaY = e.clientY - resizeStartPos.current.y;
+
+      let newWidth = resizeStartSize.current.width;
+      let newHeight = resizeStartSize.current.height;
+      let newX = startPosition.x;
+      let newY = startPosition.y;
+
+      if (direction.includes('e')) newWidth = Math.max(300, resizeStartSize.current.width + deltaX);
+      if (direction.includes('w')) {
+        newWidth = Math.max(300, resizeStartSize.current.width - deltaX);
+        newX = startPosition.x + (resizeStartSize.current.width - newWidth);
+      }
+      if (direction.includes('s')) newHeight = Math.max(200, resizeStartSize.current.height + deltaY);
+      if (direction.includes('n')) {
+        newHeight = Math.max(200, resizeStartSize.current.height - deltaY);
+        newY = startPosition.y + (resizeStartSize.current.height - newHeight);
+      }
+
+      setSize({ width: newWidth, height: newHeight });
+      setPosition({ x: newX, y: newY });
+    };
+
+    const handleResizeEnd = () => {
+      window.removeEventListener('mousemove', handleResize);
+      window.removeEventListener('mouseup', handleResizeEnd);
+    };
+
+    window.addEventListener('mousemove', handleResize);
+    window.addEventListener('mouseup', handleResizeEnd);
   };
 
   const toggleSelect = (id: string) => {
@@ -162,50 +205,32 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
                       onClick={() => toggleSelect(memo.id)}
                       className={`px-6 py-4 cursor-pointer transition-colors ${
                         isSelected
-                          ? 'bg-[#b69fbb]/10'
+                          ? 'bg-[#b69fbb]/15'
                           : 'hover:bg-white/5'
                       }`}
                     >
-                      <div className="flex items-start gap-4">
-                        {/* Checkbox area */}
-                        <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                          isSelected
-                            ? 'border-[#b69fbb] bg-[#b69fbb]'
-                            : 'border-white/30'
-                        }`}>
-                          {isSelected && (
-                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span
-                              className={`text-xs ${isSelected ? 'text-[#b69fbb]' : 'text-white/60'}`}
-                              style={{ fontFamily: contentFont }}
-                            >
-                              {formatDate(memo.createdAt)}
-                            </span>
-                            {memo.tags.slice(0, 2).map(tag => (
-                              <span
-                                key={tag}
-                                className={`text-[10px] uppercase tracking-wider ${isSelected ? 'text-[#b69fbb]/60' : 'text-white/30'}`}
-                              >
-                                #{tag}
-                              </span>
-                            ))}
-                          </div>
-                          <p
-                            className={`text-sm line-clamp-2 ${isSelected ? 'text-[#b69fbb]/80' : 'text-white/50'}`}
-                            style={{ fontFamily: contentFont }}
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className={`text-xs ${isSelected ? 'text-[#b69fbb]' : 'text-white/60'}`}
+                          style={{ fontFamily: contentFont }}
+                        >
+                          {formatDate(memo.createdAt)}
+                        </span>
+                        {memo.tags.slice(0, 2).map(tag => (
+                          <span
+                            key={tag}
+                            className={`text-[10px] uppercase tracking-wider ${isSelected ? 'text-[#b69fbb]/60' : 'text-white/30'}`}
                           >
-                            {memo.transcription || '(No content)'}
-                          </p>
-                        </div>
+                            #{tag}
+                          </span>
+                        ))}
                       </div>
+                      <p
+                        className={`text-sm line-clamp-2 ${isSelected ? 'text-[#b69fbb]/80' : 'text-white/50'}`}
+                        style={{ fontFamily: contentFont }}
+                      >
+                        {memo.transcription || '(No content)'}
+                      </p>
                     </div>
                   );
                 })}
@@ -254,6 +279,16 @@ const RecycleBin: React.FC<RecycleBinProps> = ({
               </div>
             </div>
           )}
+
+          {/* Resize handles */}
+          <div className="absolute top-0 left-0 w-2 h-full cursor-ew-resize" onMouseDown={(e) => handleResizeStart(e, 'w')} />
+          <div className="absolute top-0 right-0 w-2 h-full cursor-ew-resize" onMouseDown={(e) => handleResizeStart(e, 'e')} />
+          <div className="absolute top-0 left-0 w-full h-2 cursor-ns-resize" onMouseDown={(e) => handleResizeStart(e, 'n')} />
+          <div className="absolute bottom-0 left-0 w-full h-2 cursor-ns-resize" onMouseDown={(e) => handleResizeStart(e, 's')} />
+          <div className="absolute top-0 left-0 w-4 h-4 cursor-nwse-resize" onMouseDown={(e) => handleResizeStart(e, 'nw')} />
+          <div className="absolute top-0 right-0 w-4 h-4 cursor-nesw-resize" onMouseDown={(e) => handleResizeStart(e, 'ne')} />
+          <div className="absolute bottom-0 left-0 w-4 h-4 cursor-nesw-resize" onMouseDown={(e) => handleResizeStart(e, 'sw')} />
+          <div className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize" onMouseDown={(e) => handleResizeStart(e, 'se')} />
         </motion.div>
       )}
     </AnimatePresence>
