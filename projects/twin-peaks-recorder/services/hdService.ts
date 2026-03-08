@@ -186,11 +186,8 @@ export class HDService {
 
   // 开始录音
   async start(): Promise<{ success: boolean; service: string; quotaExceeded?: boolean; error?: string }> {
-    // 只在首次开始录音时记录开始时间（语言切换时不重置）
-    if (this.recordingStartTime === 0) {
-      this.recordingStartTime = Date.now();
-      console.log(`[HDService] Recording started at ${new Date(this.recordingStartTime).toISOString()}`);
-    }
+    // recordingStartTime 会在 transcriber 的 onReady 回调中设置
+    // 这样能更精确地反映音频实际开始录制的时间
 
     const service = this.selectTranscriber();
     console.log(`[HDService] Language mode: ${this.languageMode}, Selected service: ${service}`);
@@ -218,6 +215,13 @@ export class HDService {
       console.log(`[HDService] Creating DeepgramDualTranscriber (zh + en parallel), userKey: ${userKey ? 'YES' : 'NO'}`);
       this.deepgramDualTranscriber = new DeepgramDualTranscriber(userKey);
       this.deepgramDualTranscriber.onNewText(this.onNewTextCallback);
+      // 当音频实际开始录制时更新 recordingStartTime（更精确）
+      this.deepgramDualTranscriber.onReady((actualStartTime) => {
+        if (this.recordingStartTime === 0) {
+          this.recordingStartTime = actualStartTime;
+          console.log(`[HDService] Updated recordingStartTime to actual audio start: ${actualStartTime}`);
+        }
+      });
       this.activeTranscriber = this.deepgramDualTranscriber;
 
       const success = await this.deepgramDualTranscriber.start();
@@ -234,6 +238,13 @@ export class HDService {
       this.deepgramTranscriber = new DeepgramTranscriber(userKey);
       this.deepgramTranscriber.setLanguage(deepgramLang);
       this.deepgramTranscriber.onNewText(this.onNewTextCallback);
+      // 当音频实际开始录制时更新 recordingStartTime（更精确）
+      this.deepgramTranscriber.onReady((actualStartTime) => {
+        if (this.recordingStartTime === 0) {
+          this.recordingStartTime = actualStartTime;
+          console.log(`[HDService] Updated recordingStartTime to actual audio start: ${actualStartTime}`);
+        }
+      });
       this.activeTranscriber = this.deepgramTranscriber;
 
       const success = await this.deepgramTranscriber.start();

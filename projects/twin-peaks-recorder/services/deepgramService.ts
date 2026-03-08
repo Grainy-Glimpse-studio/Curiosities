@@ -87,8 +87,9 @@ export class DeepgramTranscriber {
 
   // 词级时间戳（卡拉OK效果）
   private wordTimestamps: Array<{ word: string; start: number; end: number }> = [];
-  private audioStartTime: number = 0; // 录音开始的时间戳，用于计算绝对时间
+  private audioStartTime: number = 0; // 音频实际开始录制的时间（MediaRecorder 启动时）
   private timestampOffset: number = 0; // 语言切换时的时间偏移量
+  private onReadyCallback: ((actualStartTime: number) => void) | null = null;
 
   // 用户自己的 Key（可选）
   private userApiKey: string = '';
@@ -127,6 +128,11 @@ export class DeepgramTranscriber {
 
   onNewText(callback: ((text: string, isFinal: boolean) => void) | null): void {
     this.onNewTextCallback = callback;
+  }
+
+  // 当音频实际开始录制时的回调（用于精确同步时间戳）
+  onReady(callback: ((actualStartTime: number) => void) | null): void {
+    this.onReadyCallback = callback;
   }
 
   insertParagraphBreak(): void {
@@ -297,7 +303,13 @@ export class DeepgramTranscriber {
         };
 
         this.mediaRecorder.start(250);
-        console.log('MediaRecorder started');
+        this.audioStartTime = Date.now();
+        console.log(`MediaRecorder started at ${this.audioStartTime}`);
+
+        // 通知 HDService 音频实际开始的时间
+        if (this.onReadyCallback) {
+          this.onReadyCallback(this.audioStartTime);
+        }
       });
 
       this.connection.on(LiveTranscriptionEvents.Error, (error: any) => {
