@@ -699,12 +699,6 @@ const HomePage: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    // Protect DEFAULT_MEMO from deletion
-    if (id === 'twin-peaks-pilot') {
-      console.log('Cannot delete the default Twin Peaks demo');
-      return;
-    }
-
     // Find the memo to move to trash
     const memoToTrash = memos.find(m => m.id === id);
     if (memoToTrash) {
