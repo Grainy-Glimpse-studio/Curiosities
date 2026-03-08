@@ -153,10 +153,13 @@ const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onT
     }
   };
 
-  // Modal 内播放音频
+  // Modal 内播放音频（简化版，只播放第一段）
   const playInModal = () => {
+    const urls = memo.audioUrls || (memo.audioUrl ? [memo.audioUrl] : []);
+    if (urls.length === 0) return;
+
     if (!modalAudioRef.current) {
-      modalAudioRef.current = new Audio(memo.audioUrl);
+      modalAudioRef.current = new Audio(urls[0]);
       modalAudioRef.current.addEventListener('timeupdate', () => {
         if (modalAudioRef.current && modalAudioRef.current.duration) {
           setPlaybackProgress(modalAudioRef.current.currentTime / modalAudioRef.current.duration);

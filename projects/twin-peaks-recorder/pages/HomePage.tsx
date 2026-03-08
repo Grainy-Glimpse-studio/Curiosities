@@ -28,7 +28,8 @@ const isChinese = (text: string): boolean => {
 // Default Twin Peaks tape - April 8, 1990 (TV premiere date)
 const DEFAULT_MEMO: Memo = {
   id: 'twin-peaks-pilot',
-  audioUrl: '/sound/twin-peaks.mp3',
+  audioUrls: ['/sound/twin-peaks.mp3'],
+  audioUrl: '/sound/twin-peaks.mp3', // 向后兼容
   transcription: `Testing, one, two, testing. Diane, it's 8 a.m. Seattle, Washington. As you have no doubt surmised by the clarity of this tape, I purchased a new Micromac pocket tape recorder, the big little recorder at Wally's Rent to Own, 1145 North Hilltop, where, as the sign says, a bargain is a bargain no matter what the cost.
 
 For $21 and 89 cents cash. I decided to pass on the Rent to Own option, Diane. Leasing may be the fast track to an appearance of affluence, but equity will keep you warm at night.
@@ -42,6 +43,7 @@ Second stop, the Regional Bureau Office, to pick up some files. Although I have 
   createdAt: new Date('1990-04-08T08:00:00').getTime(),
   isPermanent: true,
   duration: 60,
+  segmentDurations: [60],
   audioOffset: 8, // 开头静音约 8 秒
 };
 
@@ -74,10 +76,31 @@ const base64ToBlob = (base64: string): Blob => {
 };
 
 // Serializable version of Memo for localStorage
-interface SerializedMemo extends Omit<Memo, 'blob' | 'audioUrl'> {
-  audioBase64?: string;
-  audioUrl: string;
+interface SerializedMemo extends Omit<Memo, 'blob' | 'blobs' | 'audioUrl' | 'audioUrls'> {
+  audioBase64?: string;           // 旧格式
+  audioBase64Array?: string[];    // 新格式：多段音频
+  audioUrl?: string;
+  audioUrls: string[];
 }
+
+// Helper: Migrate old memo format to new multi-segment format
+const migrateMemo = (memo: any): Memo => {
+  // 如果已经是新格式，直接返回
+  if (memo.audioUrls && memo.audioUrls.length > 0) {
+    return {
+      ...memo,
+      segmentDurations: memo.segmentDurations || [memo.duration],
+    };
+  }
+
+  // 迁移旧格式
+  return {
+    ...memo,
+    audioUrls: memo.audioUrl ? [memo.audioUrl] : [],
+    blobs: memo.blob ? [memo.blob] : [],
+    segmentDurations: [memo.duration],
+  };
+};
 
 // Load memos from localStorage
 const loadMemosFromStorage = (): Memo[] => {
@@ -92,15 +115,24 @@ const loadMemosFromStorage = (): Memo[] => {
     const memos = serialized
       .filter(item => item.id !== 'twin-peaks-pilot') // Remove any stored DEFAULT_MEMO (we'll add fresh one)
       .map(item => {
-        // Convert base64 back to blob and create URL
+        // 新格式：多段音频
+        if (item.audioBase64Array && item.audioBase64Array.length > 0) {
+          const blobs = item.audioBase64Array.map(base64 => base64ToBlob(base64));
+          const audioUrls = blobs.map(blob => URL.createObjectURL(blob));
+          const { audioBase64Array, audioBase64, ...rest } = item;
+          return migrateMemo({ ...rest, audioUrls, blobs }) as Memo;
+        }
+
+        // 旧格式：单段音频 - 迁移到新格式
         if (item.audioBase64) {
           const blob = base64ToBlob(item.audioBase64);
           const audioUrl = URL.createObjectURL(blob);
           const { audioBase64, ...rest } = item;
-          return { ...rest, audioUrl, blob } as Memo;
+          return migrateMemo({ ...rest, audioUrl, blob }) as Memo;
         }
+
         // User memo without blob (shouldn't happen, but handle gracefully)
-        return item as unknown as Memo;
+        return migrateMemo(item) as Memo;
       });
 
     // Always add DEFAULT_MEMO at the end (it will appear last due to old date)
@@ -120,14 +152,30 @@ const saveMemosToStorage = async (memos: Memo[]): Promise<void> => {
     const serialized: SerializedMemo[] = await Promise.all(
       memos.map(async (memo) => {
         // Don't save static files' audio, just keep the URL
-        if (memo.id === 'twin-peaks-pilot' || !memo.blob) {
-          const { blob, ...rest } = memo;
+        if (memo.id === 'twin-peaks-pilot') {
+          const { blob, blobs, ...rest } = memo;
           return rest as SerializedMemo;
         }
-        // Convert blob to base64 for storage
-        const audioBase64 = await blobToBase64(memo.blob);
-        const { blob, audioUrl, ...rest } = memo;
-        return { ...rest, audioUrl: '', audioBase64 } as SerializedMemo;
+
+        // 新格式：多段音频
+        if (memo.blobs && memo.blobs.length > 0) {
+          const audioBase64Array = await Promise.all(
+            memo.blobs.map(b => blobToBase64(b))
+          );
+          const { blob, blobs, audioUrl, audioUrls, ...rest } = memo;
+          return { ...rest, audioUrls: [], audioBase64Array } as SerializedMemo;
+        }
+
+        // 旧格式兼容：单段音频
+        if (memo.blob) {
+          const audioBase64 = await blobToBase64(memo.blob);
+          const { blob, blobs, audioUrl, audioUrls, ...rest } = memo;
+          return { ...rest, audioUrls: [], audioBase64 } as SerializedMemo;
+        }
+
+        // No blob (shouldn't happen)
+        const { blob, blobs, ...rest } = memo;
+        return rest as SerializedMemo;
       })
     );
     localStorage.setItem(MEMOS_STORAGE_KEY, JSON.stringify(serialized));
@@ -144,13 +192,23 @@ const loadTrashFromStorage = (): Memo[] => {
 
     const serialized: SerializedMemo[] = JSON.parse(stored);
     return serialized.map(item => {
+      // 新格式：多段音频
+      if (item.audioBase64Array && item.audioBase64Array.length > 0) {
+        const blobs = item.audioBase64Array.map(base64 => base64ToBlob(base64));
+        const audioUrls = blobs.map(blob => URL.createObjectURL(blob));
+        const { audioBase64Array, audioBase64, ...rest } = item;
+        return migrateMemo({ ...rest, audioUrls, blobs }) as Memo;
+      }
+
+      // 旧格式：单段音频
       if (item.audioBase64) {
         const blob = base64ToBlob(item.audioBase64);
         const audioUrl = URL.createObjectURL(blob);
         const { audioBase64, ...rest } = item;
-        return { ...rest, audioUrl, blob } as Memo;
+        return migrateMemo({ ...rest, audioUrl, blob }) as Memo;
       }
-      return item as unknown as Memo;
+
+      return migrateMemo(item) as Memo;
     });
   } catch (e) {
     console.error('Failed to load trash from localStorage:', e);
@@ -163,13 +221,24 @@ const saveTrashToStorage = async (memos: Memo[]): Promise<void> => {
   try {
     const serialized: SerializedMemo[] = await Promise.all(
       memos.map(async (memo) => {
-        if (!memo.blob) {
-          const { blob, ...rest } = memo;
-          return rest as SerializedMemo;
+        // 新格式：多段音频
+        if (memo.blobs && memo.blobs.length > 0) {
+          const audioBase64Array = await Promise.all(
+            memo.blobs.map(b => blobToBase64(b))
+          );
+          const { blob, blobs, audioUrl, audioUrls, ...rest } = memo;
+          return { ...rest, audioUrls: [], audioBase64Array } as SerializedMemo;
         }
-        const audioBase64 = await blobToBase64(memo.blob);
-        const { blob, audioUrl, ...rest } = memo;
-        return { ...rest, audioUrl: '', audioBase64 } as SerializedMemo;
+
+        // 旧格式兼容
+        if (memo.blob) {
+          const audioBase64 = await blobToBase64(memo.blob);
+          const { blob, blobs, audioUrl, audioUrls, ...rest } = memo;
+          return { ...rest, audioUrls: [], audioBase64 } as SerializedMemo;
+        }
+
+        const { blob, blobs, ...rest } = memo;
+        return rest as SerializedMemo;
       })
     );
     localStorage.setItem(TRASH_STORAGE_KEY, JSON.stringify(serialized));
@@ -211,6 +280,10 @@ const HomePage: React.FC = () => {
   const [trashedMemos, setTrashedMemos] = useState<Memo[]>(() => loadTrashFromStorage());
   const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
   const trashInitializedRef = useRef(false);
+
+  // Resume 录音状态
+  const [resumingMemoId, setResumingMemoId] = useState<string | null>(null);
+  const [resumingMemo, setResumingMemo] = useState<Memo | null>(null);
 
   // --- Check if returning from About page with archive open ---
   useEffect(() => {
@@ -291,6 +364,19 @@ const HomePage: React.FC = () => {
       m.id === memoId ? { ...m, transcription: newTranscription } : m
     ));
     console.log('[Save] Transcript saved for memo:', memoId);
+  }, []);
+
+  // --- Resume recording handler ---
+  const handleResume = useCallback((memo: Memo) => {
+    // 不允许对默认 memo 进行追加录音
+    if (memo.id === 'twin-peaks-pilot') return;
+
+    setResumingMemoId(memo.id);
+    setResumingMemo(memo);
+    // 关闭浮动窗口
+    setOpenTranscripts(prev => prev.filter(m => m.id !== memo.id));
+    // 开始录音
+    startRecording();
   }, []);
 
   // --- Refs ---
@@ -424,23 +510,90 @@ const HomePage: React.FC = () => {
 
         const type = mimeTypeRef.current || 'audio/webm';
         const audioBlob = new Blob(audioChunksRef.current, { type });
-        const audioUrl = URL.createObjectURL(audioBlob);
+        const newAudioUrl = URL.createObjectURL(audioBlob);
+        const newText = result.text || '(No speech detected / 未检测到语音)';
+        const newDuration = elapsedTime;
+        const newTimestamps = result.wordTimestamps;
 
-        const newMemo: Memo = {
-          id: uuidv4(),
-          audioUrl,
-          blob: audioBlob,
-          transcription: result.text || '(No speech detected / 未检测到语音)',
-          tags: result.tags,
-          createdAt: Date.now(),
-          isPermanent: false,
-          duration: elapsedTime,
-          highlightedWords: pinnedWordsRef.current.length > 0 ? [...pinnedWordsRef.current] : undefined,
-          wordTimestamps: result.wordTimestamps,
-        };
+        // 如果是追加录音（Resume 功能）
+        if (resumingMemoId && resumingMemo) {
+          // 偏移新的时间戳（加上之前所有段的总时长）
+          const offsetTimestamps = newTimestamps?.map(ts => ({
+            ...ts,
+            start: ts.start + resumingMemo.duration,
+            end: ts.end + resumingMemo.duration,
+          }));
 
-        setMemos(prev => [newMemo, ...prev]);
-        setCurrentMemoId(newMemo.id);
+          setMemos(prev => prev.map(m => {
+            if (m.id === resumingMemoId) {
+              const existingUrls = m.audioUrls || (m.audioUrl ? [m.audioUrl] : []);
+              const existingBlobs = m.blobs || (m.blob ? [m.blob] : []);
+              const existingDurations = m.segmentDurations || [m.duration];
+              const existingTimestamps = m.wordTimestamps || [];
+
+              return {
+                ...m,
+                audioUrls: [...existingUrls, newAudioUrl],
+                blobs: [...existingBlobs, audioBlob],
+                transcription: m.transcription + '\n\n———\n\n' + newText,
+                duration: m.duration + newDuration,
+                segmentDurations: [...existingDurations, newDuration],
+                wordTimestamps: [...existingTimestamps, ...(offsetTimestamps || [])],
+                highlightedWords: [
+                  ...(m.highlightedWords || []),
+                  ...(pinnedWordsRef.current.length > 0 ? pinnedWordsRef.current : [])
+                ],
+              };
+            }
+            return m;
+          }));
+
+          // 更新 openTranscripts 中的对应 memo
+          setOpenTranscripts(prev => prev.map(m => {
+            if (m.id === resumingMemoId) {
+              const existingUrls = m.audioUrls || (m.audioUrl ? [m.audioUrl] : []);
+              const existingBlobs = m.blobs || (m.blob ? [m.blob] : []);
+              const existingDurations = m.segmentDurations || [m.duration];
+              const existingTimestamps = m.wordTimestamps || [];
+
+              return {
+                ...m,
+                audioUrls: [...existingUrls, newAudioUrl],
+                blobs: [...existingBlobs, audioBlob],
+                transcription: m.transcription + '\n\n———\n\n' + newText,
+                duration: m.duration + newDuration,
+                segmentDurations: [...existingDurations, newDuration],
+                wordTimestamps: [...existingTimestamps, ...(offsetTimestamps || [])],
+              };
+            }
+            return m;
+          }));
+
+          setCurrentMemoId(resumingMemoId);
+          setResumingMemoId(null);
+          setResumingMemo(null);
+        } else {
+          // 创建新 memo（正常逻辑）
+          const newMemo: Memo = {
+            id: uuidv4(),
+            audioUrls: [newAudioUrl],
+            blobs: [audioBlob],
+            audioUrl: newAudioUrl, // 向后兼容
+            blob: audioBlob,       // 向后兼容
+            transcription: newText,
+            tags: result.tags,
+            createdAt: Date.now(),
+            isPermanent: false,
+            duration: newDuration,
+            segmentDurations: [newDuration],
+            highlightedWords: pinnedWordsRef.current.length > 0 ? [...pinnedWordsRef.current] : undefined,
+            wordTimestamps: newTimestamps,
+          };
+
+          setMemos(prev => [newMemo, ...prev]);
+          setCurrentMemoId(newMemo.id);
+        }
+
         setRecorderState(RecorderState.IDLE);
         setElapsedTime(0);
       };
@@ -592,6 +745,9 @@ const HomePage: React.FC = () => {
     if (!audioPlayerRef.current) return;
 
     const player = audioPlayerRef.current;
+    const urls = memo.audioUrls || (memo.audioUrl ? [memo.audioUrl] : []);
+
+    if (urls.length === 0) return;
 
     try {
       player.pause();
@@ -599,7 +755,9 @@ const HomePage: React.FC = () => {
       setCurrentMemoId(memo.id);
       setRecorderState(RecorderState.PLAYING);
 
-      player.src = memo.audioUrl;
+      // 只播放第一段（主页面播放器简单实现）
+      // 完整的多段播放在 FloatingTranscript 中实现
+      player.src = urls[0];
       player.load();
       player.currentTime = 0;
 
@@ -818,6 +976,7 @@ const HomePage: React.FC = () => {
           onClose={() => setOpenTranscripts(prev => prev.filter(m => m.id !== memo.id))}
           onPlay={playMemo}
           onSave={handleSaveTranscript}
+          onResume={handleResume}
           titleFont={titleFont}
           contentFont={contentFont}
           initialOffset={index * 30}
@@ -852,6 +1011,15 @@ const HomePage: React.FC = () => {
           {/* Recording controls - only when recording */}
           {recorderState === RecorderState.RECORDING && (
             <>
+              {/* Resume indicator - show when resuming a tape */}
+              {resumingMemo && (
+                <span
+                  className="font-recorder text-[11px] tracking-[0.3em] uppercase text-[#903e4f] animate-pulse"
+                >
+                  RESUMING
+                </span>
+              )}
+
               <span
                 onClick={() => setFloatingWordsEnabled(prev => !prev)}
                 className={`cursor-pointer font-recorder text-[11px] tracking-[0.3em] uppercase transition-all duration-300 ${

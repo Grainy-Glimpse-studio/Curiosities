@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import emailjs from '@emailjs/browser';
-import { X, Minus, Maximize2, Minimize2, Play, Pause, Square, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2, Save } from 'lucide-react';
+import { X, Minus, Maximize2, Minimize2, Play, Pause, Square, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2, Save, Mic } from 'lucide-react';
 import { Memo } from '../types';
 import MarkdownEditor, { MarkdownEditorRef } from './MarkdownEditor';
 
@@ -12,6 +12,7 @@ interface FloatingTranscriptProps {
   onClose: () => void;
   onPlay: (memo: Memo) => void;
   onSave?: (memoId: string, newTranscription: string) => void; // 保存编辑
+  onResume?: (memo: Memo) => void; // 继续录音
   titleFont: string;
   contentFont: string;
   initialOffset?: number; // 多窗口时的偏移量
@@ -253,6 +254,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   onClose,
   onPlay,
   onSave,
+  onResume,
   titleFont,
   contentFont,
   initialOffset = 0,
@@ -278,6 +280,10 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const [showProjectInfo, setShowProjectInfo] = useState(false); // 显示项目介绍
   const [isSyncing, setIsSyncing] = useState(false); // 云同步中
   const [flowEnabled, setFlowEnabled] = useState(true); // 播放时文字发光效果
+
+  // 多段音频播放状态
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
+  const segmentStartTimesRef = useRef<number[]>([]); // 每段的起始时间
 
   // AI 侧边栏状态
   const [showAISidebar, setShowAISidebar] = useState(false);
@@ -313,31 +319,73 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     }
   }, [isOpen, initialOffset]);
 
-  // 播放控制
+  // 播放控制 - 支持多段音频
   const playInModal = () => {
     if (!memo) return;
-    if (!modalAudioRef.current) {
-      modalAudioRef.current = new Audio(memo.audioUrl);
-      modalAudioRef.current.addEventListener('timeupdate', () => {
-        if (modalAudioRef.current && modalAudioRef.current.duration) {
-          setPlaybackProgress(modalAudioRef.current.currentTime / modalAudioRef.current.duration);
-          setCurrentPlaybackTime(modalAudioRef.current.currentTime);
-        }
-      });
-      modalAudioRef.current.addEventListener('ended', () => {
+
+    const urls = memo.audioUrls || (memo.audioUrl ? [memo.audioUrl] : []);
+    const durations = memo.segmentDurations || [memo.duration];
+    if (urls.length === 0) return;
+
+    // 计算每段的起始时间
+    const startTimes: number[] = [];
+    let cumulative = 0;
+    for (const d of durations) {
+      startTimes.push(cumulative);
+      cumulative += d;
+    }
+    segmentStartTimesRef.current = startTimes;
+    const totalDuration = cumulative;
+
+    // 如果正在播放，暂停
+    if (isPlayingInModal) {
+      modalAudioRef.current?.pause();
+      setIsPlayingInModal(false);
+      return;
+    }
+
+    // 开始播放
+    const playSegment = (index: number) => {
+      if (index >= urls.length) {
+        // 所有段播放完毕
         setIsPlayingInModal(false);
         setPlaybackProgress(0);
         setCurrentPlaybackTime(0);
-      });
-    }
+        setCurrentSegmentIndex(0);
+        return;
+      }
 
-    if (isPlayingInModal) {
-      modalAudioRef.current.pause();
-      setIsPlayingInModal(false);
-    } else {
-      modalAudioRef.current.play().catch(() => {});
-      setIsPlayingInModal(true);
-    }
+      setCurrentSegmentIndex(index);
+      const audio = new Audio(urls[index]);
+      modalAudioRef.current = audio;
+
+      audio.addEventListener('timeupdate', () => {
+        if (audio && audio.duration) {
+          // 计算全局播放时间和进度
+          const globalTime = startTimes[index] + audio.currentTime;
+          setCurrentPlaybackTime(globalTime);
+          setPlaybackProgress(globalTime / totalDuration);
+        }
+      });
+
+      audio.addEventListener('ended', () => {
+        // 播放下一段
+        playSegment(index + 1);
+      });
+
+      audio.addEventListener('error', () => {
+        console.error('Audio playback error at segment', index);
+        setIsPlayingInModal(false);
+      });
+
+      audio.play().catch(() => {
+        setIsPlayingInModal(false);
+      });
+    };
+
+    setIsPlayingInModal(true);
+    setCurrentSegmentIndex(0);
+    playSegment(0);
   };
 
   const stopModalPlayback = () => {
@@ -348,6 +396,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       setIsPlayingInModal(false);
       setPlaybackProgress(0);
       setCurrentPlaybackTime(0);
+      setCurrentSegmentIndex(0);
     }
   };
 
@@ -561,13 +610,20 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   };
 
   const downloadAudio = () => {
-    if (!memo || !memo.audioUrl) return;
-    const element = document.createElement("a");
-    element.href = memo.audioUrl;
-    element.download = `recording-${formatDate(memo.createdAt)}.webm`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+    if (!memo) return;
+    const urls = memo.audioUrls || (memo.audioUrl ? [memo.audioUrl] : []);
+    if (urls.length === 0) return;
+
+    // 下载所有段
+    urls.forEach((url, index) => {
+      const element = document.createElement("a");
+      element.href = url;
+      const suffix = urls.length > 1 ? `-part${index + 1}` : '';
+      element.download = `recording-${formatDate(memo.createdAt)}${suffix}.webm`;
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    });
     setShowExportMenu(false);
   };
 
@@ -1065,6 +1121,19 @@ Sent from Diane`
                       <Save size={14} />
                       <span className="text-sm">Save</span>
                     </button>
+
+                    {/* Resume 按钮 - 追加录音 */}
+                    {onResume && memo.id !== 'twin-peaks-pilot' && (
+                      <button
+                        onClick={() => onResume(memo)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full border bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border-white/10 hover:border-white/20 transition-colors"
+                        style={{ fontFamily: contentFont }}
+                        title="Continue recording to this tape"
+                      >
+                        <Mic size={14} />
+                        <span className="text-sm">Resume</span>
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3">
