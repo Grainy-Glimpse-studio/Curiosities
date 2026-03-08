@@ -531,8 +531,40 @@ Sent from Diane`
                 </div>
 
                 {/* 工具栏 */}
-                {!isPlayingInModal && editorRef.current?.editor && (
-                  <div className="px-6 py-2 border-b border-white/20 flex flex-wrap items-center gap-1 shrink-0">
+                <div className="px-6 py-2 border-b border-white/20 flex flex-wrap items-center gap-1 shrink-0">
+                  {/* 播放控制 */}
+                  <button
+                    onClick={playInModal}
+                    className={`p-2 rounded hover:bg-white/20 transition-colors ${isPlayingInModal ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
+                    title={isPlayingInModal ? 'Pause' : 'Play'}
+                  >
+                    {isPlayingInModal ? <Pause size={16} /> : <Play size={16} />}
+                  </button>
+                  <button
+                    onClick={stopModalPlayback}
+                    disabled={!isPlayingInModal && playbackProgress === 0}
+                    className={`p-2 rounded hover:bg-white/20 transition-colors ${
+                      isPlayingInModal || playbackProgress > 0 ? 'text-white/70 hover:text-white' : 'text-white/30'
+                    }`}
+                    title="Stop"
+                  >
+                    <Square size={14} fill="currentColor" />
+                  </button>
+                  <button
+                    onClick={() => setFlowEnabled(!flowEnabled)}
+                    className={`px-2 py-1 rounded text-xs transition-colors ${
+                      flowEnabled ? 'text-white bg-white/20' : 'text-white/50 hover:text-white/70'
+                    }`}
+                    title="Toggle text flow effect during playback"
+                  >
+                    Flow
+                  </button>
+
+                  <div className="w-px h-5 bg-white/20 mx-1" />
+
+                  {/* 格式化按钮 - 只在非播放时显示 */}
+                  {!isPlayingInModal && editorRef.current?.editor && (
+                    <>
                     <button
                       onClick={() => editorRef.current?.editor?.chain().focus().toggleBold().run()}
                       className={`p-2 rounded hover:bg-white/20 transition-colors ${editorRef.current?.editor?.isActive('bold') ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
@@ -682,8 +714,9 @@ Sent from Diane`
                     >
                       AI
                     </button>
-                  </div>
-                )}
+                    </>
+                  )}
+                </div>
 
                 {/* 播放进度条 */}
                 {isPlayingInModal && (
@@ -810,51 +843,6 @@ Sent from Diane`
                 {/* 底部控制栏 */}
                 <div className="px-6 pt-4 pb-4 bg-transparent flex justify-between items-center shrink-0">
                   <div className="flex items-center gap-3">
-                    {/* Play/Pause 按钮 */}
-                    <button
-                      onClick={playInModal}
-                      className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/10 hover:border-white/20 transition-colors"
-                      style={{ fontFamily: contentFont }}
-                    >
-                      {isPlayingInModal ? (
-                        <Pause size={14} />
-                      ) : (
-                        <Play size={14} />
-                      )}
-                      <span className="text-sm">
-                        {isPlayingInModal ? 'Pause' : 'Play'}
-                      </span>
-                    </button>
-
-                    {/* Stop 按钮 */}
-                    <button
-                      onClick={stopModalPlayback}
-                      disabled={!isPlayingInModal && playbackProgress === 0}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-colors ${
-                        isPlayingInModal || playbackProgress > 0
-                          ? 'bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border-white/10 hover:border-white/20'
-                          : 'bg-white/5 text-white/20 border-white/10 cursor-default'
-                      }`}
-                      style={{ fontFamily: contentFont }}
-                    >
-                      <Square size={12} fill="currentColor" />
-                      <span className="text-sm">Stop</span>
-                    </button>
-
-                    {/* Flow 开关 - 播放时文字发光效果 */}
-                    <button
-                      onClick={() => setFlowEnabled(!flowEnabled)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-colors ${
-                        flowEnabled
-                          ? 'bg-white/10 text-white border-white/30'
-                          : 'bg-white/5 text-white/40 border-white/10 hover:text-white/60'
-                      }`}
-                      style={{ fontFamily: contentFont }}
-                      title="Toggle text flow effect during playback"
-                    >
-                      <span className="text-sm">Flow</span>
-                    </button>
-
                     {/* Save 按钮 */}
                     <button
                       onClick={() => {
@@ -938,7 +926,7 @@ Sent from Diane`
                         </span>
                       </button>
                       {showJoinMenu && (
-                        <div className="absolute bottom-full right-0 mb-2 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[160px]">
+                        <div className="absolute bottom-full right-0 mb-2 bg-black/60 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[160px]">
                           <button
                             onClick={() => { setShowJoinMenu(false); setShowProjectInfo(true); }}
                             className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
@@ -969,7 +957,7 @@ Sent from Diane`
                         <span className="text-sm">Export</span>
                       </button>
                       {showExportMenu && (
-                        <div className="absolute bottom-full right-0 mb-2 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[140px]">
+                        <div className="absolute bottom-full right-0 mb-2 bg-black/60 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[140px]">
                           <button
                             onClick={exportAsMarkdown}
                             className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
