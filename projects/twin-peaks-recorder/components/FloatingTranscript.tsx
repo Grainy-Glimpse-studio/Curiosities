@@ -611,6 +611,37 @@ Sent from Diane`
 
                     <div className="w-px h-5 bg-white/20 mx-1" />
 
+                    {/* Distill 按钮 - 只保留选中的文字 */}
+                    <button
+                      onClick={() => {
+                        const editor = editorRef.current?.editor;
+                        if (!editor) return;
+
+                        const { from, to, empty } = editor.state.selection;
+                        if (empty) {
+                          // 没有选中任何文字
+                          alert('Please select the text you want to keep first.');
+                          return;
+                        }
+
+                        // 获取选中的文字（保留格式）
+                        const slice = editor.state.doc.slice(from, to);
+                        const content = {
+                          type: 'doc',
+                          content: slice.content.toJSON()
+                        };
+
+                        // 用选中的内容替换整个文档
+                        editor.commands.setContent(content);
+                      }}
+                      className="px-3 py-1.5 rounded text-sm font-medium text-white/70 hover:text-white hover:bg-white/20 transition-colors"
+                      title="Keep only selected text, remove everything else"
+                    >
+                      Distill
+                    </button>
+
+                    <div className="w-px h-5 bg-white/20 mx-1" />
+
                     {/* AI 按钮 - 切换侧边栏 */}
                     <button
                       onClick={() => setShowAISidebar(!showAISidebar)}
