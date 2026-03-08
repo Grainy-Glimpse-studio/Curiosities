@@ -49,6 +49,7 @@ declare global {
 export interface TranscriptionResult {
   text: string;
   tags: string[];
+  wordTimestamps?: Array<{ word: string; start: number; end: number }>;
 }
 
 // 简单的关键词提取作为标签

@@ -374,11 +374,16 @@ const HomePage: React.FC = () => {
     // 不允许对默认 memo 进行追加录音
     if (memo.id === 'twin-peaks-pilot') return;
 
+    console.log('[Resume] handleResume called with memo:', memo.id);
+    console.log('[Resume] memo.transcription length:', memo.transcription?.length);
+
     // 同时设置 state 和 ref（ref 用于 onstop 回调，避免闭包问题）
     setResumingMemoId(memo.id);
     setResumingMemo(memo);
     resumingMemoIdRef.current = memo.id;
     resumingMemoRef.current = memo;
+
+    console.log('[Resume] Refs set - resumingMemoIdRef:', resumingMemoIdRef.current);
 
     // 关闭浮动窗口
     setOpenTranscripts(prev => prev.filter(m => m.id !== memo.id));
@@ -510,10 +515,13 @@ const HomePage: React.FC = () => {
       };
 
       mediaRecorder.onstop = async () => {
+        console.log('[Recording] onstop triggered');
         stream.getTracks().forEach(track => track.stop());
 
         const transcriber = transcriberRef.current;
+        console.log('[Recording] transcriber:', transcriber ? 'exists' : 'null');
         const result = transcriber ? transcriber.stop() : { text: '', tags: ['Memo'] };
+        console.log('[Recording] transcriber.stop() result:', result);
 
         const type = mimeTypeRef.current || 'audio/webm';
         const audioBlob = new Blob(audioChunksRef.current, { type });
@@ -526,12 +534,20 @@ const HomePage: React.FC = () => {
         const currentResumingId = resumingMemoIdRef.current;
         const currentResumingMemo = resumingMemoRef.current;
 
+        console.log('[Resume Debug] ===== RESUME CHECK =====');
         console.log('[Resume Debug] currentResumingId:', currentResumingId);
-        console.log('[Resume Debug] newText:', newText);
-        console.log('[Resume Debug] result:', result);
+        console.log('[Resume Debug] currentResumingMemo:', currentResumingMemo?.id);
+        console.log('[Resume Debug] newText length:', newText?.length);
+        console.log('[Resume Debug] newText:', newText?.substring(0, 100));
+        console.log('[Resume Debug] result.text:', result.text?.substring(0, 100));
+        console.log('[Resume Debug] newDuration:', newDuration);
 
         if (currentResumingId && currentResumingMemo) {
-          console.log('[Resume Debug] Appending to existing memo');
+          console.log('[Resume Debug] ===== APPENDING TO EXISTING MEMO =====');
+          console.log('[Resume Debug] Target memo ID:', currentResumingId);
+          console.log('[Resume Debug] Existing transcription length:', currentResumingMemo.transcription?.length);
+          console.log('[Resume Debug] New text to append:', newText?.substring(0, 100));
+
           // 偏移新的时间戳（加上之前所有段的总时长）
           const offsetTimestamps = newTimestamps?.map(ts => ({
             ...ts,
@@ -539,29 +555,38 @@ const HomePage: React.FC = () => {
             end: ts.end + currentResumingMemo.duration,
           }));
 
-          setMemos(prev => prev.map(m => {
-            if (m.id === currentResumingId) {
-              const existingUrls = m.audioUrls || (m.audioUrl ? [m.audioUrl] : []);
-              const existingBlobs = m.blobs || (m.blob ? [m.blob] : []);
-              const existingDurations = m.segmentDurations || [m.duration];
-              const existingTimestamps = m.wordTimestamps || [];
+          setMemos(prev => {
+            console.log('[Resume Debug] setMemos callback - prev memos count:', prev.length);
+            const targetMemo = prev.find(m => m.id === currentResumingId);
+            console.log('[Resume Debug] Found target memo:', targetMemo ? 'yes' : 'no');
 
-              return {
-                ...m,
-                audioUrls: [...existingUrls, newAudioUrl],
-                blobs: [...existingBlobs, audioBlob],
-                transcription: m.transcription + '\n\n———\n\n' + newText,
-                duration: m.duration + newDuration,
-                segmentDurations: [...existingDurations, newDuration],
-                wordTimestamps: [...existingTimestamps, ...(offsetTimestamps || [])],
-                highlightedWords: [
-                  ...(m.highlightedWords || []),
-                  ...(pinnedWordsRef.current.length > 0 ? pinnedWordsRef.current : [])
-                ],
-              };
-            }
-            return m;
-          }));
+            return prev.map(m => {
+              if (m.id === currentResumingId) {
+                const existingUrls = m.audioUrls || (m.audioUrl ? [m.audioUrl] : []);
+                const existingBlobs = m.blobs || (m.blob ? [m.blob] : []);
+                const existingDurations = m.segmentDurations || [m.duration];
+                const existingTimestamps = m.wordTimestamps || [];
+
+                const updatedMemo = {
+                  ...m,
+                  audioUrls: [...existingUrls, newAudioUrl],
+                  blobs: [...existingBlobs, audioBlob],
+                  transcription: m.transcription + '\n\n———\n\n' + newText,
+                  duration: m.duration + newDuration,
+                  segmentDurations: [...existingDurations, newDuration],
+                  wordTimestamps: [...existingTimestamps, ...(offsetTimestamps || [])],
+                  highlightedWords: [
+                    ...(m.highlightedWords || []),
+                    ...(pinnedWordsRef.current.length > 0 ? pinnedWordsRef.current : [])
+                  ],
+                };
+                console.log('[Resume Debug] Updated memo transcription length:', updatedMemo.transcription.length);
+                console.log('[Resume Debug] Updated memo audioUrls count:', updatedMemo.audioUrls.length);
+                return updatedMemo;
+              }
+              return m;
+            });
+          });
 
           // 更新 openTranscripts 中的对应 memo
           setOpenTranscripts(prev => prev.map(m => {

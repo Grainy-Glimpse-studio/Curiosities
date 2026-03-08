@@ -257,14 +257,19 @@ export class HDService {
 
   // 停止录音
   stop(): TranscriptionResult {
+    console.log('[HDService] stop() called');
+    console.log('[HDService] activeTranscriber:', this.activeTranscriber ? 'exists' : 'null');
+
     // 重置录音开始时间，下次录音重新计算
     this.recordingStartTime = 0;
 
     if (this.activeTranscriber) {
       const result = this.activeTranscriber.stop();
+      console.log('[HDService] Transcriber result:', result?.text?.substring(0, 100));
       this.activeTranscriber = null;
       return result;
     }
+    console.log('[HDService] No active transcriber, returning empty');
     return { text: '', tags: [] };
   }
 

@@ -436,6 +436,10 @@ export class DeepgramDualTranscriber {
   }
 
   stop(): TranscriptionResult {
+    console.log('[DualTranscriber] stop() called');
+    console.log('[DualTranscriber] Current transcript length:', this.transcript.length);
+    console.log('[DualTranscriber] Current transcript preview:', this.transcript.substring(0, 100));
+
     this.isListening = false;
 
     const usedSeconds = (Date.now() - this.startTime) / 1000;
@@ -463,6 +467,8 @@ export class DeepgramDualTranscriber {
     const text = this.transcript.trim();
     const tags = extractTags(text);
 
+    console.log('[DualTranscriber] Returning text length:', text.length);
+    console.log('[DualTranscriber] Returning text:', text.substring(0, 100));
     return { text, tags, wordTimestamps: this.wordTimestamps };
   }
 

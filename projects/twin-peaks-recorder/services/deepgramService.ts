@@ -338,6 +338,10 @@ export class DeepgramTranscriber {
   }
 
   stop(): TranscriptionResult {
+    console.log('[DeepgramTranscriber] stop() called');
+    console.log('[DeepgramTranscriber] Current transcript length:', this.transcript.length);
+    console.log('[DeepgramTranscriber] Current transcript preview:', this.transcript.substring(0, 100));
+
     this.isListening = false;
 
     // 计算使用时长并报告
@@ -363,6 +367,8 @@ export class DeepgramTranscriber {
     const text = this.transcript.trim();
     const tags = extractTags(text);
 
+    console.log('[DeepgramTranscriber] Returning text length:', text.length);
+    console.log('[DeepgramTranscriber] Returning text:', text.substring(0, 100));
     return { text, tags, wordTimestamps: this.wordTimestamps };
   }
 

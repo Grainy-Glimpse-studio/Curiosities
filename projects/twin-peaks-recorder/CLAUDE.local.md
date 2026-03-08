@@ -522,11 +522,46 @@ Console 会显示：
 - **现象**：
   - 主页 floating words 能显示识别的文字
   - 但停止后，卡带里没有新的 transcription
-- **已添加调试日志**：
-  - `[Resume Debug] currentResumingId:` 应该有值
-  - `[Resume Debug] newText:` 应该有识别到的文字
-  - `[Resume Debug] result:` 完整结果对象
-- **下一步**：查看 Console 输出，定位问题
+- **已添加详细调试日志** (2026-03-08 晚更新)：
+
+**Console 关键日志点**：
+
+```
+[Resume] handleResume called with memo: xxx     <- 1. Resume 触发
+[Resume] Refs set - resumingMemoIdRef: xxx      <- 2. Ref 设置成功
+
+[DualTranscriber] stop() called                  <- 3. 转写服务停止
+[DualTranscriber] Current transcript length: XX  <- 4. 检查是否有累积文本
+[DualTranscriber] Returning text: ...            <- 5. 返回的文本
+
+[HDService] stop() called                        <- 6. HD 服务停止
+[HDService] Transcriber result: ...              <- 7. 传递的结果
+
+[Recording] onstop triggered                     <- 8. MediaRecorder 停止
+[Recording] transcriber.stop() result: ...       <- 9. 收到的结果
+
+[Resume Debug] ===== RESUME CHECK =====
+[Resume Debug] currentResumingId: xxx            <- 10. 检查 ref 是否仍有值
+[Resume Debug] newText length: XX                <- 11. 新文本长度
+
+[Resume Debug] ===== APPENDING TO EXISTING MEMO =====
+[Resume Debug] setMemos callback                 <- 12. 是否进入追加逻辑
+[Resume Debug] Found target memo: yes/no         <- 13. 是否找到目标
+[Resume Debug] Updated memo transcription: XX    <- 14. 更新后的长度
+```
+
+**调试步骤**：
+1. 打开 Chrome DevTools Console
+2. 点击 Resume 开始录音
+3. 说几句话（等 floating words 显示）
+4. 停止录音
+5. 查看 Console 日志，找到断点位置
+
+**可能的问题**：
+1. 如果 `currentResumingId` 是 null → ref 设置问题
+2. 如果 `newText length` 是 0 → 转写累积问题
+3. 如果没有 `APPENDING` 日志 → 条件判断问题
+4. 如果 `Found target memo: no` → memo 查找问题
 
 ### 📁 相关文件
 
@@ -632,3 +667,26 @@ ElevenLabs 生成新声音音频（待定）
 2. **高**：BWF 导出（需要研究 BWF 文件格式）
 3. **中**：打板键（音频生成 + 混音）
 4. **低**：ElevenLabs 接入（待定）
+
+### 🔮 Future TODO（未来研究）
+
+#### XML 项目导出
+- **价值**：批量素材一键导入，时间线已排好
+- **格式**：DaVinci Resolve XML 或 FCPXML
+- **内容**：多条音频 + 字幕 + 打板标记点
+- **场景**：一天拍 20 条素材，导出一个 XML，打开就全排好
+- **难度**：需要研究 DaVinci XML 规范
+
+#### 时码同步 (Timecode Sync)
+- **目标**：BWF + SRT + 视频文件自动对齐
+- **当前限制**：Diane 是网页应用，无法直接与相机通信
+- **可行方案**：
+  1. 系统时间同步（设备都用 NTP 精确时间）
+  2. 打板 + 波形对齐（当前方案）
+- **未来可能**：
+  - 手机 App + 蓝牙与相机通信
+  - 外接硬件时码器（Tentacle Sync 等）
+- **需要研究**：
+  - Jam Sync 原理
+  - 不同相机的时码支持情况
+  - LTC/SMPTE 时码格式
