@@ -830,9 +830,9 @@ Sent from Diane`
                       style={{ fontFamily: contentFont }}
                     >
                       {isPlayingInModal ? (
-                        <Pause size={14} className="text-[#903e4f]" />
+                        <Pause size={14} />
                       ) : (
-                        <Play size={14} className="text-[#903e4f]" />
+                        <Play size={14} />
                       )}
                       <span className="text-sm">
                         {isPlayingInModal ? 'Pause' : 'Play'}
