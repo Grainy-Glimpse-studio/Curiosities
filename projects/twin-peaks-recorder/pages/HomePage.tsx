@@ -685,9 +685,16 @@ const HomePage: React.FC = () => {
           }
         }
 
-        setRecorderState(RecorderState.IDLE);
-        setElapsedTime(0);
-        elapsedTimeRef.current = 0;
+        // 如果是 PAUSE 触发的，设为 PAUSED 状态（按钮保持按下）
+        // 否则设为 IDLE
+        if (shouldResumeAfterPauseRef.current) {
+          setRecorderState(RecorderState.PAUSED);
+          // 不重置时间，保留显示
+        } else {
+          setRecorderState(RecorderState.IDLE);
+          setElapsedTime(0);
+          elapsedTimeRef.current = 0;
+        }
       };
 
       mediaRecorder.start();
@@ -843,6 +850,15 @@ const HomePage: React.FC = () => {
     setResumingMemo(null);
     resumingMemoIdRef.current = null;
     resumingMemoRef.current = null;
+
+    // 如果当前是 PAUSED 状态，直接设为 IDLE（因为 mediaRecorder 已经停了）
+    if (recorderState === RecorderState.PAUSED) {
+      setRecorderState(RecorderState.IDLE);
+      setElapsedTime(0);
+      elapsedTimeRef.current = 0;
+      return;
+    }
+
     // 然后正常停止
     stopRecording();
   };
