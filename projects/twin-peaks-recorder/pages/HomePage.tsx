@@ -566,11 +566,17 @@ const HomePage: React.FC = () => {
           console.log('[Resume Debug] New text to append:', newText?.substring(0, 100));
 
           // 偏移新的时间戳（加上之前所有段的总时长）
+          console.log('[Resume Debug] currentResumingMemo.duration for offset:', currentResumingMemo.duration);
+          console.log('[Resume Debug] newTimestamps count:', newTimestamps?.length);
+          console.log('[Resume Debug] newTimestamps first few:', newTimestamps?.slice(0, 3));
+
           const offsetTimestamps = newTimestamps?.map(ts => ({
             ...ts,
             start: ts.start + currentResumingMemo.duration,
             end: ts.end + currentResumingMemo.duration,
           }));
+
+          console.log('[Resume Debug] offsetTimestamps first few:', offsetTimestamps?.slice(0, 3));
 
           setMemos(prev => {
             console.log('[Resume Debug] setMemos callback - prev memos count:', prev.length);
@@ -583,6 +589,11 @@ const HomePage: React.FC = () => {
                 const existingBlobs = m.blobs || (m.blob ? [m.blob] : []);
                 const existingDurations = m.segmentDurations || [m.duration];
                 const existingTimestamps = m.wordTimestamps || [];
+
+                console.log('[Resume Debug] m.duration (current state):', m.duration);
+                console.log('[Resume Debug] existingUrls count:', existingUrls.length);
+                console.log('[Resume Debug] existingDurations:', existingDurations);
+                console.log('[Resume Debug] existingTimestamps count:', existingTimestamps.length);
 
                 const updatedMemo = {
                   ...m,
@@ -597,8 +608,11 @@ const HomePage: React.FC = () => {
                     ...(pinnedWordsRef.current.length > 0 ? pinnedWordsRef.current : [])
                   ],
                 };
-                console.log('[Resume Debug] Updated memo transcription length:', updatedMemo.transcription.length);
-                console.log('[Resume Debug] Updated memo audioUrls count:', updatedMemo.audioUrls.length);
+                console.log('[Resume Debug] Updated memo:');
+                console.log('[Resume Debug]   audioUrls count:', updatedMemo.audioUrls.length);
+                console.log('[Resume Debug]   segmentDurations:', updatedMemo.segmentDurations);
+                console.log('[Resume Debug]   total duration:', updatedMemo.duration);
+                console.log('[Resume Debug]   wordTimestamps count:', updatedMemo.wordTimestamps?.length);
                 return updatedMemo;
               }
               return m;
@@ -1075,15 +1089,6 @@ const HomePage: React.FC = () => {
           {/* Recording controls - only when recording */}
           {recorderState === RecorderState.RECORDING && (
             <>
-              {/* Resume indicator - show when resuming a tape */}
-              {resumingMemo && (
-                <span
-                  className="font-recorder text-[11px] tracking-[0.3em] uppercase text-[#903e4f] animate-pulse"
-                >
-                  RESUMING
-                </span>
-              )}
-
               <span
                 onClick={() => setFloatingWordsEnabled(prev => !prev)}
                 className={`cursor-pointer font-recorder text-[11px] tracking-[0.3em] uppercase transition-all duration-300 ${
@@ -1254,7 +1259,7 @@ const HomePage: React.FC = () => {
               </div>
               <div className="absolute -top-1 -right-1 w-2 h-2 bg-[#b69fbb] rounded-full animate-pulse shadow-[0_0_8px_rgba(182,159,187,0.6)]"></div>
             </div>
-            <div className="text-zinc-500 font-recorder text-[11px] tracking-[0.3em] uppercase group-hover:text-[#b69fbb] transition-colors">
+            <div className="text-[#b69fbb]/60 font-recorder text-[11px] tracking-[0.3em] uppercase group-hover:text-[#b69fbb] transition-colors">
               The Case Files
             </div>
           </button>

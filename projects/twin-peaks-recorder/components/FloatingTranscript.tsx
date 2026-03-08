@@ -505,6 +505,12 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     const durations = memo.segmentDurations || [memo.duration];
     if (urls.length === 0) return;
 
+    console.log('[Playback Debug] ===== PLAY START =====');
+    console.log('[Playback Debug] audioUrls count:', urls.length);
+    console.log('[Playback Debug] segmentDurations:', durations);
+    console.log('[Playback Debug] wordTimestamps count:', memo.wordTimestamps?.length);
+    console.log('[Playback Debug] wordTimestamps sample:', memo.wordTimestamps?.slice(0, 5));
+
     // 计算每段的起始时间
     const startTimes: number[] = [];
     let cumulative = 0;
@@ -512,6 +518,9 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       startTimes.push(cumulative);
       cumulative += d;
     }
+    console.log('[Playback Debug] startTimes:', startTimes);
+    console.log('[Playback Debug] totalDuration:', cumulative);
+
     segmentStartTimesRef.current = startTimes;
     totalDurationRef.current = cumulative;
 
