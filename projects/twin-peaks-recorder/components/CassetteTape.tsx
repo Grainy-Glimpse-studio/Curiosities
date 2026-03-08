@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Memo } from '../types';
-import { Play, Pause, Trash2, Download, X, FileText, File, FileCode, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Palette } from 'lucide-react';
+import { Play, Pause, Trash2, Download, X, FileText, File, FileCode, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Palette, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 
 interface CassetteTapeProps {
@@ -105,6 +105,33 @@ const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onT
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showFontSizeMenu, setShowFontSizeMenu] = useState(false);
   const [showColorMenu, setShowColorMenu] = useState(false);
+
+  // AI Processing Panel
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [selectedAIFeatures, setSelectedAIFeatures] = useState<Set<string>>(new Set());
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const toggleAIFeature = (feature: string) => {
+    setSelectedAIFeatures(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(feature)) {
+        newSet.delete(feature);
+      } else {
+        newSet.add(feature);
+      }
+      return newSet;
+    });
+  };
+
+  const handleAIApply = async () => {
+    if (selectedAIFeatures.size === 0) return;
+    setIsProcessing(true);
+    // TODO: Implement AI processing
+    console.log('AI Features:', Array.from(selectedAIFeatures));
+    console.log('Custom Prompt:', customPrompt);
+    setTimeout(() => setIsProcessing(false), 1000);
+  };
   const [customTitle, setCustomTitle] = useState('Transcript');
   const [isPlayingInModal, setIsPlayingInModal] = useState(false);
   const [playbackProgress, setPlaybackProgress] = useState(0); // 0-1 播放进度
@@ -280,7 +307,7 @@ const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onT
           {/* Label Area - Clickable */}
           <div
             onClick={handleCardClick}
-            className="relative z-10 rounded-lg p-4 shadow-inner border border-zinc-300/30 flex flex-col gap-2 min-h-[160px] cursor-pointer overflow-hidden"
+            className="relative z-10 rounded-lg p-4 shadow-inner border border-zinc-300/30 flex flex-col gap-2 aspect-[3/2] cursor-pointer overflow-hidden"
             style={{
               backgroundImage: 'url(/image/paper-texture.jpg)',
               backgroundSize: 'cover',
@@ -528,6 +555,88 @@ const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onT
                           />
                         ))}
                       </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="w-px h-5 bg-white/20 mx-1" />
+
+                {/* AI Processing */}
+                <div className="relative">
+                  <button
+                    onClick={() => { setShowAIPanel(!showAIPanel); setShowFontSizeMenu(false); setShowColorMenu(false); }}
+                    className={`p-2 rounded transition-colors ${showAIPanel ? 'bg-[#b69fbb]/30 text-[#b69fbb]' : 'hover:bg-white/20 text-white/70 hover:text-white'}`}
+                    title="AI Processing"
+                  >
+                    <Sparkles size={16} />
+                  </button>
+                  {showAIPanel && (
+                    <div className="absolute top-full right-0 mt-1 bg-black/95 backdrop-blur-md rounded-lg border border-white/20 p-4 z-10 w-64" style={{ fontFamily: "'Consulate', monospace" }}>
+                      <div className="text-white/50 text-xs uppercase tracking-wider mb-3">AI Processing</div>
+
+                      {/* AI Feature Options */}
+                      <div className="space-y-2 mb-4">
+                        <button
+                          onClick={() => toggleAIFeature('cleanup')}
+                          className={`block w-full text-left text-sm transition-colors ${selectedAIFeatures.has('cleanup') ? 'text-[#b69fbb]' : 'text-white/60 hover:text-white/80'}`}
+                        >
+                          {selectedAIFeatures.has('cleanup') && '✦ '}Cleanup
+                        </button>
+                        <button
+                          onClick={() => toggleAIFeature('summary')}
+                          className={`block w-full text-left text-sm transition-colors ${selectedAIFeatures.has('summary') ? 'text-[#b69fbb]' : 'text-white/60 hover:text-white/80'}`}
+                        >
+                          {selectedAIFeatures.has('summary') && '✦ '}Summary
+                        </button>
+                        <button
+                          onClick={() => toggleAIFeature('headings')}
+                          className={`block w-full text-left text-sm transition-colors ${selectedAIFeatures.has('headings') ? 'text-[#b69fbb]' : 'text-white/60 hover:text-white/80'}`}
+                        >
+                          {selectedAIFeatures.has('headings') && '✦ '}Underline → Headings
+                        </button>
+                        <button
+                          onClick={() => toggleAIFeature('custom')}
+                          className={`block w-full text-left text-sm transition-colors ${selectedAIFeatures.has('custom') ? 'text-[#b69fbb]' : 'text-white/60 hover:text-white/80'}`}
+                        >
+                          {selectedAIFeatures.has('custom') && '✦ '}Custom Cleanup
+                        </button>
+
+                        {/* Custom Prompt Input */}
+                        {selectedAIFeatures.has('custom') && (
+                          <textarea
+                            value={customPrompt}
+                            onChange={(e) => setCustomPrompt(e.target.value)}
+                            placeholder="Enter your custom prompt..."
+                            className="w-full mt-2 px-3 py-2 bg-white/5 border border-white/20 rounded text-white/80 text-xs placeholder:text-white/30 focus:outline-none focus:border-[#b69fbb]/50 resize-none"
+                            rows={3}
+                          />
+                        )}
+                      </div>
+
+                      <div className="border-t border-white/10 pt-3 mb-3">
+                        <button
+                          onClick={() => toggleAIFeature('retranscribe')}
+                          className={`block w-full text-left text-sm transition-colors ${selectedAIFeatures.has('retranscribe') ? 'text-[#b69fbb]' : 'text-white/60 hover:text-white/80'}`}
+                        >
+                          {selectedAIFeatures.has('retranscribe') && '✦ '}Re-transcribe
+                        </button>
+                      </div>
+
+                      {/* Apply Button */}
+                      <button
+                        onClick={handleAIApply}
+                        disabled={selectedAIFeatures.size === 0 || isProcessing}
+                        className="w-full py-2 rounded bg-[#b69fbb]/20 text-[#b69fbb] text-sm hover:bg-[#b69fbb]/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {isProcessing ? (
+                          <>Processing...</>
+                        ) : (
+                          <>
+                            <Sparkles size={14} />
+                            Apply
+                          </>
+                        )}
+                      </button>
                     </div>
                   )}
                 </div>

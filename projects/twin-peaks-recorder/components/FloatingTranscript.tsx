@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import emailjs from '@emailjs/browser';
-import { X, Minus, Maximize2, Minimize2, Play, Pause, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info } from 'lucide-react';
+import { X, Minus, Maximize2, Minimize2, Play, Pause, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload } from 'lucide-react';
 import { Memo } from '../types';
 import MarkdownEditor, { MarkdownEditorRef } from './MarkdownEditor';
 
@@ -74,6 +74,19 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const [customTitle, setCustomTitle] = useState('Transcript');
   const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [showProjectInfo, setShowProjectInfo] = useState(false); // 显示项目介绍
+
+  // AI 侧边栏状态
+  const [showAISidebar, setShowAISidebar] = useState(false);
+  const [showCustomPanel, setShowCustomPanel] = useState(false); // 第三个面板
+  const [selectedAIFeatures, setSelectedAIFeatures] = useState<string[]>([]);
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isProcessingAI, setIsProcessingAI] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 侧边栏宽度
+  const AI_SIDEBAR_WIDTH = 220;
+  const CUSTOM_PANEL_WIDTH = 280;
 
   const windowRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLSpanElement>(null);
@@ -222,6 +235,54 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
 
   const formatDate = (ts: number) => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   const formatTime = (ts: number) => new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+
+  // AI 功能选择切换
+  const toggleAIFeature = (feature: string) => {
+    setSelectedAIFeatures(prev =>
+      prev.includes(feature)
+        ? prev.filter(f => f !== feature)
+        : [...prev, feature]
+    );
+  };
+
+  // 文件上传处理
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadedFile(file);
+      // Auto-select custom feature when file is uploaded
+      if (!selectedAIFeatures.includes('custom')) {
+        setSelectedAIFeatures(prev => [...prev, 'custom']);
+      }
+    }
+  };
+
+  const clearUploadedFile = () => {
+    setUploadedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // 应用 AI 处理（暂时只是占位，后续接入 API）
+  const handleApplyAI = async () => {
+    if (selectedAIFeatures.length === 0) return;
+    setIsProcessingAI(true);
+    // TODO: 接入实际的 AI API
+    console.log('[AI Processing] Selected features:', selectedAIFeatures);
+    if (selectedAIFeatures.includes('custom')) {
+      if (customPrompt) {
+        console.log('[AI Processing] Custom prompt:', customPrompt);
+      }
+      if (uploadedFile) {
+        console.log('[AI Processing] Uploaded file:', uploadedFile.name);
+      }
+    }
+    // 模拟处理
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    setIsProcessingAI(false);
+    setShowAISidebar(false);
+  };
 
 
   // 导出功能
@@ -390,15 +451,18 @@ Sent from Diane`
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
             transition={{ duration: 0.3 }}
-            className="fixed z-[200] flex flex-col backdrop-blur-2xl rounded-2xl shadow-2xl overflow-hidden border border-white/60"
+            className="fixed z-[200] flex flex-row backdrop-blur-2xl rounded-2xl shadow-2xl overflow-hidden border border-white/60"
             style={{
-              left: position.x,
+              left: position.x - (showAISidebar ? (AI_SIDEBAR_WIDTH + (selectedAIFeatures.includes('custom') ? CUSTOM_PANEL_WIDTH : 0)) / 2 : 0),
               top: position.y,
-              width: isMinimized ? 300 : size.width,
+              width: isMinimized ? 300 : (size.width + (showAISidebar ? AI_SIDEBAR_WIDTH : 0) + (showAISidebar && selectedAIFeatures.includes('custom') ? CUSTOM_PANEL_WIDTH : 0)),
               height: isMinimized ? 48 : size.height,
               backgroundColor: 'rgba(255, 255, 255, 0)',
+              transition: 'left 0.3s ease, width 0.3s ease',
             }}
           >
+            {/* 主内容区 */}
+            <div className="flex flex-col flex-1 min-w-0">
             {/* 暂时去掉自定义selection样式，测试原生选择是否正常 */}
 
             {/* 标题栏 - 可拖拽 */}
@@ -460,21 +524,21 @@ Sent from Diane`
                     <button
                       onClick={() => editorRef.current?.editor?.chain().focus().toggleBold().run()}
                       className={`p-2 rounded hover:bg-white/20 transition-colors ${editorRef.current?.editor?.isActive('bold') ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
-                      title="粗体"
+                      title="Bold"
                     >
                       <Bold size={16} />
                     </button>
                     <button
                       onClick={() => editorRef.current?.editor?.chain().focus().toggleItalic().run()}
                       className={`p-2 rounded hover:bg-white/20 transition-colors ${editorRef.current?.editor?.isActive('italic') ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
-                      title="斜体"
+                      title="Italic"
                     >
                       <Italic size={16} />
                     </button>
                     <button
                       onClick={() => editorRef.current?.editor?.chain().focus().toggleUnderline().run()}
                       className={`p-2 rounded hover:bg-white/20 transition-colors ${editorRef.current?.editor?.isActive('underline') ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
-                      title="下划线"
+                      title="Underline"
                     >
                       <Underline size={16} />
                     </button>
@@ -484,14 +548,14 @@ Sent from Diane`
                     <button
                       onClick={() => editorRef.current?.editor?.chain().focus().toggleHeading({ level: 1 }).run()}
                       className={`p-2 rounded hover:bg-white/20 transition-colors ${editorRef.current?.editor?.isActive('heading', { level: 1 }) ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
-                      title="标题1"
+                      title="Heading 1"
                     >
                       <Heading1 size={16} />
                     </button>
                     <button
                       onClick={() => editorRef.current?.editor?.chain().focus().toggleHeading({ level: 2 }).run()}
                       className={`p-2 rounded hover:bg-white/20 transition-colors ${editorRef.current?.editor?.isActive('heading', { level: 2 }) ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
-                      title="标题2"
+                      title="Heading 2"
                     >
                       <Heading2 size={16} />
                     </button>
@@ -501,21 +565,21 @@ Sent from Diane`
                     <button
                       onClick={() => editorRef.current?.editor?.chain().focus().toggleBulletList().run()}
                       className={`p-2 rounded hover:bg-white/20 transition-colors ${editorRef.current?.editor?.isActive('bulletList') ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
-                      title="无序列表"
+                      title="Bullet List"
                     >
                       <List size={16} />
                     </button>
                     <button
                       onClick={() => editorRef.current?.editor?.chain().focus().toggleOrderedList().run()}
                       className={`p-2 rounded hover:bg-white/20 transition-colors ${editorRef.current?.editor?.isActive('orderedList') ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
-                      title="有序列表"
+                      title="Numbered List"
                     >
                       <ListOrdered size={16} />
                     </button>
                     <button
                       onClick={() => editorRef.current?.editor?.chain().focus().toggleBlockquote().run()}
                       className={`p-2 rounded hover:bg-white/20 transition-colors ${editorRef.current?.editor?.isActive('blockquote') ? 'text-white bg-white/20' : 'text-white/70 hover:text-white'}`}
-                      title="引用"
+                      title="Quote"
                     >
                       <Quote size={16} />
                     </button>
@@ -525,16 +589,31 @@ Sent from Diane`
                     <button
                       onClick={() => editorRef.current?.editor?.chain().focus().undo().run()}
                       className="p-2 rounded hover:bg-white/20 text-white/70 hover:text-white transition-colors"
-                      title="撤销"
+                      title="Undo"
                     >
                       <Undo size={16} />
                     </button>
                     <button
                       onClick={() => editorRef.current?.editor?.chain().focus().redo().run()}
                       className="p-2 rounded hover:bg-white/20 text-white/70 hover:text-white transition-colors"
-                      title="重做"
+                      title="Redo"
                     >
                       <Redo size={16} />
+                    </button>
+
+                    <div className="w-px h-5 bg-white/20 mx-1" />
+
+                    {/* AI 按钮 - 切换侧边栏 */}
+                    <button
+                      onClick={() => setShowAISidebar(!showAISidebar)}
+                      className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                        showAISidebar
+                          ? 'text-[#b69fbb] bg-white/20'
+                          : 'text-white/70 hover:text-white hover:bg-white/20'
+                      }`}
+                      title="AI Text Processing"
+                    >
+                      AI
                     </button>
                   </div>
                 )}
@@ -764,6 +843,204 @@ Sent from Diane`
                 </div>
               </>
             )}
+            </div>
+            {/* 主内容区结束 */}
+
+            {/* AI 侧边栏 */}
+            <AnimatePresence>
+              {showAISidebar && !isMinimized && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: AI_SIDEBAR_WIDTH, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  className="flex flex-col border-l border-white/20 overflow-hidden"
+                  style={{ minWidth: AI_SIDEBAR_WIDTH }}
+                >
+                  {/* 侧边栏标题 */}
+                  <div className="px-4 py-3 border-b border-white/20 flex items-center justify-between shrink-0">
+                    <span className="text-white/80 text-sm font-medium">AI Processing</span>
+                    <button
+                      onClick={() => { setShowAISidebar(false); setShowCustomPanel(false); }}
+                      className="p-1 text-white/40 hover:text-white transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {/* 选项列表 */}
+                  <div className="flex-1 overflow-y-auto p-3 space-y-1">
+                    {/* Cleanup */}
+                    <button
+                      onClick={() => toggleAIFeature('cleanup')}
+                      className={`w-full text-left px-3 py-2.5 rounded transition-colors text-sm ${
+                        selectedAIFeatures.includes('cleanup')
+                          ? 'text-[#b69fbb]'
+                          : 'text-white/80 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {selectedAIFeatures.includes('cleanup') && <span className="mr-2">✦</span>}
+                      Cleanup
+                    </button>
+
+                    {/* Summary */}
+                    <button
+                      onClick={() => toggleAIFeature('summary')}
+                      className={`w-full text-left px-3 py-2.5 rounded transition-colors text-sm ${
+                        selectedAIFeatures.includes('summary')
+                          ? 'text-[#b69fbb]'
+                          : 'text-white/80 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {selectedAIFeatures.includes('summary') && <span className="mr-2">✦</span>}
+                      Summary
+                    </button>
+
+                    {/* Underline to Headings */}
+                    <button
+                      onClick={() => toggleAIFeature('underline-to-headings')}
+                      className={`w-full text-left px-3 py-2.5 rounded transition-colors text-sm ${
+                        selectedAIFeatures.includes('underline-to-headings')
+                          ? 'text-[#b69fbb]'
+                          : 'text-white/80 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {selectedAIFeatures.includes('underline-to-headings') && <span className="mr-2">✦</span>}
+                      Underline → Headings
+                    </button>
+
+                    <div className="border-t border-white/10 my-3" />
+
+                    {/* Custom Cleanup - 选中时打开第三面板 */}
+                    <button
+                      onClick={() => toggleAIFeature('custom')}
+                      className={`w-full text-left px-3 py-2.5 rounded transition-colors text-sm ${
+                        selectedAIFeatures.includes('custom')
+                          ? 'text-[#b69fbb]'
+                          : 'text-white/80 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {selectedAIFeatures.includes('custom') && <span className="mr-2">✦</span>}
+                      Custom Cleanup
+                      <span className="ml-1 text-white/40">→</span>
+                    </button>
+
+                    <div className="border-t border-white/10 my-3" />
+
+                    {/* Re-transcribe */}
+                    <button
+                      onClick={() => toggleAIFeature('retranscribe')}
+                      className={`w-full text-left px-3 py-2.5 rounded transition-colors text-sm ${
+                        selectedAIFeatures.includes('retranscribe')
+                          ? 'text-[#b69fbb]'
+                          : 'text-white/80 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {selectedAIFeatures.includes('retranscribe') && <span className="mr-2">✦</span>}
+                      Re-transcribe
+                    </button>
+                  </div>
+
+                  {/* Apply 按钮 */}
+                  <div className="p-3 border-t border-white/20 shrink-0">
+                    <button
+                      onClick={handleApplyAI}
+                      disabled={selectedAIFeatures.length === 0 || isProcessingAI}
+                      className={`w-full py-2.5 rounded-full text-sm transition-colors border ${
+                        selectedAIFeatures.length === 0
+                          ? 'bg-white/5 text-white/30 border-white/10 cursor-not-allowed'
+                          : isProcessingAI
+                          ? 'bg-white/10 text-white/60 border-white/20 cursor-wait'
+                          : 'bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      {isProcessingAI ? 'Processing...' : 'Apply'}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Custom Cleanup 第三面板 - 当 custom 被选中时显示 */}
+            <AnimatePresence>
+              {selectedAIFeatures.includes('custom') && showAISidebar && !isMinimized && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: CUSTOM_PANEL_WIDTH, opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  className="flex flex-col border-l border-white/20 overflow-hidden"
+                  style={{ minWidth: CUSTOM_PANEL_WIDTH }}
+                >
+                  {/* 面板标题 */}
+                  <div className="px-4 py-3 border-b border-white/20 flex items-center justify-between shrink-0">
+                    <span className="text-white/80 text-sm font-medium">Custom Cleanup</span>
+                    <button
+                      onClick={() => toggleAIFeature('custom')}
+                      className="p-1 text-white/40 hover:text-white transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {/* 内容区 */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {/* 文本输入 */}
+                    <div>
+                      <label className="block text-white/60 text-xs mb-2 uppercase tracking-wider">Prompt</label>
+                      <textarea
+                        value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        placeholder="Enter your custom prompt..."
+                        className="w-full px-3 py-3 bg-white/5 border border-white/20 rounded-lg text-white/90 text-sm placeholder-white/40 resize-none focus:outline-none focus:border-[#b69fbb]/50 transition-colors"
+                        rows={6}
+                      />
+                    </div>
+
+                    {/* 或者分隔 */}
+                    <div className="flex items-center gap-3 text-white/40 text-xs">
+                      <div className="flex-1 h-px bg-white/20" />
+                      <span>or</span>
+                      <div className="flex-1 h-px bg-white/20" />
+                    </div>
+
+                    {/* 文件上传 */}
+                    <div>
+                      <label className="block text-white/60 text-xs mb-2 uppercase tracking-wider">Template File</label>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".md,.txt,.json"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+
+                      {uploadedFile ? (
+                        <div className="flex items-center gap-2 px-3 py-3 bg-[#b69fbb]/10 border border-[#b69fbb]/30 rounded-lg text-sm">
+                          <FileText size={16} className="text-[#b69fbb] shrink-0" />
+                          <span className="text-[#b69fbb] truncate flex-1">{uploadedFile.name}</span>
+                          <button
+                            onClick={clearUploadedFile}
+                            className="p-1 text-white/40 hover:text-white transition-colors shrink-0"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="w-full flex flex-col items-center justify-center gap-2 px-4 py-6 border border-dashed border-white/30 rounded-lg text-white/60 hover:text-white hover:border-white/50 hover:bg-white/5 transition-colors text-sm"
+                        >
+                          <Upload size={20} />
+                          <span>Upload template</span>
+                          <span className="text-white/40 text-xs">.md, .txt, .json</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* 缩放把手 */}
             {!isMaximized && !isMinimized && (

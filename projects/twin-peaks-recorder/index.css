@@ -68,8 +68,10 @@
 }
 
 @layer base {
+  html, body {
+    @apply bg-black text-zinc-100 antialiased;
+  }
   body {
-    @apply bg-[#121212] text-zinc-100 antialiased;
     background-image:
       radial-gradient(circle at 50% 50%, rgba(255,255,255,0.02) 0%, transparent 100%),
       url("https://www.transparenttextures.com/patterns/carbon-fibre.png");

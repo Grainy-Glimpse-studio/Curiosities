@@ -1,13 +1,46 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background-color: #000000;">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#000000" />
     <title>Twin Peaks Recorder</title>
+    <style>
+      /* Inline critical styles to prevent flash during resize */
+      html, body {
+        background-color: #000000 !important;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        /* Force GPU compositing to reduce resize lag */
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+        will-change: transform;
+        /* Cover entire viewport */
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #root {
+        background-color: #000000;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+      }
+    </style>
     <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Inter:wght@300;400;600&family=Permanent+Marker&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/index.css">
 </head>
-  <body>
+  <body style="background-color: #000000;">
     <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
 </body>

@@ -554,46 +554,6 @@ const HomePage: React.FC = () => {
         onVisibilityChange={setStarVisible}
       />
 
-      {/* Star catch hint - below recorder, glows when star appears */}
-      {recorderState !== RecorderState.RECORDING && !isDrawerOpen && recorderBounds && (
-        <motion.div
-          animate={{
-            opacity: starVisible ? [0.7, 1, 0.7] : 0.2
-          }}
-          transition={{
-            duration: starVisible ? 3 : 2,
-            ease: 'easeInOut',
-            repeat: starVisible ? Infinity : 0
-          }}
-          className="fixed z-50 pointer-events-none"
-          style={{
-            left: recorderBounds.x + recorderBounds.width / 2,
-            top: recorderBounds.y + recorderBounds.height + 24,
-            transform: 'translateX(-50%)'
-          }}
-        >
-          <motion.p
-            animate={{
-              textShadow: starVisible
-                ? [
-                    '0 0 6px rgba(255,255,255,0.6), 0 0 12px rgba(255,255,255,0.4), 0 0 18px rgba(255,255,255,0.2)',
-                    '0 0 12px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.6), 0 0 36px rgba(255,255,255,0.4)',
-                    '0 0 6px rgba(255,255,255,0.6), 0 0 12px rgba(255,255,255,0.4), 0 0 18px rgba(255,255,255,0.2)'
-                  ]
-                : 'none'
-            }}
-            transition={{
-              duration: 3,
-              ease: 'easeInOut',
-              repeat: starVisible ? Infinity : 0
-            }}
-            className="text-[14px] text-white tracking-[0.12em] whitespace-nowrap"
-            style={{ fontFamily: "'Consulate', monospace" }}
-          >
-            press space to catch the shooting star
-          </motion.p>
-        </motion.div>
-      )}
 
       {/* Floating Words (darkroom effect) - conditional */}
       {floatingWordsEnabled && (
@@ -784,8 +744,8 @@ const HomePage: React.FC = () => {
           </div>
         </header>
 
-        <main className="flex-1 flex items-center justify-center p-4 overflow-hidden">
-          <div ref={recorderContainerRef}>
+        <main className="flex-1 flex flex-col items-center justify-center p-4 overflow-hidden min-h-0">
+          <div ref={recorderContainerRef} className="flex-1 flex items-center justify-center overflow-hidden min-h-0">
             <RecorderUI
               state={recorderState}
               elapsedTime={elapsedTime}
@@ -797,41 +757,93 @@ const HomePage: React.FC = () => {
               onRewind={handleRewind}
               onFastForward={handleFastForward}
               onErase={handleErase}
-              onToggleDrawer={() => setIsDrawerOpen(true)}
               clickSoundUrl="/sound/twin-peaks-clicksound.mp3"
             />
           </div>
+
+          {/* Access Archive - right below recorder */}
+          <button
+            onClick={() => setIsDrawerOpen(true)}
+            className="shrink-0 mt-6 group flex flex-col items-center gap-3 transition-all duration-500 hover:-translate-y-1"
+          >
+            <div className="relative">
+              <div className="w-32 h-2.5 bg-[#1a1a1a] rounded-full border border-zinc-800 shadow-2xl group-hover:w-40 transition-all duration-500 overflow-hidden">
+                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+              </div>
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-[#b69fbb] rounded-full animate-pulse shadow-[0_0_8px_rgba(182,159,187,0.6)]"></div>
+            </div>
+            <div className="text-zinc-500 font-journal text-[10px] tracking-[0.4em] uppercase group-hover:text-[#b69fbb] transition-colors">
+              Access Archive
+            </div>
+          </button>
+
+          {/* Recording hint */}
+          <AnimatePresence>
+            {recorderState === RecorderState.RECORDING && !focusModeOpen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.5 }}
+                className="shrink-0 text-center py-2"
+              >
+                <p className="text-[10px] text-white/30 font-mono tracking-[0.2em] uppercase">
+                  click words to capture · focus mode for productivity
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </main>
 
-        {/* Recording hint - in normal flow */}
-        <AnimatePresence>
-          {recorderState === RecorderState.RECORDING && !focusModeOpen && (
+        {/* Footer with star hint */}
+        <div className="shrink-0 pb-6 flex flex-col items-center gap-4">
+          {/* Star catch hint */}
+          {recorderState !== RecorderState.RECORDING && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5 }}
-              className="text-center py-4"
+              animate={{
+                opacity: starVisible ? [0.7, 1, 0.7] : 0.2
+              }}
+              transition={{
+                duration: starVisible ? 3 : 2,
+                ease: 'easeInOut',
+                repeat: starVisible ? Infinity : 0
+              }}
+              className="text-center"
             >
-              <p className="text-[10px] text-white/30 font-mono tracking-[0.2em] uppercase">
-                click words to capture · focus mode for productivity
-              </p>
+              <motion.p
+                animate={{
+                  textShadow: starVisible
+                    ? [
+                        '0 0 6px rgba(255,255,255,0.6), 0 0 12px rgba(255,255,255,0.4), 0 0 18px rgba(255,255,255,0.2)',
+                        '0 0 12px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.6), 0 0 36px rgba(255,255,255,0.4)',
+                        '0 0 6px rgba(255,255,255,0.6), 0 0 12px rgba(255,255,255,0.4), 0 0 18px rgba(255,255,255,0.2)'
+                      ]
+                    : 'none'
+                }}
+                transition={{
+                  duration: 3,
+                  ease: 'easeInOut',
+                  repeat: starVisible ? Infinity : 0
+                }}
+                className="text-[14px] text-white tracking-[0.12em] whitespace-nowrap"
+                style={{ fontFamily: "'Consulate', monospace" }}
+              >
+                press space to catch the shooting star
+              </motion.p>
             </motion.div>
           )}
-        </AnimatePresence>
 
-        <footer className="pb-8 text-center shrink-0">
           <p className="text-[9px] text-zinc-700 font-mono tracking-[0.2em] uppercase">
             Designed for Agent Cooper &bull; Twin Peaks, WA
           </p>
-        </footer>
+        </div>
       </div>
 
       <TapeDrawer
         isOpen={isDrawerOpen}
         onClose={() => {
           setIsDrawerOpen(false);
-          setOpenTranscripts([]);
+          // 不清除浮动窗口，让它们保持打开状态
         }}
         memos={memos}
         onPlay={playMemo}

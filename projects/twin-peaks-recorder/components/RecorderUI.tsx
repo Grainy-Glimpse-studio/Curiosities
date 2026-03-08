@@ -13,7 +13,6 @@ interface RecorderUIProps {
   onRewind: () => void;
   onFastForward: () => void;
   onErase: () => void;
-  onToggleDrawer: () => void;
   clickSoundUrl?: string;
 }
 
@@ -110,7 +109,6 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
   onRewind,
   onFastForward,
   onErase,
-  onToggleDrawer,
   clickSoundUrl
 }) => {
   const [ledOn, setLedOn] = useState(false);
@@ -131,9 +129,9 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
   const isSpinning = state === RecorderState.RECORDING || state === RecorderState.PLAYING;
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center p-6">
-      
-      <div className="w-[420px] bg-[#222]/80 backdrop-blur-xl rounded-[32px] p-8 shadow-[20px_20px_60px_rgba(0,0,0,0.8),-10px_-10px_30px_rgba(60,60,60,0.15),0_50px_100px_-20px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.15),inset_0_-2px_10px_rgba(0,0,0,0.3)] border-t border-l border-white/15 border-r-[16px] border-b-[16px] border-r-black/70 border-b-black/70 relative flex flex-col gap-8 overflow-hidden">
+    <div className="w-full h-full flex flex-col items-center justify-center">
+
+      <div className="w-[400px] max-h-full bg-[#222]/80 backdrop-blur-xl rounded-[32px] p-8 shadow-[20px_20px_60px_rgba(0,0,0,0.8),-10px_-10px_30px_rgba(60,60,60,0.15),0_50px_100px_-20px_rgba(0,0,0,0.9),inset_0_1px_0_rgba(255,255,255,0.15),inset_0_-2px_10px_rgba(0,0,0,0.3)] border-t border-l border-white/15 border-r-[16px] border-b-[16px] border-r-black/70 border-b-black/70 relative flex flex-col gap-6 overflow-hidden">
         
         {/* Glass Textures */}
         <div className="absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-black/40 pointer-events-none z-0"></div>
@@ -143,8 +141,8 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
         }}></div>
 
-        {/* --- Top Section --- */}
-        <div className="flex justify-between items-start px-2 relative z-10">
+        {/* --- Top Section: shrink-[2] - folds second --- */}
+        <div className="flex justify-between items-start px-2 relative z-10 shrink-[2] min-h-0 overflow-hidden">
            <div className="flex flex-col gap-2">
              <div className="text-[10px] text-zinc-500 font-bold tracking-[0.2em] font-recorder">INPUT LEVEL</div>
              <div className="flex gap-1 bg-black/40 backdrop-blur-md p-2 rounded-md border border-white/10 shadow-inner">
@@ -175,8 +173,8 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
            </div>
         </div>
 
-        {/* --- Middle Section: Cassette Window --- */}
-        <div className="relative z-10 w-full bg-[#111] rounded-2xl border-[8px] border-[#181818] shadow-[inset_0_20px_40px_rgba(0,0,0,1),0_2px_0_rgba(255,255,255,0.05)] h-60 flex items-center justify-center overflow-hidden group">
+        {/* --- Middle Section: Cassette Window - shrink-[4] folds FIRST --- */}
+        <div className="relative z-10 w-full bg-[#111] rounded-2xl border-[8px] border-[#181818] shadow-[inset_0_20px_40px_rgba(0,0,0,1),0_2px_0_rgba(255,255,255,0.05)] min-h-0 h-60 shrink-[4] flex items-center justify-center overflow-hidden group">
             
             {/* Glass Reflection */}
             <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.03] to-white/[0.08] pointer-events-none z-30"></div>
@@ -232,17 +230,17 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
             </div>
         </div>
 
-        {/* --- Bottom Section: Controls --- */}
-        <div className="mt-auto relative z-10 flex flex-col gap-6">
-           
-           <div className="flex justify-between items-center px-1">
-             <div className="flex items-center gap-3 bg-[#111] px-4 py-2 rounded-full border border-white/5 shadow-inner">
-                <div className={`w-3.5 h-3.5 rounded-full border-2 border-black transition-all duration-300 ${ledOn ? 'bg-[#903e4f] shadow-[0_0_12px_#903e4f]' : 'bg-[#3a1a20]'}`}></div>
-                <span className="text-[10px] text-zinc-500 font-bold tracking-[0.2em] uppercase font-recorder">RECORD / POWER</span>
-             </div>
-             <div className="text-[10px] text-zinc-600 font-bold tracking-widest font-recorder">AUTO STOP</div>
-           </div>
+        {/* --- LED Row: shrink-[1] - folds third --- */}
+        <div className="flex justify-between items-center px-1 relative z-10 shrink min-h-0 overflow-hidden">
+          <div className="flex items-center gap-3 bg-[#111] px-4 py-2 rounded-full border border-white/5 shadow-inner">
+             <div className={`w-3.5 h-3.5 rounded-full border-2 border-black transition-colors duration-300 ${ledOn ? 'bg-[#903e4f] shadow-[0_0_12px_#903e4f]' : 'bg-[#3a1a20]'}`}></div>
+             <span className="text-[10px] text-zinc-500 font-bold tracking-[0.2em] uppercase font-recorder">RECORD / POWER</span>
+          </div>
+          <div className="text-[10px] text-zinc-600 font-bold tracking-widest font-recorder">AUTO STOP</div>
+        </div>
 
+        {/* --- Buttons Section: shrink-0 - NEVER folds --- */}
+        <div className="relative z-10 flex flex-col gap-6 shrink-0">
            <div className="grid grid-cols-6 gap-3 p-3 bg-[#151515] rounded-2xl border-t border-white/5 shadow-[inset_0_8px_16px_rgba(0,0,0,0.8)]">
                <MechanicalButton label="REC" icon={Mic} color="red" onClick={onRecord} active={state === RecorderState.RECORDING} soundUrl={clickSoundUrl} />
                <MechanicalButton label="PLAY" icon={Play} onClick={onPlay} active={state === RecorderState.PLAYING} soundUrl={clickSoundUrl} />
@@ -251,7 +249,7 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
                <MechanicalButton label="F.FWD" icon={FastForward} onClick={onFastForward} soundUrl={clickSoundUrl} />
                <MechanicalButton label="STOP" icon={Square} onClick={onStop} soundUrl={clickSoundUrl} />
            </div>
-           
+
            <div className="flex justify-between items-center px-2 pt-2 border-t border-white/5">
               <button onClick={onErase} className="group flex items-center gap-2 text-zinc-600 hover:text-[#903e4f] transition-colors">
                 <div className="p-1.5 rounded-full bg-zinc-900 border border-zinc-800 group-hover:border-[#903e4f]/50">
@@ -269,26 +267,9 @@ const RecorderUI: React.FC<RecorderUIProps> = ({
                  </div>
               </div>
            </div>
-
         </div>
 
       </div>
-
-      {/* Drawer Trigger */}
-      <button 
-        onClick={onToggleDrawer}
-        className="mt-12 group flex flex-col items-center gap-3 transition-all duration-500 hover:-translate-y-1"
-      >
-        <div className="relative">
-          <div className="w-32 h-2.5 bg-[#1a1a1a] rounded-full border border-zinc-800 shadow-2xl group-hover:w-40 transition-all duration-500 overflow-hidden">
-             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-          </div>
-          <div className="absolute -top-1 -right-1 w-2 h-2 bg-[#903e4f] rounded-full animate-pulse shadow-[0_0_8px_rgba(144,62,79,0.6)]"></div>
-        </div>
-        <div className="text-zinc-500 font-journal text-[10px] tracking-[0.4em] uppercase group-hover:text-[#903e4f] transition-colors">
-          Access Archive
-        </div>
-      </button>
 
     </div>
   );
