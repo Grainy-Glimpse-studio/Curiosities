@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import emailjs from '@emailjs/browser';
-import { X, Minus, Maximize2, Minimize2, Play, Pause, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2, Save } from 'lucide-react';
+import { X, Minus, Maximize2, Minimize2, Play, Pause, Square, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2, Save } from 'lucide-react';
 import { Memo } from '../types';
 import MarkdownEditor, { MarkdownEditorRef } from './MarkdownEditor';
 
@@ -85,6 +85,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [showProjectInfo, setShowProjectInfo] = useState(false); // 显示项目介绍
   const [isSyncing, setIsSyncing] = useState(false); // 云同步中
+  const [flowEnabled, setFlowEnabled] = useState(true); // 播放时文字发光效果
 
   // AI 侧边栏状态
   const [showAISidebar, setShowAISidebar] = useState(false);
@@ -614,33 +615,57 @@ Sent from Diane`
 
                     <div className="w-px h-5 bg-white/20 mx-1" />
 
-                    {/* Distill 按钮 - 只保留选中的文字 */}
+                    {/* Distill 按钮 - 只保留发光标记的文字 */}
                     <button
                       onClick={() => {
                         const editor = editorRef.current?.editor;
                         if (!editor) return;
 
-                        // 检查是否有选中文字
-                        const { from, to, empty } = editor.state.selection;
-                        if (empty) {
-                          alert('Please select text first.');
+                        // 提取所有发光标记的文字 (Cmd+D 标记的)
+                        const glowingTexts: string[] = [];
+                        const json = editor.getJSON();
+
+                        // 递归遍历文档，提取所有发光文字
+                        const extractGlowing = (node: any): void => {
+                          if (node.type === 'text' && node.marks) {
+                            const hasHighlight = node.marks.some((mark: any) => mark.type === 'highlight');
+                            if (hasHighlight && node.text) {
+                              glowingTexts.push(node.text);
+                            }
+                          }
+                          if (node.content) {
+                            node.content.forEach(extractGlowing);
+                          }
+                        };
+                        extractGlowing(json);
+
+                        if (glowingTexts.length === 0) {
+                          alert('No glowing text found. Use Cmd+D to mark text first.');
                           return;
                         }
 
-                        // 获取选中的文字（保留格式）
-                        const slice = editor.state.doc.slice(from, to);
-                        const content = {
-                          type: 'doc',
-                          content: slice.content.toJSON()
-                        };
-
-                        // 用选中的内容替换整个文档
-                        editor.commands.setContent(content);
+                        // 用发光内容替换文档
+                        const combinedText = glowingTexts.join('\n\n');
+                        editor.commands.setContent(`<p>${combinedText.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`);
                       }}
                       className="px-3 py-1.5 rounded text-sm font-medium text-white/70 hover:text-white hover:bg-white/20 transition-colors"
-                      title="Keep only selected text"
+                      title="Keep only glowing text (Cmd+D marked)"
                     >
                       Distill
+                    </button>
+
+                    {/* Clear 按钮 - 清除所有发光标记 */}
+                    <button
+                      onClick={() => {
+                        const editor = editorRef.current?.editor;
+                        if (!editor) return;
+                        // 选中全部并移除发光标记
+                        editor.chain().focus().selectAll().unsetHighlight().run();
+                      }}
+                      className="px-2 py-1.5 rounded text-xs font-medium text-white/40 hover:text-white/70 hover:bg-white/10 transition-colors"
+                      title="Clear all glow marks"
+                    >
+                      Clear
                     </button>
 
                     <div className="w-px h-5 bg-white/20 mx-1" />
@@ -764,7 +789,7 @@ Sent from Diane`
                     }}
                     transition={{ duration: 1.5, ease: 'easeInOut' }}
                   >
-                    {isPlayingInModal ? (
+                    {isPlayingInModal && flowEnabled ? (
                       <KaraokeText
                         text={memo.transcription}
                         progress={playbackProgress}
@@ -785,6 +810,7 @@ Sent from Diane`
                 {/* 底部控制栏 */}
                 <div className="px-6 pt-4 pb-4 bg-transparent flex justify-between items-center shrink-0">
                   <div className="flex items-center gap-3">
+                    {/* Play/Pause 按钮 */}
                     <button
                       onClick={playInModal}
                       className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border border-white/10 hover:border-white/20 transition-colors"
@@ -798,6 +824,35 @@ Sent from Diane`
                       <span className="text-sm">
                         {isPlayingInModal ? 'Pause' : 'Play'}
                       </span>
+                    </button>
+
+                    {/* Stop 按钮 */}
+                    <button
+                      onClick={stopModalPlayback}
+                      disabled={!isPlayingInModal && playbackProgress === 0}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-colors ${
+                        isPlayingInModal || playbackProgress > 0
+                          ? 'bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border-white/10 hover:border-white/20'
+                          : 'bg-white/5 text-white/20 border-white/10 cursor-default'
+                      }`}
+                      style={{ fontFamily: contentFont }}
+                    >
+                      <Square size={12} fill="currentColor" />
+                      <span className="text-sm">Stop</span>
+                    </button>
+
+                    {/* Flow 开关 - 播放时文字发光效果 */}
+                    <button
+                      onClick={() => setFlowEnabled(!flowEnabled)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-colors ${
+                        flowEnabled
+                          ? 'bg-white/10 text-white border-white/30'
+                          : 'bg-white/5 text-white/40 border-white/10 hover:text-white/60'
+                      }`}
+                      style={{ fontFamily: contentFont }}
+                      title="Toggle text flow effect during playback"
+                    >
+                      <span className="text-sm">Flow</span>
                     </button>
 
                     {/* Save 按钮 */}
