@@ -718,16 +718,9 @@ const HomePage: React.FC = () => {
   };
 
   const pauseRecording = () => {
+    // 暂停 = 停止并保存为卡带（之后可以通过 Resume 继续录音）
     if (recorderState === RecorderState.RECORDING) {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        mediaRecorderRef.current.pause();
-      }
-      setRecorderState(RecorderState.PAUSED);
-    } else if (recorderState === RecorderState.PAUSED) {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
-        mediaRecorderRef.current.resume();
-      }
-      setRecorderState(RecorderState.RECORDING);
+      stopRecording();
     }
   };
 
