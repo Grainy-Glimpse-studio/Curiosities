@@ -292,6 +292,8 @@ const HomePage: React.FC = () => {
   // 使用 ref 存储 resume 状态，避免闭包问题
   const resumingMemoIdRef = useRef<string | null>(null);
   const resumingMemoRef = useRef<Memo | null>(null);
+  // PAUSE 后应该 Resume 的标志（物理录音机逻辑：PAUSE 后按 REC = Resume）
+  const shouldResumeAfterPauseRef = useRef<boolean>(false);
 
   // --- Check if returning from About page with archive open ---
   useEffect(() => {
@@ -670,6 +672,17 @@ const HomePage: React.FC = () => {
 
           setMemos(prev => [newMemo, ...prev]);
           setCurrentMemoId(newMemo.id);
+
+          // 如果是 PAUSE 触发的停止，设置 Resume 状态
+          // 下次按 REC 会继续追加到这个 memo
+          if (shouldResumeAfterPauseRef.current) {
+            console.log('[Pause→Resume] Setting up for resume, memo ID:', newMemo.id);
+            setResumingMemoId(newMemo.id);
+            setResumingMemo(newMemo);
+            resumingMemoIdRef.current = newMemo.id;
+            resumingMemoRef.current = newMemo;
+            shouldResumeAfterPauseRef.current = false; // 重置标志
+          }
         }
 
         setRecorderState(RecorderState.IDLE);
@@ -789,8 +802,10 @@ const HomePage: React.FC = () => {
   });
 
   const pauseRecording = () => {
-    // 暂停 = 停止并保存为卡带（之后可以通过 Resume 继续录音）
+    // 暂停 = 保存当前进度，但标记为可 Resume（物理录音机逻辑）
+    // PAUSE 后按 REC = Resume，按 STOP = 彻底结束
     if (recorderState === RecorderState.RECORDING) {
+      shouldResumeAfterPauseRef.current = true; // 标记：下次 REC 应该 Resume
       stopRecording();
     }
   };
@@ -817,6 +832,19 @@ const HomePage: React.FC = () => {
         elapsedTimeRef.current = 0;
       }
     }
+  };
+
+  // STOP 按钮：彻底结束录音，清除所有 Resume 状态
+  const finalStopRecording = () => {
+    console.log('[FinalStop] Clearing all resume state');
+    // 清除 Resume 状态（STOP = 录音彻底结束）
+    shouldResumeAfterPauseRef.current = false;
+    setResumingMemoId(null);
+    setResumingMemo(null);
+    resumingMemoIdRef.current = null;
+    resumingMemoRef.current = null;
+    // 然后正常停止
+    stopRecording();
   };
 
   // --- Playback Logic ---
@@ -1265,7 +1293,7 @@ const HomePage: React.FC = () => {
               currentMemo={memos.find(m => m.id === currentMemoId) || null}
               onRecord={startRecording}
               onPause={pauseRecording}
-              onStop={stopRecording}
+              onStop={finalStopRecording}
               onPlay={playCurrentMemo}
               onRewind={handleRewind}
               onFastForward={handleFastForward}
