@@ -2,7 +2,6 @@ import { useEffect, useMemo, useImperativeHandle, forwardRef } from 'react';
 import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
-import Highlight from '@tiptap/extension-highlight';
 
 interface MarkdownEditorProps {
   content: string;
@@ -58,37 +57,12 @@ const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(({
         },
       }),
       Underline,
-      Highlight.configure({
-        multicolor: false,
-        HTMLAttributes: {
-          class: 'editor-highlight',
-        },
-      }),
     ],
     content: htmlContent,
     editorProps: {
       attributes: {
         class: 'prose prose-invert max-w-none focus:outline-none min-h-[200px]',
         style: `font-family: ${fontFamily}; color: ${textColor};`,
-      },
-      handleKeyDown: (view, event) => {
-        // Cmd+D (Mac) or Ctrl+D (Windows) to toggle highlight on selection
-        if ((event.metaKey || event.ctrlKey) && event.key === 'd') {
-          event.preventDefault();
-          const { state } = view;
-          const { from, to, empty } = state.selection;
-          if (!empty) {
-            // Toggle highlight mark on selection
-            const hasHighlight = state.doc.rangeHasMark(from, to, state.schema.marks.highlight);
-            if (hasHighlight) {
-              view.dispatch(state.tr.removeMark(from, to, state.schema.marks.highlight));
-            } else {
-              view.dispatch(state.tr.addMark(from, to, state.schema.marks.highlight.create()));
-            }
-          }
-          return true;
-        }
-        return false;
       },
     },
     onUpdate: ({ editor }) => {
@@ -191,14 +165,6 @@ const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>(({
           text-decoration: underline;
           text-decoration-color: rgba(255,255,255,0.5);
           text-underline-offset: 3px;
-        }
-        /* Multi-select highlight - Cmd+D 标记的文字 */
-        .ProseMirror .editor-highlight,
-        .ProseMirror mark {
-          background: rgba(144, 62, 79, 0.3);
-          border-radius: 2px;
-          padding: 0 2px;
-          box-shadow: 0 0 8px rgba(144, 62, 79, 0.4);
         }
       `}</style>
       <EditorContent editor={editor} />

@@ -614,41 +614,16 @@ Sent from Diane`
 
                     <div className="w-px h-5 bg-white/20 mx-1" />
 
-                    {/* Distill 按钮 - 只保留标记或选中的文字 */}
+                    {/* Distill 按钮 - 只保留选中的文字 */}
                     <button
                       onClick={() => {
                         const editor = editorRef.current?.editor;
                         if (!editor) return;
 
-                        // 首先检查是否有高亮标记的文字 (Cmd+D 标记的)
-                        const highlightedTexts: string[] = [];
-                        const json = editor.getJSON();
-
-                        // 递归遍历文档，提取所有高亮文字
-                        const extractHighlights = (node: any): void => {
-                          if (node.type === 'text' && node.marks) {
-                            const hasHighlight = node.marks.some((mark: any) => mark.type === 'highlight');
-                            if (hasHighlight && node.text) {
-                              highlightedTexts.push(node.text);
-                            }
-                          }
-                          if (node.content) {
-                            node.content.forEach(extractHighlights);
-                          }
-                        };
-                        extractHighlights(json);
-
-                        if (highlightedTexts.length > 0) {
-                          // 有高亮标记，用高亮内容替换文档
-                          const combinedText = highlightedTexts.join('\n\n');
-                          editor.commands.setContent(`<p>${combinedText.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`);
-                          return;
-                        }
-
-                        // 没有高亮，检查是否有选中文字
+                        // 检查是否有选中文字
                         const { from, to, empty } = editor.state.selection;
                         if (empty) {
-                          alert('Please select text or use Cmd+D to mark text first.');
+                          alert('Please select text first.');
                           return;
                         }
 
@@ -663,23 +638,9 @@ Sent from Diane`
                         editor.commands.setContent(content);
                       }}
                       className="px-3 py-1.5 rounded text-sm font-medium text-white/70 hover:text-white hover:bg-white/20 transition-colors"
-                      title="Keep only marked (Cmd+D) or selected text"
+                      title="Keep only selected text"
                     >
                       Distill
-                    </button>
-
-                    {/* Clear Marks 按钮 - 清除所有高亮标记 */}
-                    <button
-                      onClick={() => {
-                        const editor = editorRef.current?.editor;
-                        if (!editor) return;
-                        // 选中全部并移除高亮
-                        editor.chain().focus().selectAll().unsetHighlight().run();
-                      }}
-                      className="px-2 py-1.5 rounded text-xs font-medium text-white/40 hover:text-white/70 hover:bg-white/10 transition-colors"
-                      title="Clear all marks (Cmd+D highlights)"
-                    >
-                      Clear
                     </button>
 
                     <div className="w-px h-5 bg-white/20 mx-1" />
