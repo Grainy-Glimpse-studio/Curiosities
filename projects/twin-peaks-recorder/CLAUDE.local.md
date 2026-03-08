@@ -1046,25 +1046,47 @@ Bug Report 面板 UI 已实现：
 
 ## 🐛 当前 Bug（2026-03-08 晨）
 
-### Bug 1: Duration 为 0
+### Bug 1: Duration 为 0 ✅ 已修复
+
+使用 `elapsedTimeRef` 代替闭包捕获的 `elapsedTime`
+
+### Bug 2: localStorage 配额满 ✅ 用户手动清理
+
+运行 `localStorage.clear()` 清理
+
+### Bug 3: 播放状态不同步 🔴 待修复
 
 **现象**：
-- `newDuration: 0`
-- `m.duration (current state): 0`
-- `total duration: 0`
+- 从卡带黑色容器点 Play → 跳转主页播放 ✓
+- 从浮动窗口点 Play → 在窗口内播放，但：
+  - 回到主页后播放停止 ✗
+  - 主页 Play 按钮没有按下状态 ✗
+  - 应该继续播放，主页按钮显示播放中 ✗
 
-**影响**：时间戳偏移计算错误，Flow 效果不正确
-
-**可能原因**：`elapsedTime` 状态没有正确更新
-
-### Bug 2: localStorage 配额满
-
-**错误**：`QuotaExceededError: Failed to execute 'setItem' on 'Storage'`
-
-**原因**：localStorage 约 5MB 限制，存储了太多 base64 音频数据
+**期望行为**：
+- 所有播放入口应该共享同一个播放状态
+- 不管从哪里开始播放，主页的 Play 按钮都应该显示按下状态
+- 用户切换界面时，播放不应该中断
 
 **解决方案**：
-- 定期清理旧数据
-- 压缩存储
-- 或使用 IndexedDB 代替 localStorage
+- 将播放状态提升到 HomePage 统一管理
+- FloatingTranscript 调用 HomePage 的播放函数
+- 共享同一个 audio 元素
+
+### Bug 4: Resume 时间戳偏移不正确 🔴 待修复
+
+**现象**：Resume 后的 Flow 效果时间戳不对
+
+**可能原因**：
+- `currentResumingMemo.duration` 是 0（之前的 bug 影响）
+- 需要在修复 duration 后重新测试
+
+### Bug 5: Resume 中切换语言后不保存文字 🔴 待修复
+
+**现象**：
+- Resume 录音中切换语言
+- 主页 floating words 显示识别的文字
+- 但停止后 transcript 是空的
+
+**原因**：和之前 interim fallback 一样的问题，可能切换语言后新的连接没有正确累积
 

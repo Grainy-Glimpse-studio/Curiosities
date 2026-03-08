@@ -24,6 +24,9 @@ interface FloatingTranscriptProps {
   onSyncToCloud?: (memo: Memo) => Promise<void>;
   isSynced?: boolean;
   isLoggedIn?: boolean;
+  // 全局播放状态同步
+  globalPlayingMemoId?: string | null;
+  onPlayStateChange?: (memoId: string | null, isPlaying: boolean) => void;
 }
 
 // SRT 时间格式转换：秒 -> HH:MM:SS,mmm
@@ -368,6 +371,8 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   onSyncToCloud,
   isSynced = false,
   isLoggedIn = false,
+  globalPlayingMemoId,
+  onPlayStateChange,
 }) => {
   const [position, setPosition] = useState({ x: 100, y: 100 });
   const [size, setSize] = useState({ width: 720, height: 580 });
@@ -459,6 +464,23 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       setTocItems(items);
     }
   }, [isPlayingInModal, hasUnsavedChanges]); // 编辑后更新
+
+  // 通知 parent 播放状态变化
+  useEffect(() => {
+    if (onPlayStateChange && memo) {
+      onPlayStateChange(isPlayingInModal ? memo.id : null, isPlayingInModal);
+    }
+  }, [isPlayingInModal, memo, onPlayStateChange]);
+
+  // 如果其他 memo 开始播放，停止当前播放
+  useEffect(() => {
+    if (globalPlayingMemoId && memo && globalPlayingMemoId !== memo.id && isPlayingInModal) {
+      modalAudioRef.current?.pause();
+      setIsPlayingInModal(false);
+      setPlaybackProgress(0);
+      setCurrentPlaybackTime(0);
+    }
+  }, [globalPlayingMemoId, memo, isPlayingInModal]);
 
   // 滚动到指定标题
   const scrollToHeading = (headingIndex: number) => {

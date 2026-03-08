@@ -283,6 +283,9 @@ const HomePage: React.FC = () => {
   const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
   const trashInitializedRef = useRef(false);
 
+  // 全局播放状态（用于同步 FloatingTranscript 和主页播放器）
+  const [globalPlayingMemoId, setGlobalPlayingMemoId] = useState<string | null>(null);
+
   // Resume 录音状态
   const [resumingMemoId, setResumingMemoId] = useState<string | null>(null);
   const [resumingMemo, setResumingMemo] = useState<Memo | null>(null);
@@ -801,6 +804,7 @@ const HomePage: React.FC = () => {
       setRecorderState(RecorderState.IDLE);
       setElapsedTime(0);
       elapsedTimeRef.current = 0;
+      setGlobalPlayingMemoId(null); // 清除全局播放状态
       return;
     }
 
@@ -829,6 +833,7 @@ const HomePage: React.FC = () => {
       player.pause();
       setIsDrawerOpen(false);
       setCurrentMemoId(memo.id);
+      setGlobalPlayingMemoId(memo.id); // 设置全局播放状态
       setRecorderState(RecorderState.PLAYING);
 
       // 只播放第一段（主页面播放器简单实现）
@@ -867,6 +872,7 @@ const HomePage: React.FC = () => {
       setRecorderState(RecorderState.IDLE);
       setElapsedTime(0);
       elapsedTimeRef.current = 0;
+      setGlobalPlayingMemoId(null); // 清除全局播放状态
     };
 
     const onError = (e: any) => {
@@ -1067,6 +1073,17 @@ const HomePage: React.FC = () => {
           onSyncToCloud={handleSyncToCloud}
           isSynced={syncedMemoIds.has(memo.id)}
           isLoggedIn={!!user}
+          globalPlayingMemoId={globalPlayingMemoId}
+          onPlayStateChange={(memoId, isPlaying) => {
+            setGlobalPlayingMemoId(isPlaying ? memoId : null);
+            // 如果浮动窗口开始播放，更新主页状态
+            if (isPlaying && memoId) {
+              setCurrentMemoId(memoId);
+              setRecorderState(RecorderState.PLAYING);
+            } else if (!isPlaying && globalPlayingMemoId === memoId) {
+              setRecorderState(RecorderState.IDLE);
+            }
+          }}
         />
       ))}
 
