@@ -555,8 +555,9 @@ Sent from Diane`
                     <button
                       onClick={() => setFlowEnabled(!flowEnabled)}
                       className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
-                        flowEnabled ? 'text-white bg-white/20' : 'text-white/50 hover:text-white/70 hover:bg-white/10'
+                        flowEnabled ? 'text-white' : 'text-white/50 hover:text-white/70 hover:bg-white/10'
                       }`}
+                      style={flowEnabled ? { textShadow: '0 0 8px rgba(255,255,255,0.8), 0 0 16px rgba(255,255,255,0.5)' } : {}}
                       title="Toggle text flow effect during playback"
                     >
                       Flow
