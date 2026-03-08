@@ -848,7 +848,7 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
           >
            <div
              className="flex flex-wrap gap-8 pb-32"
-             style={{ width: gridContainerWidth }}
+             style={{ width: `${gridContainerWidth}px`, maxWidth: `${gridContainerWidth}px` }}
            >
              {/* Upload Tape - always first, also draggable */}
              <motion.div
