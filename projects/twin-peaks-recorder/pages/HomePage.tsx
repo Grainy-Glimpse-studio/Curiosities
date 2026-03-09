@@ -43,8 +43,8 @@ Second stop, the Regional Bureau Office, to pick up some files. Although I have 
   tags: ['Diane', 'Seattle'],
   createdAt: new Date('1990-04-08T08:00:00').getTime(),
   isPermanent: true,
-  duration: 60,
-  segmentDurations: [60],
+  duration: 102, // 实际音频时长 101.7 秒
+  segmentDurations: [102],
   audioOffset: 8, // 开头静音约 8 秒
 };
 
@@ -970,7 +970,8 @@ const HomePage: React.FC = () => {
   }, []);
 
   // 开始播放 memo（从头开始）
-  const playMemo = useCallback(async (memo: Memo) => {
+  // closeDrawer: 是否关闭抽屉（从磁带卡片点击时关闭，从浮动窗口点击时不关闭）
+  const playMemo = useCallback(async (memo: Memo, closeDrawer: boolean = true) => {
     if (recorderState === RecorderState.RECORDING || recorderState === RecorderState.PROCESSING) return;
     if (!audioPlayerRef.current) return;
 
@@ -992,7 +993,10 @@ const HomePage: React.FC = () => {
     // 停止当前播放
     audioPlayerRef.current.pause();
 
-    setIsDrawerOpen(false);
+    // 只有从磁带卡片点击时才关闭抽屉
+    if (closeDrawer) {
+      setIsDrawerOpen(false);
+    }
     setCurrentMemoId(memo.id);
     setGlobalPlayingMemoId(memo.id);
     setIsGlobalPlaying(true);
@@ -1002,7 +1006,7 @@ const HomePage: React.FC = () => {
     playFromSegment(memo, 0, 0);
   }, [recorderState, playFromSegment]);
 
-  // 切换播放/暂停（三个遥控器都调用这个）
+  // 切换播放/暂停（从磁带卡片调用 - 会关闭抽屉跳到主页）
   const handleTogglePlay = useCallback((memo: Memo) => {
     const player = audioPlayerRef.current;
     if (!player) return;
@@ -1020,8 +1024,29 @@ const HomePage: React.FC = () => {
         setRecorderState(RecorderState.PLAYING);
       }
     } else {
-      // 播放新的 memo
-      playMemo(memo);
+      // 播放新的 memo（关闭抽屉）
+      playMemo(memo, true);
+    }
+  }, [globalPlayingMemoId, isGlobalPlaying, playMemo]);
+
+  // 切换播放/暂停（从浮动窗口调用 - 不关闭抽屉）
+  const handleTogglePlayInWindow = useCallback((memo: Memo) => {
+    const player = audioPlayerRef.current;
+    if (!player) return;
+
+    // 如果是同一个 memo
+    if (globalPlayingMemoId === memo.id) {
+      if (isGlobalPlaying) {
+        player.pause();
+        setIsGlobalPlaying(false);
+      } else {
+        player.play();
+        setIsGlobalPlaying(true);
+        setRecorderState(RecorderState.PLAYING);
+      }
+    } else {
+      // 播放新的 memo（不关闭抽屉）
+      playMemo(memo, false);
     }
   }, [globalPlayingMemoId, isGlobalPlaying, playMemo]);
 
@@ -1292,7 +1317,7 @@ const HomePage: React.FC = () => {
           isGlobalPlaying={isGlobalPlaying}
           globalPlaybackTime={globalPlaybackTime}
           globalPlaybackProgress={globalPlaybackProgress}
-          onTogglePlay={handleTogglePlay}
+          onTogglePlay={handleTogglePlayInWindow}
           onStopPlay={handleStopPlay}
           onSeek={handleSeek}
         />

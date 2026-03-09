@@ -1218,7 +1218,7 @@ Sent from Diane`
                   </div>
 
                   {/* 目录列表 - Bear 风格 */}
-                  <div className="flex-1 overflow-y-auto py-2">
+                  <div className="flex-1 overflow-y-auto thin-scrollbar py-2">
                     {tocItems.length === 0 ? (
                       <div className="px-3 py-4 text-white/40 text-xs text-center">
                         No content yet.<br/>
@@ -1536,7 +1536,7 @@ Sent from Diane`
                 )}
 
                 {/* 文本内容 */}
-                <div ref={contentRef} className="flex-1 overflow-y-auto p-6 relative">
+                <div ref={contentRef} className="flex-1 overflow-y-auto thin-scrollbar p-6 relative">
                   {/* 项目介绍 - 暗房显影效果 */}
                   <AnimatePresence>
                     {showProjectInfo && (
@@ -1804,7 +1804,7 @@ Sent from Diane`
                   </div>
 
                   {/* 选项列表 */}
-                  <div className="flex-1 overflow-y-auto p-3">
+                  <div className="flex-1 overflow-y-auto thin-scrollbar p-3">
                     {/* 普通功能（不需要 AI） */}
                     <div className="text-white/40 text-xs uppercase tracking-wider px-3 mb-2">Basic</div>
 
@@ -2000,7 +2000,7 @@ Sent from Diane`
                   </div>
 
                   {/* Export 两列布局 */}
-                  <div className="flex-1 flex flex-row overflow-y-auto">
+                  <div className="flex-1 flex flex-row overflow-y-auto thin-scrollbar">
                     {/* 左列：文本输出 */}
                     <div className="flex-1 p-4 pb-6 border-r border-white/20">
                       <div className="text-white/50 text-xs uppercase tracking-wider mb-3">Text</div>
