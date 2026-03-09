@@ -423,24 +423,26 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const progressBarRef = useRef<HTMLDivElement>(null); // 进度条 ref
   const isDraggingRef = useRef(false); // 拖动进度条时不更新显示
 
-  // AI 侧边栏状态
-  const [showAISidebar, setShowAISidebar] = useState(false);
-  const [showCustomPanel, setShowCustomPanel] = useState(false); // 第三个面板
-  const [selectedAIFeatures, setSelectedAIFeatures] = useState<string[]>([]);
+  // 三面展开状态
+  const [showTOC, setShowTOC] = useState(false); // 左侧：目录
+  const [showShortcuts, setShowShortcuts] = useState(false); // 右侧：Shortcuts
+  const [showExportPanel, setShowExportPanel] = useState(false); // 下方：Export
+
+  // Shortcuts 面板状态
+  const [selectedShortcuts, setSelectedShortcuts] = useState<string[]>([]);
   const [customPrompt, setCustomPrompt] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [isProcessingAI, setIsProcessingAI] = useState(false);
+  const [isProcessingShortcut, setIsProcessingShortcut] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 左侧目录栏状态
-  const [showTOC, setShowTOC] = useState(false);
+  // TOC 目录状态
   const [tocItems, setTocItems] = useState<TOCItem[]>([]);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // 侧边栏宽度
+  // 面板尺寸
   const TOC_SIDEBAR_WIDTH = 180;
-  const AI_SIDEBAR_WIDTH = 220;
-  const CUSTOM_PANEL_WIDTH = 280;
+  const SHORTCUTS_WIDTH = 240;
+  const EXPORT_PANEL_HEIGHT = 200;
 
   const windowRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLSpanElement>(null);
@@ -465,13 +467,37 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     }
   }, [isOpen, initialOffset, memo]);
 
-  // 更新目录（当编辑器内容变化时）
-  useEffect(() => {
-    if (editorRef.current?.editor && !isThisMemoPlaying) {
+  // 更新目录的函数
+  const updateTOC = React.useCallback(() => {
+    if (editorRef.current?.editor && !isThisMemoPlaying && showTOC) {
       const items = extractTOCFromEditor(editorRef.current.editor);
       setTocItems(items);
     }
-  }, [isThisMemoPlaying, hasUnsavedChanges]); // 编辑后更新
+  }, [isThisMemoPlaying, showTOC]);
+
+  // 更新目录（当编辑器内容变化时）
+  useEffect(() => {
+    updateTOC();
+  }, [updateTOC, hasUnsavedChanges]);
+
+  // 监听编辑器更新事件（实时更新 TOC）
+  useEffect(() => {
+    const editor = editorRef.current?.editor;
+    if (!editor || !showTOC) return;
+
+    // 使用 debounce 避免频繁更新
+    let timeoutId: NodeJS.Timeout;
+    const handleUpdate = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(updateTOC, 300); // 300ms 防抖
+    };
+
+    editor.on('update', handleUpdate);
+    return () => {
+      editor.off('update', handleUpdate);
+      clearTimeout(timeoutId);
+    };
+  }, [showTOC, updateTOC]);
 
   // 滚动到指定标题
   const scrollToHeading = (headingIndex: number) => {
@@ -647,7 +673,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   };
 
   // AI 功能选择切换
-  const toggleAIFeature = (feature: string) => {
+  const toggleShortcut = (feature: string) => {
     setSelectedAIFeatures(prev =>
       prev.includes(feature)
         ? prev.filter(f => f !== feature)
@@ -661,7 +687,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     if (file) {
       setUploadedFile(file);
       // Auto-select custom feature when file is uploaded
-      if (!selectedAIFeatures.includes('custom')) {
+      if (!selectedShortcuts.includes('custom')) {
         setSelectedAIFeatures(prev => [...prev, 'custom']);
       }
     }
@@ -675,8 +701,8 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   };
 
   // 应用 AI 处理
-  const handleApplyAI = async () => {
-    if (selectedAIFeatures.length === 0) return;
+  const handleApplyShortcuts = async () => {
+    if (selectedShortcuts.length === 0) return;
     setIsProcessingAI(true);
 
     const editor = editorRef.current?.editor;
@@ -687,7 +713,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
 
     try {
       // 1. Underline → Headings (本地处理，不需要 AI)
-      if (selectedAIFeatures.includes('underline-to-headings')) {
+      if (selectedShortcuts.includes('underline-to-headings')) {
         // 获取当前文档 JSON
         const json = editor.getJSON();
 
@@ -732,7 +758,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       }
 
       // 2. Cleanup - 本地处理（去除口癖词和重复）
-      if (selectedAIFeatures.includes('cleanup')) {
+      if (selectedShortcuts.includes('cleanup')) {
         const text = editor.getText();
 
         // 定义要移除的口癖词（中英文）
@@ -777,13 +803,13 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       }
 
       // 3. TODO: Summary (需要 AI API)
-      if (selectedAIFeatures.includes('summary')) {
+      if (selectedShortcuts.includes('summary')) {
         console.log('[AI Processing] Summary - needs API integration');
         // TODO: 接入 AI API
       }
 
       // 4. TODO: Custom Cleanup (需要 AI API)
-      if (selectedAIFeatures.includes('custom')) {
+      if (selectedShortcuts.includes('custom')) {
         console.log('[AI Processing] Custom Cleanup - needs API integration');
         if (customPrompt) {
           console.log('[AI Processing] Custom prompt:', customPrompt);
@@ -795,13 +821,13 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       }
 
       // 5. TODO: Re-transcribe (需要原始音频 + AI API)
-      if (selectedAIFeatures.includes('retranscribe')) {
+      if (selectedShortcuts.includes('retranscribe')) {
         console.log('[AI Processing] Re-transcribe - needs API integration');
         // TODO: 使用原始音频重新转写
       }
 
       // 模拟处理延迟（后续接入 API 后可移除）
-      if (!selectedAIFeatures.includes('underline-to-headings')) {
+      if (!selectedShortcuts.includes('underline-to-headings')) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     } catch (error) {
@@ -1090,16 +1116,18 @@ Sent from Diane`
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
             transition={{ duration: 0.3 }}
-            className="fixed z-[200] flex flex-row backdrop-blur-2xl rounded-2xl shadow-2xl overflow-hidden border border-white/60"
+            className="fixed z-[200] flex flex-col backdrop-blur-2xl rounded-2xl shadow-2xl overflow-hidden border border-white/60"
             style={{
-              left: position.x - (showTOC ? TOC_SIDEBAR_WIDTH / 2 : 0) - (showAISidebar ? (AI_SIDEBAR_WIDTH + (selectedAIFeatures.includes('custom') ? CUSTOM_PANEL_WIDTH : 0)) / 2 : 0),
+              left: position.x - (showTOC ? TOC_SIDEBAR_WIDTH / 2 : 0) - (showShortcuts ? SHORTCUTS_WIDTH / 2 : 0),
               top: position.y,
-              width: isMinimized ? 300 : (size.width + (showTOC ? TOC_SIDEBAR_WIDTH : 0) + (showAISidebar ? AI_SIDEBAR_WIDTH : 0) + (showAISidebar && selectedAIFeatures.includes('custom') ? CUSTOM_PANEL_WIDTH : 0)),
-              height: isMinimized ? 48 : size.height,
+              width: isMinimized ? 300 : (size.width + (showTOC ? TOC_SIDEBAR_WIDTH : 0) + (showShortcuts ? SHORTCUTS_WIDTH : 0)),
+              height: isMinimized ? 48 : (size.height + (showExportPanel ? EXPORT_PANEL_HEIGHT : 0)),
               backgroundColor: 'rgba(255, 255, 255, 0)',
-              transition: 'left 0.3s ease, width 0.3s ease',
+              transition: 'left 0.3s ease, width 0.3s ease, height 0.3s ease',
             }}
           >
+            {/* 上层：TOC + 主内容 + Shortcuts（水平排列） */}
+            <div className="flex flex-row flex-1 min-h-0">
             {/* 左侧目录栏 (TOC) */}
             <AnimatePresence>
               {showTOC && !isMinimized && (
@@ -1108,7 +1136,7 @@ Sent from Diane`
                   animate={{ width: TOC_SIDEBAR_WIDTH, opacity: 1 }}
                   exit={{ width: 0, opacity: 0 }}
                   transition={{ duration: 0.3, ease: 'easeInOut' }}
-                  className="flex flex-col border-r border-white/20 overflow-hidden bg-black/20"
+                  className="flex flex-col border-r border-white/20 overflow-hidden"
                   style={{ minWidth: TOC_SIDEBAR_WIDTH }}
                 >
                   {/* 目录标题 */}
@@ -1358,72 +1386,17 @@ Sent from Diane`
 
                     <div className="w-px h-5 bg-white/20 mx-1" />
 
-                    {/* Distill 按钮 - 只保留发光标记的文字 */}
+                    {/* Shortcuts 按钮 - 切换右侧面板 */}
                     <button
-                      onClick={() => {
-                        const editor = editorRef.current?.editor;
-                        if (!editor) return;
-
-                        // 提取所有发光标记的文字 (Cmd+D 标记的)
-                        const glowingTexts: string[] = [];
-                        const json = editor.getJSON();
-
-                        // 递归遍历文档，提取所有发光文字
-                        const extractGlowing = (node: any): void => {
-                          if (node.type === 'text' && node.marks) {
-                            const hasHighlight = node.marks.some((mark: any) => mark.type === 'highlight');
-                            if (hasHighlight && node.text) {
-                              glowingTexts.push(node.text);
-                            }
-                          }
-                          if (node.content) {
-                            node.content.forEach(extractGlowing);
-                          }
-                        };
-                        extractGlowing(json);
-
-                        if (glowingTexts.length === 0) {
-                          alert('No glowing text found. Use Cmd+D to mark text first.');
-                          return;
-                        }
-
-                        // 用发光内容替换文档
-                        const combinedText = glowingTexts.join('\n\n');
-                        editor.commands.setContent(`<p>${combinedText.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`);
-                      }}
-                      className="px-3 py-1.5 rounded text-sm font-medium text-white/70 hover:text-white hover:bg-white/20 transition-colors"
-                      title="Keep only glowing text (Cmd+D marked)"
-                    >
-                      Distill
-                    </button>
-
-                    {/* Clear 按钮 - 清除所有发光标记 */}
-                    <button
-                      onClick={() => {
-                        const editor = editorRef.current?.editor;
-                        if (!editor) return;
-                        // 选中全部并移除发光标记
-                        editor.chain().focus().selectAll().unsetHighlight().run();
-                      }}
-                      className="px-2 py-1.5 rounded text-xs font-medium text-white/40 hover:text-white/70 hover:bg-white/10 transition-colors"
-                      title="Clear all glow marks"
-                    >
-                      Clear
-                    </button>
-
-                    <div className="w-px h-5 bg-white/20 mx-1" />
-
-                    {/* AI 按钮 - 切换侧边栏 */}
-                    <button
-                      onClick={() => setShowAISidebar(!showAISidebar)}
+                      onClick={() => setShowShortcuts(!showShortcuts)}
                       className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                        showAISidebar
-                          ? 'text-[#b69fbb] bg-white/20'
+                        showShortcuts
+                          ? 'text-white bg-white/20'
                           : 'text-white/70 hover:text-white hover:bg-white/20'
                       }`}
-                      title="AI Text Processing"
+                      title="Text Processing Shortcuts"
                     >
-                      AI
+                      Shortcuts
                     </button>
                 </div>
                 )}
@@ -1652,10 +1625,13 @@ Sent from Diane`
                       </button>
                     )}
 
-                    {/* Join Project 按钮 */}
+                    {/* Join Project 按钮 - 菜单向下展开 */}
                     <div className="relative">
                       <button
-                        onClick={() => { setShowJoinMenu(!showJoinMenu); setShowExportMenu(false); }}
+                        onClick={() => {
+                          setShowJoinMenu(!showJoinMenu);
+                          setShowExportPanel(false); // 互斥
+                        }}
                         className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-colors ${
                           sendStatus === 'sent'
                             ? 'bg-green-500/20 text-green-400 border-green-500/30'
@@ -1671,11 +1647,12 @@ Sent from Diane`
                           {sendStatus === 'sending' ? 'Sending...' : sendStatus === 'sent' ? 'Sent ✓' : 'Join'}
                         </span>
                       </button>
+                      {/* 向下展开的菜单 */}
                       {showJoinMenu && (
-                        <div className="absolute bottom-full right-0 mb-2 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[160px] shadow-2xl">
+                        <div className="absolute top-full right-0 mt-2 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[160px] shadow-2xl border border-white/20 z-50">
                           <button
                             onClick={() => { setShowJoinMenu(false); setShowProjectInfo(true); }}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 transition-colors text-sm"
                           >
                             <Info size={16} />
                             What is this?
@@ -1683,7 +1660,7 @@ Sent from Diane`
                           <div className="mx-3 border-t border-white/20" />
                           <button
                             onClick={sendToCreator}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
+                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 transition-colors text-sm"
                           >
                             <Mail size={16} />
                             Send your Ephemera
@@ -1692,85 +1669,30 @@ Sent from Diane`
                       )}
                     </div>
 
-                    {/* Export 按钮 */}
-                    <div className="relative">
-                      <button
-                        onClick={() => { setShowExportMenu(!showExportMenu); setShowJoinMenu(false); }}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-colors ${
-                          isExporting
-                            ? 'bg-white/10 text-white/80 border-white/20'
-                            : 'bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border-white/10 hover:border-white/20'
-                        }`}
-                        style={{ fontFamily: contentFont }}
-                      >
-                        {isExporting ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Download size={14} />
-                        )}
-                        <span className="text-sm">
-                          {isExporting === 'wav' ? 'Converting WAV...' : isExporting === 'bwf' ? 'Converting BWF...' : 'Export'}
-                        </span>
-                      </button>
-                      {showExportMenu && !isExporting && (
-                        <div className="absolute bottom-full right-0 mb-2 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[140px] shadow-2xl">
-                          <button
-                            onClick={exportAsMarkdown}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
-                          >
-                            <FileCode size={16} />
-                            Markdown
-                          </button>
-                          <div className="mx-3 border-t border-white/20" />
-                          <button
-                            onClick={exportAsPDF}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
-                          >
-                            <FileText size={16} />
-                            PDF
-                          </button>
-                          <div className="mx-3 border-t border-white/20" />
-                          <button
-                            onClick={exportAsWord}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
-                          >
-                            <File size={16} />
-                            Word
-                          </button>
-                          <div className="mx-3 border-t border-white/20" />
-                          <button
-                            onClick={exportAsSRT}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
-                          >
-                            <Subtitles size={16} />
-                            SRT Subtitles
-                          </button>
-                          <div className="mx-3 border-t border-white/20" />
-                          <button
-                            onClick={downloadAudio}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
-                          >
-                            <Music size={16} />
-                            Audio (WebM)
-                          </button>
-                          <button
-                            onClick={exportAsWav}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
-                          >
-                            <FileAudio size={16} />
-                            Audio (WAV)
-                          </button>
-                          <button
-                            onClick={exportAsBwf}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:text-white/70 transition-colors text-sm"
-                            title="Broadcast Wave Format with timecode for video editing"
-                          >
-                            <Radio size={16} />
-                            Audio (BWF)
-                          </button>
-                        </div>
+                    {/* Export 按钮 - 打开底部面板 */}
+                    <button
+                      onClick={() => {
+                        setShowExportPanel(!showExportPanel);
+                        setShowJoinMenu(false); // 互斥
+                      }}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-colors ${
+                        showExportPanel
+                          ? 'bg-white/20 text-white border-white/30'
+                          : isExporting
+                          ? 'bg-white/10 text-white/80 border-white/20'
+                          : 'bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border-white/10 hover:border-white/20'
+                      }`}
+                      style={{ fontFamily: contentFont }}
+                    >
+                      {isExporting ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Download size={14} />
                       )}
-                    </div>
+                      <span className="text-sm">
+                        {isExporting === 'wav' ? 'Converting...' : isExporting === 'bwf' ? 'Converting...' : 'Export'}
+                      </span>
+                    </button>
                   </div>
                 </div>
               </>
@@ -1778,22 +1700,22 @@ Sent from Diane`
             </div>
             {/* 主内容区结束 */}
 
-            {/* AI 侧边栏 */}
+            {/* 右侧面板：Shortcuts */}
             <AnimatePresence>
-              {showAISidebar && !isMinimized && (
+              {showShortcuts && !isMinimized && (
                 <motion.div
                   initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: AI_SIDEBAR_WIDTH, opacity: 1 }}
+                  animate={{ width: SHORTCUTS_WIDTH, opacity: 1 }}
                   exit={{ width: 0, opacity: 0 }}
                   transition={{ duration: 0.3, ease: 'easeInOut' }}
                   className="flex flex-col border-l border-white/20 overflow-hidden"
-                  style={{ minWidth: AI_SIDEBAR_WIDTH }}
+                  style={{ minWidth: SHORTCUTS_WIDTH }}
                 >
-                  {/* 侧边栏标题 */}
+                  {/* 面板标题 */}
                   <div className="px-4 py-3 border-b border-white/20 flex items-center justify-between shrink-0">
-                    <span className="text-white/80 text-sm font-medium">AI Processing</span>
+                    <span className="text-white/80 text-sm font-medium uppercase tracking-wider">Shortcuts</span>
                     <button
-                      onClick={() => { setShowAISidebar(false); setShowCustomPanel(false); }}
+                      onClick={() => setShowShortcuts(false)}
                       className="p-1 text-white/40 hover:text-white transition-colors"
                     >
                       <X size={14} />
@@ -1801,74 +1723,151 @@ Sent from Diane`
                   </div>
 
                   {/* 选项列表 */}
-                  <div className="flex-1 overflow-y-auto p-3 space-y-1">
-                    {/* Cleanup */}
+                  <div className="flex-1 overflow-y-auto p-3">
+                    {/* 普通功能（不需要 AI） */}
+                    <div className="text-white/40 text-xs uppercase tracking-wider px-3 mb-2">Basic</div>
+
+                    {/* Distill - 只保留发光标记的文字 */}
                     <button
-                      onClick={() => toggleAIFeature('cleanup')}
-                      className={`w-full text-left px-3 py-2.5 rounded transition-colors text-sm ${
-                        selectedAIFeatures.includes('cleanup')
-                          ? 'text-[#b69fbb]'
-                          : 'text-white/80 hover:text-white hover:bg-white/10'
-                      }`}
+                      onClick={() => {
+                        const editor = editorRef.current?.editor;
+                        if (!editor) return;
+                        const glowingTexts: string[] = [];
+                        const json = editor.getJSON();
+                        const extractGlowing = (node: any): void => {
+                          if (node.type === 'text' && node.marks) {
+                            const hasHighlight = node.marks.some((mark: any) => mark.type === 'highlight');
+                            if (hasHighlight && node.text) {
+                              glowingTexts.push(node.text);
+                            }
+                          }
+                          if (node.content) {
+                            node.content.forEach(extractGlowing);
+                          }
+                        };
+                        extractGlowing(json);
+                        if (glowingTexts.length === 0) {
+                          alert('No glowing text found. Use Cmd+D to mark text first.');
+                          return;
+                        }
+                        const combinedText = glowingTexts.join('\n\n');
+                        editor.commands.setContent(`<p>${combinedText.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`);
+                        setHasUnsavedChanges(true);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                      title="Keep only glowing text (Cmd+D marked)"
                     >
-                      {selectedAIFeatures.includes('cleanup') && <span className="mr-2">✦</span>}
-                      Cleanup
+                      Distill
                     </button>
 
-                    {/* Summary */}
+                    {/* Clear - 清除所有发光标记 */}
                     <button
-                      onClick={() => toggleAIFeature('summary')}
-                      className={`w-full text-left px-3 py-2.5 rounded transition-colors text-sm ${
-                        selectedAIFeatures.includes('summary')
-                          ? 'text-[#b69fbb]'
-                          : 'text-white/80 hover:text-white hover:bg-white/10'
-                      }`}
+                      onClick={() => {
+                        const editor = editorRef.current?.editor;
+                        if (!editor) return;
+                        editor.chain().focus().selectAll().unsetHighlight().run();
+                      }}
+                      className="w-full text-left px-3 py-2 rounded text-sm text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+                      title="Clear all glow marks"
                     >
-                      {selectedAIFeatures.includes('summary') && <span className="mr-2">✦</span>}
-                      Summary
+                      Clear Marks
                     </button>
 
                     {/* Underline to Headings */}
                     <button
-                      onClick={() => toggleAIFeature('underline-to-headings')}
-                      className={`w-full text-left px-3 py-2.5 rounded transition-colors text-sm ${
-                        selectedAIFeatures.includes('underline-to-headings')
-                          ? 'text-[#b69fbb]'
+                      onClick={() => toggleShortcut('underline-to-headings')}
+                      className={`w-full text-left px-3 py-2 rounded transition-colors text-sm ${
+                        selectedShortcuts.includes('underline-to-headings')
+                          ? 'text-white bg-white/20'
                           : 'text-white/80 hover:text-white hover:bg-white/10'
                       }`}
                     >
-                      {selectedAIFeatures.includes('underline-to-headings') && <span className="mr-2">✦</span>}
+                      {selectedShortcuts.includes('underline-to-headings') && <span className="mr-1">✦</span>}
                       Underline → Headings
                     </button>
 
                     <div className="border-t border-white/10 my-3" />
 
-                    {/* Custom Cleanup - 选中时打开第三面板 */}
+                    {/* AI 功能 */}
+                    <div className="text-white/40 text-xs uppercase tracking-wider px-3 mb-2">AI Powered</div>
+
+                    {/* Cleanup (AI) */}
                     <button
-                      onClick={() => toggleAIFeature('custom')}
-                      className={`w-full text-left px-3 py-2.5 rounded transition-colors text-sm ${
-                        selectedAIFeatures.includes('custom')
-                          ? 'text-[#b69fbb]'
+                      onClick={() => toggleShortcut('cleanup')}
+                      className={`w-full text-left px-3 py-2 rounded transition-colors text-sm ${
+                        selectedShortcuts.includes('cleanup')
+                          ? 'text-white bg-white/20'
                           : 'text-white/80 hover:text-white hover:bg-white/10'
                       }`}
                     >
-                      {selectedAIFeatures.includes('custom') && <span className="mr-2">✦</span>}
-                      Custom Cleanup
-                      <span className="ml-1 text-white/40">→</span>
+                      {selectedShortcuts.includes('cleanup') && <span className="mr-1">✦</span>}
+                      Cleanup
                     </button>
+
+                    {/* Summary */}
+                    <button
+                      onClick={() => toggleShortcut('summary')}
+                      className={`w-full text-left px-3 py-2 rounded transition-colors text-sm ${
+                        selectedShortcuts.includes('summary')
+                          ? 'text-white bg-white/20'
+                          : 'text-white/80 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {selectedShortcuts.includes('summary') && <span className="mr-1">✦</span>}
+                      Summary
+                    </button>
+
+                    {/* To-do List */}
+                    <button
+                      onClick={() => toggleShortcut('todo-list')}
+                      className={`w-full text-left px-3 py-2 rounded transition-colors text-sm ${
+                        selectedShortcuts.includes('todo-list')
+                          ? 'text-white bg-white/20'
+                          : 'text-white/80 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {selectedShortcuts.includes('todo-list') && <span className="mr-1">✦</span>}
+                      To-do List
+                    </button>
+
+                    {/* Custom Cleanup */}
+                    <button
+                      onClick={() => toggleShortcut('custom')}
+                      className={`w-full text-left px-3 py-2 rounded transition-colors text-sm ${
+                        selectedShortcuts.includes('custom')
+                          ? 'text-white bg-white/20'
+                          : 'text-white/80 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {selectedShortcuts.includes('custom') && <span className="mr-1">✦</span>}
+                      Custom Prompt
+                    </button>
+
+                    {/* Custom Prompt 输入框（选中时显示） */}
+                    {selectedShortcuts.includes('custom') && (
+                      <div className="mt-2 px-1">
+                        <textarea
+                          value={customPrompt}
+                          onChange={(e) => setCustomPrompt(e.target.value)}
+                          placeholder="Enter your custom prompt..."
+                          className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded text-white/90 text-xs placeholder-white/40 resize-none focus:outline-none focus:border-white/40 transition-colors"
+                          rows={3}
+                        />
+                      </div>
+                    )}
 
                     <div className="border-t border-white/10 my-3" />
 
                     {/* Re-transcribe */}
                     <button
-                      onClick={() => toggleAIFeature('retranscribe')}
-                      className={`w-full text-left px-3 py-2.5 rounded transition-colors text-sm ${
-                        selectedAIFeatures.includes('retranscribe')
-                          ? 'text-[#b69fbb]'
+                      onClick={() => toggleShortcut('retranscribe')}
+                      className={`w-full text-left px-3 py-2 rounded transition-colors text-sm ${
+                        selectedShortcuts.includes('retranscribe')
+                          ? 'text-white bg-white/20'
                           : 'text-white/80 hover:text-white hover:bg-white/10'
                       }`}
                     >
-                      {selectedAIFeatures.includes('retranscribe') && <span className="mr-2">✦</span>}
+                      {selectedShortcuts.includes('retranscribe') && <span className="mr-1">✦</span>}
                       Re-transcribe
                     </button>
                   </div>
@@ -1876,98 +1875,117 @@ Sent from Diane`
                   {/* Apply 按钮 */}
                   <div className="p-3 border-t border-white/20 shrink-0">
                     <button
-                      onClick={handleApplyAI}
-                      disabled={selectedAIFeatures.length === 0 || isProcessingAI}
+                      onClick={handleApplyShortcuts}
+                      disabled={selectedShortcuts.length === 0 || isProcessingShortcut}
                       className={`w-full py-2.5 rounded-full text-sm transition-colors border ${
-                        selectedAIFeatures.length === 0
+                        selectedShortcuts.length === 0
                           ? 'bg-white/5 text-white/30 border-white/10 cursor-not-allowed'
-                          : isProcessingAI
+                          : isProcessingShortcut
                           ? 'bg-white/10 text-white/60 border-white/20 cursor-wait'
                           : 'bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border-white/10 hover:border-white/20'
                       }`}
                     >
-                      {isProcessingAI ? 'Processing...' : 'Apply'}
+                      {isProcessingShortcut ? 'Processing...' : 'Apply'}
                     </button>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
+            </div>
+            {/* 上层结束 */}
 
-            {/* Custom Cleanup 第三面板 - 当 custom 被选中时显示 */}
+            {/* 下方面板：Export */}
             <AnimatePresence>
-              {selectedAIFeatures.includes('custom') && showAISidebar && !isMinimized && (
+              {showExportPanel && !isMinimized && (
                 <motion.div
-                  initial={{ width: 0, opacity: 0 }}
-                  animate={{ width: CUSTOM_PANEL_WIDTH, opacity: 1 }}
-                  exit={{ width: 0, opacity: 0 }}
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: EXPORT_PANEL_HEIGHT, opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
                   transition={{ duration: 0.3, ease: 'easeInOut' }}
-                  className="flex flex-col border-l border-white/20 overflow-hidden"
-                  style={{ minWidth: CUSTOM_PANEL_WIDTH }}
+                  className="flex flex-col border-t border-white/20 overflow-hidden shrink-0"
+                  style={{ minHeight: EXPORT_PANEL_HEIGHT }}
                 >
-                  {/* 面板标题 */}
+                  {/* Export 面板标题 */}
                   <div className="px-4 py-3 border-b border-white/20 flex items-center justify-between shrink-0">
-                    <span className="text-white/80 text-sm font-medium">Custom Cleanup</span>
+                    <span className="text-white/80 text-sm font-medium uppercase tracking-wider">Export</span>
                     <button
-                      onClick={() => toggleAIFeature('custom')}
+                      onClick={() => setShowExportPanel(false)}
                       className="p-1 text-white/40 hover:text-white transition-colors"
                     >
                       <X size={14} />
                     </button>
                   </div>
 
-                  {/* 内容区 */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {/* 文本输入 */}
-                    <div>
-                      <label className="block text-white/60 text-xs mb-2 uppercase tracking-wider">Prompt</label>
-                      <textarea
-                        value={customPrompt}
-                        onChange={(e) => setCustomPrompt(e.target.value)}
-                        placeholder="Enter your custom prompt..."
-                        className="w-full px-3 py-3 bg-white/5 border border-white/20 rounded-lg text-white/90 text-sm placeholder-white/40 resize-none focus:outline-none focus:border-[#b69fbb]/50 transition-colors"
-                        rows={6}
-                      />
-                    </div>
-
-                    {/* 或者分隔 */}
-                    <div className="flex items-center gap-3 text-white/40 text-xs">
-                      <div className="flex-1 h-px bg-white/20" />
-                      <span>or</span>
-                      <div className="flex-1 h-px bg-white/20" />
-                    </div>
-
-                    {/* 文件上传 */}
-                    <div>
-                      <label className="block text-white/60 text-xs mb-2 uppercase tracking-wider">Template File</label>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".md,.txt,.json"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                      />
-
-                      {uploadedFile ? (
-                        <div className="flex items-center gap-2 px-3 py-3 bg-[#b69fbb]/10 border border-[#b69fbb]/30 rounded-lg text-sm">
-                          <FileText size={16} className="text-[#b69fbb] shrink-0" />
-                          <span className="text-[#b69fbb] truncate flex-1">{uploadedFile.name}</span>
-                          <button
-                            onClick={clearUploadedFile}
-                            className="p-1 text-white/40 hover:text-white transition-colors shrink-0"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-                      ) : (
+                  {/* Export 两列布局 */}
+                  <div className="flex-1 flex flex-row overflow-hidden">
+                    {/* 左列：文本输出 */}
+                    <div className="flex-1 p-4 border-r border-white/20">
+                      <div className="text-white/50 text-xs uppercase tracking-wider mb-3">Text</div>
+                      <div className="space-y-1">
                         <button
-                          onClick={() => fileInputRef.current?.click()}
-                          className="w-full flex flex-col items-center justify-center gap-2 px-4 py-6 border border-dashed border-white/30 rounded-lg text-white/60 hover:text-white hover:border-white/50 hover:bg-white/5 transition-colors text-sm"
+                          onClick={() => { exportAsMarkdown(); setShowExportPanel(false); }}
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm"
                         >
-                          <Upload size={20} />
-                          <span>Upload template</span>
-                          <span className="text-white/40 text-xs">.md, .txt, .json</span>
+                          <FileCode size={16} />
+                          Markdown
                         </button>
-                      )}
+                        <button
+                          onClick={() => { exportAsPDF(); setShowExportPanel(false); }}
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm"
+                        >
+                          <FileText size={16} />
+                          PDF
+                        </button>
+                        <button
+                          onClick={() => { exportAsWord(); setShowExportPanel(false); }}
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm"
+                        >
+                          <File size={16} />
+                          Word
+                        </button>
+                        <button
+                          onClick={() => { exportAsSRT(); setShowExportPanel(false); }}
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm"
+                        >
+                          <Subtitles size={16} />
+                          SRT Subtitles
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 右列：音频输出 */}
+                    <div className="flex-1 p-4">
+                      <div className="text-white/50 text-xs uppercase tracking-wider mb-3">Audio</div>
+                      <div className="space-y-1">
+                        <button
+                          onClick={() => { downloadAudio(); setShowExportPanel(false); }}
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm"
+                        >
+                          <Music size={16} />
+                          WebM (Original)
+                        </button>
+                        <button
+                          onClick={exportAsWav}
+                          disabled={isExporting === 'wav'}
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm disabled:opacity-50"
+                        >
+                          {isExporting === 'wav' ? <Loader2 size={16} className="animate-spin" /> : <FileAudio size={16} />}
+                          WAV
+                        </button>
+                        <button
+                          onClick={exportAsBwf}
+                          disabled={isExporting === 'bwf'}
+                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm disabled:opacity-50"
+                          title="Broadcast Wave Format with timecode"
+                        >
+                          {isExporting === 'bwf' ? <Loader2 size={16} className="animate-spin" /> : <Radio size={16} />}
+                          BWF (Timecode)
+                        </button>
+                        <div className="border-t border-white/10 my-2" />
+                        <div className="text-white/30 text-xs px-3 py-1">
+                          AI Voice (Coming Soon)
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
