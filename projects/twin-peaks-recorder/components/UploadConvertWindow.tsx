@@ -77,6 +77,16 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
   // Get available voices for selected provider
   const availableVoices = (apiKeys?.tts_voices || []).filter(v => v.provider === selectedProvider);
 
+  // Debug: log apiKeys when tab is active
+  useEffect(() => {
+    if (activeTab === 'srt-to-tts') {
+      console.log('[TTS Debug] apiKeys:', apiKeys);
+      console.log('[TTS Debug] tts_voices:', apiKeys?.tts_voices);
+      console.log('[TTS Debug] selectedProvider:', selectedProvider);
+      console.log('[TTS Debug] availableVoices:', availableVoices);
+    }
+  }, [activeTab, apiKeys, selectedProvider, availableVoices]);
+
   // Refs
   const windowRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
