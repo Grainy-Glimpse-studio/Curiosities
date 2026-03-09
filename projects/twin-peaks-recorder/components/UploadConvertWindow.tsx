@@ -5,7 +5,7 @@ import { X, Minus, Maximize2, Minimize2, Upload, FileAudio, FileVideo, Copy, Dow
 import { Memo } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { TTSVoice } from '../services/auth';
-import { generateTTSFromSRT, TTSProgress, TTSResult, ElevenLabsVoiceSettings, FishAudioVoiceSettings } from '../services/ttsService';
+import { generateTTSFromSRT, generateTTSFromText, TTSProgress, TTSResult, ElevenLabsVoiceSettings, FishAudioVoiceSettings } from '../services/ttsService';
 import { parseSRT, validateSRT, getTotalDuration, analyzeTTSTiming, TimingAnalysis } from '../utils/srtParser';
 import { useNavigate } from 'react-router-dom';
 import SRTEditor from './SRTEditor';
@@ -57,11 +57,12 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
   // Drag state
   const [isDraggingFile, setIsDraggingFile] = useState(false);
 
-  // SRT to TTS state
+  // SRT/Text to TTS state
   const [srtFile, setSrtFile] = useState<File | null>(null);
   const [srtContent, setSrtContent] = useState<string>('');
   const [srtEntryCount, setSrtEntryCount] = useState(0);
   const [srtDuration, setSrtDuration] = useState(0);
+  const [isPlainText, setIsPlainText] = useState(false); // true = plain text, false = SRT format
   const [selectedProvider, setSelectedProvider] = useState<'elevenlabs' | 'fish_audio'>('elevenlabs');
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
   const [ttsProgress, setTtsProgress] = useState<TTSProgress | null>(null);
@@ -470,33 +471,63 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
 
   // ========== SRT to TTS Functions ==========
 
-  // Handle SRT file selection
+  // Handle SRT or text file selection (auto-detect format)
   const handleSrtFileSelect = async (file: File) => {
-    if (!file.name.endsWith('.srt')) {
-      setTtsError('Please upload an SRT file');
+    const isSrtFile = file.name.endsWith('.srt');
+    const isTxtFile = file.name.endsWith('.txt');
+
+    if (!isSrtFile && !isTxtFile) {
+      setTtsError('Please upload an SRT or TXT file');
       return;
     }
 
     try {
       const content = await file.text();
-      const validation = validateSRT(content);
 
-      if (!validation.valid) {
-        setTtsError(`Invalid SRT file: ${validation.errors.join(', ')}`);
-        return;
+      // Auto-detect: check if it looks like SRT format
+      // SRT files typically have numbered entries and timestamps like "00:00:00,000 --> 00:00:00,000"
+      const looksLikeSRT = /^\d+\s*\n\d{2}:\d{2}:\d{2}[,\.]\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}[,\.]\d{3}/m.test(content);
+
+      if (isSrtFile || looksLikeSRT) {
+        // Treat as SRT
+        const validation = validateSRT(content);
+
+        if (!validation.valid) {
+          setTtsError(`Invalid SRT format: ${validation.errors.join(', ')}`);
+          return;
+        }
+
+        const entries = parseSRT(content);
+        const duration = getTotalDuration(entries);
+
+        setSrtFile(file);
+        setSrtContent(content);
+        setSrtEntryCount(entries.length);
+        setSrtDuration(duration);
+        setIsPlainText(false);
+        setTtsError(null);
+        setTtsResult(null);
+      } else {
+        // Treat as plain text
+        const trimmedContent = content.trim();
+        if (!trimmedContent) {
+          setTtsError('File is empty');
+          return;
+        }
+
+        // Estimate word count for display
+        const wordCount = trimmedContent.split(/\s+/).length;
+
+        setSrtFile(file);
+        setSrtContent(trimmedContent);
+        setSrtEntryCount(wordCount); // Use word count for plain text
+        setSrtDuration(0); // No timing for plain text
+        setIsPlainText(true);
+        setTtsError(null);
+        setTtsResult(null);
       }
-
-      const entries = parseSRT(content);
-      const duration = getTotalDuration(entries);
-
-      setSrtFile(file);
-      setSrtContent(content);
-      setSrtEntryCount(entries.length);
-      setSrtDuration(duration);
-      setTtsError(null);
-      setTtsResult(null);
     } catch (err) {
-      setTtsError('Failed to read SRT file');
+      setTtsError('Failed to read file');
     }
   };
 
@@ -540,7 +571,7 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
     setTimingAnalysis(null);
   };
 
-  // Generate TTS from SRT
+  // Generate TTS from SRT or plain text
   const generateTTS = async () => {
     if (!srtContent || !selectedVoiceId) return;
 
@@ -556,7 +587,7 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
 
     setIsGeneratingTTS(true);
     setTtsError(null);
-    setTtsProgress({ current: 0, total: srtEntryCount, percentage: 0, status: 'Starting...' });
+    setTtsProgress({ current: 0, total: isPlainText ? 1 : srtEntryCount, percentage: 0, status: 'Starting...' });
 
     try {
       // Build voice settings for ElevenLabs
@@ -575,14 +606,19 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
         top_p: fishTopP,
       } : undefined;
 
-      const result = await generateTTSFromSRT(srtContent, {
+      const ttsConfig = {
         provider: selectedProvider,
         apiKey,
         voiceId: selectedVoiceId,
         voiceSettings,
         fishAudioSettings,
         languageCode: selectedLanguage !== 'auto' ? selectedLanguage : undefined,
-      }, setTtsProgress);
+      };
+
+      // Use different function based on content type
+      const result = isPlainText
+        ? await generateTTSFromText(srtContent, ttsConfig, setTtsProgress)
+        : await generateTTSFromSRT(srtContent, ttsConfig, setTtsProgress);
 
       setTtsResult(result);
       setTtsProgress(null);
@@ -660,6 +696,7 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
     setSrtContent('');
     setSrtEntryCount(0);
     setSrtDuration(0);
+    setIsPlainText(false);
     setTtsResult(null);
     setTtsError(null);
     setTtsProgress(null);
@@ -999,7 +1036,7 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                   }`}
                   style={{ fontFamily: contentFont }}
                 >
-                  SRT → TTS
+                  Text → TTS
                 </button>
                 <button
                   onClick={() => setActiveTab('audio-to-voice')}
@@ -1468,7 +1505,7 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                             <input
                               ref={srtFileInputRef}
                               type="file"
-                              accept=".srt"
+                              accept=".srt,.txt"
                               onChange={handleSrtInputChange}
                               className="hidden"
                             />
@@ -1489,16 +1526,24 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                               </div>
                             ) : srtFile ? (
                               <div className="flex flex-col items-center gap-4 w-full px-4">
-                                <Subtitles size={40} className="text-white/60" />
+                                {isPlainText ? (
+                                  <FileText size={40} className="text-white/60" />
+                                ) : (
+                                  <Subtitles size={40} className="text-white/60" />
+                                )}
                                 <div className="text-white/80 text-sm text-center">
                                   <div className="font-medium">{srtFile.name}</div>
                                   <div className="text-white/50 text-xs mt-1">
-                                    {srtEntryCount} entries • {formatDuration(srtDuration)}
+                                    {isPlainText ? (
+                                      <>{srtEntryCount} words</>
+                                    ) : (
+                                      <>{srtEntryCount} entries • {formatDuration(srtDuration)}</>
+                                    )}
                                   </div>
                                 </div>
 
-                                {/* Timing Analysis Result */}
-                                {timingAnalysis && (
+                                {/* Timing Analysis Result - only for SRT files */}
+                                {!isPlainText && timingAnalysis && (
                                   <div className={`w-full p-3 rounded-lg text-sm ${
                                     timingAnalysis.hasIssues
                                       ? 'bg-yellow-500/20 border border-yellow-500/30'
@@ -1541,15 +1586,18 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                                 )}
 
                                 <div className="flex gap-2">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      checkTiming();
-                                    }}
-                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white/70 rounded-lg text-sm transition-colors"
-                                  >
-                                    Check Timing
-                                  </button>
+                                  {/* Check Timing button - only for SRT files */}
+                                  {!isPlainText && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        checkTiming();
+                                      }}
+                                      className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white/70 rounded-lg text-sm transition-colors"
+                                    >
+                                      Check Timing
+                                    </button>
+                                  )}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -1576,7 +1624,7 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                               <div className="flex flex-col items-center gap-3">
                                 <Upload size={40} className="text-white/40" />
                                 <div className="text-white/60 text-sm text-center">
-                                  Drop SRT file here<br />
+                                  Drop SRT or TXT file here<br />
                                   <span className="text-white/40 text-xs">or click to select</span>
                                 </div>
                               </div>
@@ -1603,9 +1651,9 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                                   {isPlayingPreview ? <Pause size={20} /> : <Play size={20} />}
                                 </button>
                                 <div className="flex-1">
-                                  <div className="text-white/80 text-sm">{srtFile?.name.replace('.srt', '')}</div>
+                                  <div className="text-white/80 text-sm">{srtFile?.name.replace(/\.(srt|txt)$/, '')}</div>
                                   <div className="text-white/50 text-xs">
-                                    {ttsResult.entriesProcessed} entries • {ttsResult.format.toUpperCase()}
+                                    {isPlainText ? 'Text' : `${ttsResult.entriesProcessed} entries`} • {ttsResult.format.toUpperCase()}
                                   </div>
                                 </div>
                               </div>
