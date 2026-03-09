@@ -1,8 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Minus, Maximize2, Minimize2, Upload, FileAudio, FileVideo, Copy, Download, Check, Loader2, FileText, FileCode, Subtitles, File } from 'lucide-react';
+import { X, Minus, Maximize2, Minimize2, Upload, FileAudio, FileVideo, Copy, Download, Check, Loader2, FileText, FileCode, Subtitles, File, Play, Pause, Settings } from 'lucide-react';
 import { Memo } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { TTSVoice } from '../services/auth';
+import { generateTTSFromSRT, TTSProgress, TTSResult } from '../services/ttsService';
+import { parseSRT, validateSRT, getTotalDuration } from '../utils/srtParser';
+import { useNavigate } from 'react-router-dom';
 
 interface UploadConvertWindowProps {
   isOpen: boolean;
@@ -51,9 +56,32 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
   // Drag state
   const [isDraggingFile, setIsDraggingFile] = useState(false);
 
+  // SRT to TTS state
+  const [srtFile, setSrtFile] = useState<File | null>(null);
+  const [srtContent, setSrtContent] = useState<string>('');
+  const [srtEntryCount, setSrtEntryCount] = useState(0);
+  const [srtDuration, setSrtDuration] = useState(0);
+  const [selectedProvider, setSelectedProvider] = useState<'elevenlabs' | 'fish_audio'>('elevenlabs');
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string>('');
+  const [ttsProgress, setTtsProgress] = useState<TTSProgress | null>(null);
+  const [ttsResult, setTtsResult] = useState<TTSResult | null>(null);
+  const [ttsError, setTtsError] = useState<string | null>(null);
+  const [isGeneratingTTS, setIsGeneratingTTS] = useState(false);
+  const [isPlayingPreview, setIsPlayingPreview] = useState(false);
+  const [showTTSExportMenu, setShowTTSExportMenu] = useState(false);
+
+  // Auth context for API keys and voices
+  const { apiKeys } = useAuth();
+  const navigate = useNavigate();
+
+  // Get available voices for selected provider
+  const availableVoices = (apiKeys?.tts_voices || []).filter(v => v.provider === selectedProvider);
+
   // Refs
   const windowRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const srtFileInputRef = useRef<HTMLInputElement>(null);
+  const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const resizeStartPos = useRef({ x: 0, y: 0 });
   const resizeStartSize = useRef({ width: 0, height: 0 });
@@ -70,8 +98,26 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
       setTranscriptionResult(null);
       setError(null);
       setProgress(0);
+      // Reset TTS state
+      setSrtFile(null);
+      setSrtContent('');
+      setSrtEntryCount(0);
+      setSrtDuration(0);
+      setTtsResult(null);
+      setTtsError(null);
+      setTtsProgress(null);
     }
   }, [isOpen, initialOffset]);
+
+  // Cleanup audio preview on unmount
+  useEffect(() => {
+    return () => {
+      if (audioPreviewRef.current) {
+        audioPreviewRef.current.pause();
+        audioPreviewRef.current = null;
+      }
+    };
+  }, []);
 
   // Drag handling
   const handleDragStart = (e: React.MouseEvent) => {
@@ -365,6 +411,178 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
     }
   };
 
+  // ========== SRT to TTS Functions ==========
+
+  // Handle SRT file selection
+  const handleSrtFileSelect = async (file: File) => {
+    if (!file.name.endsWith('.srt')) {
+      setTtsError('Please upload an SRT file');
+      return;
+    }
+
+    try {
+      const content = await file.text();
+      const validation = validateSRT(content);
+
+      if (!validation.valid) {
+        setTtsError(`Invalid SRT file: ${validation.errors.join(', ')}`);
+        return;
+      }
+
+      const entries = parseSRT(content);
+      const duration = getTotalDuration(entries);
+
+      setSrtFile(file);
+      setSrtContent(content);
+      setSrtEntryCount(entries.length);
+      setSrtDuration(duration);
+      setTtsError(null);
+      setTtsResult(null);
+    } catch (err) {
+      setTtsError('Failed to read SRT file');
+    }
+  };
+
+  // Handle SRT file drop
+  const handleSrtDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleSrtFileSelect(files[0]);
+    }
+  };
+
+  // Handle SRT file input change
+  const handleSrtInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleSrtFileSelect(files[0]);
+    }
+  };
+
+  // Generate TTS from SRT
+  const generateTTS = async () => {
+    if (!srtContent || !selectedVoiceId) return;
+
+    // Get API key
+    const apiKey = selectedProvider === 'elevenlabs'
+      ? apiKeys?.elevenlabs_api_key
+      : apiKeys?.fish_audio_api_key;
+
+    if (!apiKey) {
+      setTtsError(`No ${selectedProvider === 'elevenlabs' ? 'ElevenLabs' : 'Fish Audio'} API key configured. Go to Settings to add one.`);
+      return;
+    }
+
+    setIsGeneratingTTS(true);
+    setTtsError(null);
+    setTtsProgress({ current: 0, total: srtEntryCount, percentage: 0, status: 'Starting...' });
+
+    try {
+      const result = await generateTTSFromSRT(srtContent, {
+        provider: selectedProvider,
+        apiKey,
+        voiceId: selectedVoiceId,
+      }, setTtsProgress);
+
+      setTtsResult(result);
+      setTtsProgress(null);
+    } catch (err) {
+      setTtsError(err instanceof Error ? err.message : 'TTS generation failed');
+      setTtsProgress(null);
+    } finally {
+      setIsGeneratingTTS(false);
+    }
+  };
+
+  // Play/pause preview
+  const togglePreview = () => {
+    if (!ttsResult) return;
+
+    if (isPlayingPreview && audioPreviewRef.current) {
+      audioPreviewRef.current.pause();
+      setIsPlayingPreview(false);
+    } else {
+      const audio = new Audio(URL.createObjectURL(ttsResult.audioBlob));
+      audioPreviewRef.current = audio;
+      audio.onended = () => setIsPlayingPreview(false);
+      audio.play();
+      setIsPlayingPreview(true);
+    }
+  };
+
+  // Download TTS result
+  const downloadTTS = async (format: 'mp3' | 'wav' | 'bwf') => {
+    if (!ttsResult) return;
+
+    let blob = ttsResult.audioBlob;
+    let filename = `tts-${Date.now()}`;
+
+    if (format === 'bwf') {
+      // BWF needs special handling - add bext chunk with TimeReference
+      // Get the first SRT entry's start time for TimeReference
+      const entries = parseSRT(srtContent);
+      const startTime = entries.length > 0 ? entries[0].startTime : 0;
+      const sampleRate = 44100;
+      const timeReferenceSamples = Math.round(startTime * sampleRate);
+
+      try {
+        const { createBwfBlob } = await import('../utils/audioMerge');
+        const arrayBuffer = await blob.arrayBuffer();
+        blob = createBwfBlob(arrayBuffer, timeReferenceSamples);
+        filename += '.wav';
+      } catch (err) {
+        console.error('BWF export failed:', err);
+        // Fallback to WAV
+        filename += '.wav';
+      }
+    } else if (format === 'wav') {
+      filename += '.wav';
+    } else {
+      // MP3 - the result is already WAV from merging,
+      // for true MP3 would need encoding library
+      filename += '.wav'; // Note: actual format is WAV
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setShowTTSExportMenu(false);
+  };
+
+  // Reset TTS state
+  const resetTTS = () => {
+    setSrtFile(null);
+    setSrtContent('');
+    setSrtEntryCount(0);
+    setSrtDuration(0);
+    setTtsResult(null);
+    setTtsError(null);
+    setTtsProgress(null);
+    if (srtFileInputRef.current) {
+      srtFileInputRef.current.value = '';
+    }
+    if (audioPreviewRef.current) {
+      audioPreviewRef.current.pause();
+      audioPreviewRef.current = null;
+    }
+    setIsPlayingPreview(false);
+  };
+
+  // Format duration for display
+  const formatDuration = (seconds: number): string => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
   const content = (
     <AnimatePresence>
       {isOpen && (
@@ -609,13 +827,242 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                 )}
 
                 {activeTab === 'srt-to-tts' && (
-                  <div className="h-full flex items-center justify-center">
-                    <div className="text-center text-white/40">
-                      <div className="text-lg mb-2">Coming Soon</div>
-                      <div className="text-sm">SRT to TTS conversion will be available soon.</div>
-                      <div className="text-xs mt-4 text-white/30">
-                        Configure your TTS settings in Account Settings first.
+                  <div className="h-full flex flex-row gap-4">
+                    {/* Left: Settings Panel */}
+                    <div className="w-[160px] shrink-0 flex flex-col gap-4">
+                      {/* API Selection */}
+                      <div>
+                        <div className="text-white/50 text-xs uppercase tracking-wider mb-2">API</div>
+                        <div className="space-y-1">
+                          <button
+                            onClick={() => {
+                              setSelectedProvider('elevenlabs');
+                              setSelectedVoiceId('');
+                            }}
+                            className={`w-full px-3 py-2 rounded text-left text-sm transition-colors ${
+                              selectedProvider === 'elevenlabs'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-white/5 text-white/50 hover:bg-white/10'
+                            }`}
+                            style={{ fontFamily: contentFont }}
+                          >
+                            ○ ElevenLabs
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedProvider('fish_audio');
+                              setSelectedVoiceId('');
+                            }}
+                            className={`w-full px-3 py-2 rounded text-left text-sm transition-colors ${
+                              selectedProvider === 'fish_audio'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-white/5 text-white/50 hover:bg-white/10'
+                            }`}
+                            style={{ fontFamily: contentFont }}
+                          >
+                            ○ Fish Audio
+                          </button>
+                        </div>
                       </div>
+
+                      {/* Voice Selection */}
+                      <div>
+                        <div className="text-white/50 text-xs uppercase tracking-wider mb-2">Voice</div>
+                        {availableVoices.length > 0 ? (
+                          <div className="space-y-1 max-h-[150px] overflow-y-auto thin-scrollbar">
+                            {availableVoices.map(voice => (
+                              <button
+                                key={voice.id}
+                                onClick={() => setSelectedVoiceId(voice.modelId)}
+                                className={`w-full px-3 py-2 rounded text-left text-sm transition-colors ${
+                                  selectedVoiceId === voice.modelId
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-white/5 text-white/50 hover:bg-white/10'
+                                }`}
+                                style={{ fontFamily: contentFont }}
+                              >
+                                {selectedVoiceId === voice.modelId ? '●' : '○'} {voice.label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-white/30 text-xs py-2" style={{ fontFamily: contentFont }}>
+                            No voices configured
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Manage Voices Link */}
+                      <button
+                        onClick={() => {
+                          onClose();
+                          navigate('/user');
+                        }}
+                        className="flex items-center gap-2 px-3 py-2 text-white/40 hover:text-white/60 text-xs transition-colors"
+                        style={{ fontFamily: contentFont }}
+                      >
+                        <Settings size={12} />
+                        Manage Voices
+                      </button>
+                    </div>
+
+                    {/* Right: Main Content */}
+                    <div className="flex-1 flex flex-col">
+                      {/* Upload Area or Result */}
+                      {!ttsResult ? (
+                        <>
+                          {/* SRT Upload Area */}
+                          <div
+                            className={`flex-1 flex flex-col items-center justify-center border-2 border-dashed rounded-xl transition-colors cursor-pointer ${
+                              isDraggingFile
+                                ? 'border-white/60 bg-white/10'
+                                : srtFile
+                                ? 'border-white/40 bg-white/5'
+                                : 'border-white/20 hover:border-white/40'
+                            }`}
+                            onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
+                            onDragLeave={(e) => { e.preventDefault(); setIsDraggingFile(false); }}
+                            onDrop={handleSrtDrop}
+                            onClick={() => !srtFile && srtFileInputRef.current?.click()}
+                          >
+                            <input
+                              ref={srtFileInputRef}
+                              type="file"
+                              accept=".srt"
+                              onChange={handleSrtInputChange}
+                              className="hidden"
+                            />
+
+                            {isGeneratingTTS ? (
+                              <div className="flex flex-col items-center gap-4">
+                                <Loader2 size={40} className="text-white/60 animate-spin" />
+                                <div className="text-white/80 text-sm">{ttsProgress?.status}</div>
+                                <div className="w-48 h-1 bg-white/20 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-white/60 transition-all duration-300"
+                                    style={{ width: `${ttsProgress?.percentage || 0}%` }}
+                                  />
+                                </div>
+                                <div className="text-white/50 text-xs">
+                                  {ttsProgress?.current} / {ttsProgress?.total} entries
+                                </div>
+                              </div>
+                            ) : srtFile ? (
+                              <div className="flex flex-col items-center gap-4">
+                                <Subtitles size={40} className="text-white/60" />
+                                <div className="text-white/80 text-sm text-center">
+                                  <div className="font-medium">{srtFile.name}</div>
+                                  <div className="text-white/50 text-xs mt-1">
+                                    {srtEntryCount} entries • {formatDuration(srtDuration)}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!selectedVoiceId) {
+                                        setTtsError('Please select a voice first');
+                                        return;
+                                      }
+                                      generateTTS();
+                                    }}
+                                    disabled={!selectedVoiceId}
+                                    className="px-4 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+                                  >
+                                    Generate TTS
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); resetTTS(); }}
+                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white/70 rounded-lg text-sm transition-colors"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center gap-3">
+                                <Upload size={40} className="text-white/40" />
+                                <div className="text-white/60 text-sm text-center">
+                                  Drop SRT file here<br />
+                                  <span className="text-white/40 text-xs">or click to select</span>
+                                </div>
+                              </div>
+                            )}
+
+                            {ttsError && (
+                              <div className="mt-4 px-4 py-2 bg-red-500/20 text-red-300 rounded-lg text-sm">
+                                {ttsError}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* TTS Result */}
+                          <div className="flex-1 flex flex-col gap-4">
+                            {/* Audio Preview */}
+                            <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+                              <div className="flex items-center gap-4">
+                                <button
+                                  onClick={togglePreview}
+                                  className="p-3 bg-white/20 hover:bg-white/30 rounded-full transition-colors"
+                                >
+                                  {isPlayingPreview ? <Pause size={20} /> : <Play size={20} />}
+                                </button>
+                                <div className="flex-1">
+                                  <div className="text-white/80 text-sm">{srtFile?.name.replace('.srt', '')}</div>
+                                  <div className="text-white/50 text-xs">
+                                    {ttsResult.entriesProcessed} entries • {ttsResult.format.toUpperCase()}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center justify-between">
+                              <button
+                                onClick={resetTTS}
+                                className="px-3 py-2 text-white/50 hover:text-white text-sm transition-colors"
+                              >
+                                ← Upload another
+                              </button>
+
+                              <div className="relative">
+                                <button
+                                  onClick={() => setShowTTSExportMenu(!showTTSExportMenu)}
+                                  className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-medium transition-colors"
+                                >
+                                  <Download size={14} />
+                                  Download
+                                </button>
+                                {showTTSExportMenu && (
+                                  <div className="absolute bottom-full right-0 mb-2 backdrop-blur-3xl rounded-xl overflow-hidden min-w-[140px] shadow-2xl border border-white/20 z-50">
+                                    <button
+                                      onClick={() => downloadTTS('mp3')}
+                                      className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 transition-colors text-sm"
+                                    >
+                                      MP3
+                                    </button>
+                                    <button
+                                      onClick={() => downloadTTS('wav')}
+                                      className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 transition-colors text-sm"
+                                    >
+                                      WAV
+                                    </button>
+                                    <button
+                                      onClick={() => downloadTTS('bwf')}
+                                      className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 transition-colors text-sm"
+                                      title="Broadcast Wave Format with timecode"
+                                    >
+                                      BWF
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}

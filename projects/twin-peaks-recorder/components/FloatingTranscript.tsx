@@ -2,10 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import emailjs from '@emailjs/browser';
-import { X, Minus, Maximize2, Minimize2, Play, Pause, Square, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2, Save, Mic, Subtitles, PanelLeftClose, PanelLeft, Radio, FileAudio } from 'lucide-react';
+import { X, Minus, Maximize2, Minimize2, Play, Pause, Square, Download, FileText, FileCode, File, Bold, Italic, Underline, List, ListOrdered, Quote, Heading1, Heading2, Undo, Redo, Music, Sparkles, Mail, Info, Upload, Cloud, CloudOff, Loader2, Save, Mic, Subtitles, PanelLeftClose, PanelLeft, Radio, FileAudio, Settings } from 'lucide-react';
 import { convertToWav, convertToBwf } from '../utils/audioExport';
 import { Memo } from '../types';
 import MarkdownEditor, { MarkdownEditorRef } from './MarkdownEditor';
+import { useAuth } from '../contexts/AuthContext';
+import { generateTTSFromText, TTSProgress, TTSResult } from '../services/ttsService';
+import { useNavigate } from 'react-router-dom';
 
 interface FloatingTranscriptProps {
   memo: Memo | null;
@@ -474,6 +477,16 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const [ttsApi, setTtsApi] = useState<'elevenlabs' | 'fish_audio'>('elevenlabs');
   const [ttsVoice, setTtsVoice] = useState<string>('');
   const [isGeneratingTTS, setIsGeneratingTTS] = useState(false);
+  const [ttsProgress, setTtsProgress] = useState<TTSProgress | null>(null);
+  const [ttsResult, setTtsResult] = useState<TTSResult | null>(null);
+  const [ttsError, setTtsError] = useState<string | null>(null);
+
+  // Auth for TTS API keys
+  const { apiKeys } = useAuth();
+  const navigate = useNavigate();
+
+  // Get available voices for selected provider
+  const ttsVoices = (apiKeys?.tts_voices || []).filter(v => v.provider === ttsApi);
 
   // TOC 目录状态
   const [tocItems, setTocItems] = useState<TOCItem[]>([]);
@@ -2081,7 +2094,7 @@ Sent from Diane`
                           <div className="text-white/40 text-[10px] uppercase mb-1.5">API</div>
                           <div className="flex gap-1">
                             <button
-                              onClick={() => setTtsApi('elevenlabs')}
+                              onClick={() => { setTtsApi('elevenlabs'); setTtsVoice(''); }}
                               className={`flex-1 px-2 py-1.5 rounded text-xs transition-colors ${
                                 ttsApi === 'elevenlabs'
                                   ? 'bg-white/20 text-white'
@@ -2091,7 +2104,7 @@ Sent from Diane`
                               ElevenLabs
                             </button>
                             <button
-                              onClick={() => setTtsApi('fish_audio')}
+                              onClick={() => { setTtsApi('fish_audio'); setTtsVoice(''); }}
                               className={`flex-1 px-2 py-1.5 rounded text-xs transition-colors ${
                                 ttsApi === 'fish_audio'
                                   ? 'bg-white/20 text-white'
@@ -2106,24 +2119,113 @@ Sent from Diane`
                         {/* Voice 选择 */}
                         <div>
                           <div className="text-white/40 text-[10px] uppercase mb-1.5">Voice</div>
-                          <select
-                            value={ttsVoice}
-                            onChange={(e) => setTtsVoice(e.target.value)}
-                            className="w-full px-2 py-1.5 bg-white/10 border border-white/20 rounded text-white text-xs focus:outline-none focus:border-white/40"
+                          {ttsVoices.length > 0 ? (
+                            <select
+                              value={ttsVoice}
+                              onChange={(e) => setTtsVoice(e.target.value)}
+                              className="w-full px-2 py-1.5 bg-white/10 border border-white/20 rounded text-white text-xs focus:outline-none focus:border-white/40"
+                            >
+                              <option value="" className="bg-zinc-800">Select voice...</option>
+                              {ttsVoices.map(voice => (
+                                <option key={voice.id} value={voice.modelId} className="bg-zinc-800">
+                                  {voice.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <div className="text-white/30 text-xs py-2">
+                              No voices configured
+                            </div>
+                          )}
+                          <button
+                            onClick={() => navigate('/user')}
+                            className="flex items-center gap-1 text-white/30 text-[10px] mt-1 hover:text-white/50 transition-colors"
                           >
-                            <option value="" className="bg-zinc-800">Select voice...</option>
-                            <option value="demo" className="bg-zinc-800">Configure in Settings</option>
-                          </select>
-                          <div className="text-white/30 text-[10px] mt-1">
-                            Manage voices in Account Settings
-                          </div>
+                            <Settings size={10} />
+                            Manage voices in Settings
+                          </button>
                         </div>
+
+                        {/* Error message */}
+                        {ttsError && (
+                          <div className="text-red-400 text-[10px] bg-red-500/10 px-2 py-1 rounded">
+                            {ttsError}
+                          </div>
+                        )}
+
+                        {/* Progress */}
+                        {ttsProgress && (
+                          <div className="space-y-1">
+                            <div className="text-white/50 text-[10px]">{ttsProgress.status}</div>
+                            <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-white/60 transition-all duration-300"
+                                style={{ width: `${ttsProgress.percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Result */}
+                        {ttsResult && (
+                          <div className="p-2 bg-white/10 rounded">
+                            <div className="text-white/80 text-[11px] mb-2">Generated audio ready!</div>
+                            <button
+                              onClick={() => {
+                                const url = URL.createObjectURL(ttsResult.audioBlob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `voice-${Date.now()}.${ttsResult.format}`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                              }}
+                              className="flex items-center gap-1 text-white/60 hover:text-white text-[10px] transition-colors"
+                            >
+                              <Download size={12} />
+                              Download
+                            </button>
+                          </div>
+                        )}
 
                         {/* Generate 按钮 */}
                         <button
-                          onClick={() => {
-                            // TODO: Implement TTS generation
-                            alert('Please configure TTS in Account Settings first.');
+                          onClick={async () => {
+                            // Get text from editor
+                            const text = editorRef.current?.editor?.getText() || memo?.transcription || '';
+                            if (!text.trim()) {
+                              setTtsError('No text to convert');
+                              return;
+                            }
+
+                            // Get API key
+                            const apiKey = ttsApi === 'elevenlabs'
+                              ? apiKeys?.elevenlabs_api_key
+                              : apiKeys?.fish_audio_api_key;
+
+                            if (!apiKey) {
+                              setTtsError(`No ${ttsApi === 'elevenlabs' ? 'ElevenLabs' : 'Fish Audio'} API key configured`);
+                              return;
+                            }
+
+                            setIsGeneratingTTS(true);
+                            setTtsError(null);
+                            setTtsResult(null);
+
+                            try {
+                              const result = await generateTTSFromText(text, {
+                                provider: ttsApi,
+                                apiKey,
+                                voiceId: ttsVoice,
+                              }, setTtsProgress);
+
+                              setTtsResult(result);
+                              setTtsProgress(null);
+                            } catch (err) {
+                              setTtsError(err instanceof Error ? err.message : 'TTS generation failed');
+                              setTtsProgress(null);
+                            } finally {
+                              setIsGeneratingTTS(false);
+                            }
                           }}
                           disabled={!ttsVoice || isGeneratingTTS}
                           className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 disabled:bg-white/10 disabled:text-white/30 text-white rounded text-xs font-medium transition-colors"

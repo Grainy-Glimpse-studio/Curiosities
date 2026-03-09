@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ExternalLink, Check, Loader2, LogOut, HelpCircle } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Check, Loader2, LogOut, HelpCircle, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { TTSVoice } from '../services/auth';
+import { v4 as uuidv4 } from 'uuid';
 
 // API info
 const API_INFO = {
@@ -31,11 +33,19 @@ const UserPage: React.FC = () => {
   const { user, apiKeys, saveKeys, logout, loading: authLoading } = useAuth();
 
   // Active tab
-  const [activeTab, setActiveTab] = useState<'profile' | 'speech' | 'text'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'speech' | 'text' | 'tts'>('profile');
 
   // API keys (local state for editing)
   const [deepgramKey, setDeepgramKey] = useState('');
   const [openaiKey, setOpenaiKey] = useState('');
+
+  // TTS state
+  const [elevenlabsKey, setElevenlabsKey] = useState('');
+  const [fishAudioKey, setFishAudioKey] = useState('');
+  const [ttsVoices, setTtsVoices] = useState<TTSVoice[]>([]);
+  const [newVoiceLabel, setNewVoiceLabel] = useState('');
+  const [newVoiceModelId, setNewVoiceModelId] = useState('');
+  const [newVoiceProvider, setNewVoiceProvider] = useState<'elevenlabs' | 'fish_audio'>('elevenlabs');
 
   // Info popover
   const [showInfo, setShowInfo] = useState<string | null>(null);
@@ -50,6 +60,9 @@ const UserPage: React.FC = () => {
     if (apiKeys) {
       setDeepgramKey(apiKeys.deepgram || '');
       setOpenaiKey(apiKeys.openai || '');
+      setElevenlabsKey(apiKeys.elevenlabs_api_key || '');
+      setFishAudioKey(apiKeys.fish_audio_api_key || '');
+      setTtsVoices(apiKeys.tts_voices || []);
     }
   }, [apiKeys]);
 
@@ -71,6 +84,9 @@ const UserPage: React.FC = () => {
       await saveKeys({
         deepgram: deepgramKey || undefined,
         openai: openaiKey || undefined,
+        elevenlabs_api_key: elevenlabsKey || undefined,
+        fish_audio_api_key: fishAudioKey || undefined,
+        tts_voices: ttsVoices.length > 0 ? ttsVoices : undefined,
       });
 
       setSaved(true);
@@ -80,6 +96,27 @@ const UserPage: React.FC = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  // Add a new TTS voice
+  const addVoice = () => {
+    if (!newVoiceLabel.trim() || !newVoiceModelId.trim()) return;
+
+    const newVoice: TTSVoice = {
+      id: uuidv4(),
+      provider: newVoiceProvider,
+      modelId: newVoiceModelId.trim(),
+      label: newVoiceLabel.trim(),
+    };
+
+    setTtsVoices([...ttsVoices, newVoice]);
+    setNewVoiceLabel('');
+    setNewVoiceModelId('');
+  };
+
+  // Remove a TTS voice
+  const removeVoice = (voiceId: string) => {
+    setTtsVoices(ttsVoices.filter(v => v.id !== voiceId));
   };
 
   const handleLogout = async () => {
@@ -121,6 +158,7 @@ const UserPage: React.FC = () => {
               { id: 'profile', label: 'Profile' },
               { id: 'speech', label: 'Speech API' },
               { id: 'text', label: 'Text API' },
+              { id: 'tts', label: 'TTS Voices' },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -214,6 +252,232 @@ const UserPage: React.FC = () => {
                   showInfo={showInfo}
                   onToggleInfo={setShowInfo}
                 />
+
+                {/* Save Section */}
+                <SaveSection
+                  error={error}
+                  saving={saving}
+                  saved={saved}
+                  onSave={handleSave}
+                />
+              </div>
+            )}
+
+            {activeTab === 'tts' && (
+              <div className="space-y-8">
+                <div>
+                  <h2 className="text-white/90 text-[18px] mb-2" style={{ fontFamily: "'Consulate', monospace" }}>
+                    Text-to-Speech Voices
+                  </h2>
+                  <p className="text-white/40 text-[14px]" style={{ fontFamily: "'Consulate', monospace" }}>
+                    Configure TTS API keys and manage your voice library.
+                  </p>
+                </div>
+
+                {/* ElevenLabs Section */}
+                <div className="space-y-4 p-4 rounded-lg bg-white/[0.03] border border-white/10">
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/70 text-[15px]" style={{ fontFamily: "'Consulate', monospace" }}>
+                      ElevenLabs
+                    </span>
+                    <a
+                      href="https://elevenlabs.io/app/settings/api-keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[12px] text-white/40 hover:text-white/60 transition-colors"
+                      style={{ fontFamily: "'Consulate', monospace" }}
+                    >
+                      <ExternalLink size={12} />
+                      Get API Key
+                    </a>
+                  </div>
+
+                  <input
+                    type="password"
+                    value={elevenlabsKey}
+                    onChange={(e) => setElevenlabsKey(e.target.value)}
+                    placeholder="Enter ElevenLabs API key..."
+                    className="w-full px-4 py-2.5 bg-black/40 border border-white/15 rounded text-white/90 text-[14px] placeholder:text-white/25 focus:outline-none focus:border-white/30 transition-colors"
+                    style={{ fontFamily: "'Consulate', monospace" }}
+                  />
+
+                  {/* ElevenLabs Voices */}
+                  <div className="mt-4">
+                    <div className="text-white/50 text-[12px] uppercase tracking-wider mb-2" style={{ fontFamily: "'Consulate', monospace" }}>
+                      Voices
+                    </div>
+                    <div className="space-y-2">
+                      {ttsVoices.filter(v => v.provider === 'elevenlabs').map(voice => (
+                        <div key={voice.id} className="flex items-center justify-between py-2 px-3 bg-black/30 rounded">
+                          <div>
+                            <span className="text-white/80 text-[13px]" style={{ fontFamily: "'Consulate', monospace" }}>
+                              "{voice.label}"
+                            </span>
+                            <span className="text-white/40 text-[11px] ml-2">
+                              ID: {voice.modelId.length > 20 ? voice.modelId.slice(0, 20) + '...' : voice.modelId}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => removeVoice(voice.id)}
+                            className="p-1 text-white/30 hover:text-[#903e4f] transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                      {ttsVoices.filter(v => v.provider === 'elevenlabs').length === 0 && (
+                        <div className="text-white/30 text-[12px] py-2" style={{ fontFamily: "'Consulate', monospace" }}>
+                          No voices added yet
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Add Voice Form - ElevenLabs */}
+                    {newVoiceProvider === 'elevenlabs' && (
+                      <div className="mt-3 flex gap-2">
+                        <input
+                          type="text"
+                          value={newVoiceLabel}
+                          onChange={(e) => setNewVoiceLabel(e.target.value)}
+                          placeholder="Label (e.g., English Narrator)"
+                          className="flex-1 px-3 py-2 bg-black/40 border border-white/15 rounded text-white/90 text-[13px] placeholder:text-white/25 focus:outline-none focus:border-white/30"
+                          style={{ fontFamily: "'Consulate', monospace" }}
+                        />
+                        <input
+                          type="text"
+                          value={newVoiceModelId}
+                          onChange={(e) => setNewVoiceModelId(e.target.value)}
+                          placeholder="Voice ID"
+                          className="w-32 px-3 py-2 bg-black/40 border border-white/15 rounded text-white/90 text-[13px] placeholder:text-white/25 focus:outline-none focus:border-white/30"
+                          style={{ fontFamily: "'Consulate', monospace" }}
+                        />
+                        <button
+                          onClick={addVoice}
+                          disabled={!newVoiceLabel.trim() || !newVoiceModelId.trim()}
+                          className="px-3 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 rounded text-white/80 transition-colors"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    )}
+                    {newVoiceProvider !== 'elevenlabs' && (
+                      <button
+                        onClick={() => setNewVoiceProvider('elevenlabs')}
+                        className="mt-3 flex items-center gap-1.5 text-[12px] text-white/40 hover:text-white/60 transition-colors"
+                        style={{ fontFamily: "'Consulate', monospace" }}
+                      >
+                        <Plus size={12} />
+                        Add Voice
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Fish Audio Section */}
+                <div className="space-y-4 p-4 rounded-lg bg-white/[0.03] border border-white/10">
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/70 text-[15px]" style={{ fontFamily: "'Consulate', monospace" }}>
+                      Fish Audio
+                    </span>
+                    <a
+                      href="https://fish.audio/zh-CN/go-api/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[12px] text-white/40 hover:text-white/60 transition-colors"
+                      style={{ fontFamily: "'Consulate', monospace" }}
+                    >
+                      <ExternalLink size={12} />
+                      Get API Key
+                    </a>
+                  </div>
+
+                  <input
+                    type="password"
+                    value={fishAudioKey}
+                    onChange={(e) => setFishAudioKey(e.target.value)}
+                    placeholder="Enter Fish Audio API key..."
+                    className="w-full px-4 py-2.5 bg-black/40 border border-white/15 rounded text-white/90 text-[14px] placeholder:text-white/25 focus:outline-none focus:border-white/30 transition-colors"
+                    style={{ fontFamily: "'Consulate', monospace" }}
+                  />
+
+                  {/* Fish Audio Voices */}
+                  <div className="mt-4">
+                    <div className="text-white/50 text-[12px] uppercase tracking-wider mb-2" style={{ fontFamily: "'Consulate', monospace" }}>
+                      Voices
+                    </div>
+                    <div className="space-y-2">
+                      {ttsVoices.filter(v => v.provider === 'fish_audio').map(voice => (
+                        <div key={voice.id} className="flex items-center justify-between py-2 px-3 bg-black/30 rounded">
+                          <div>
+                            <span className="text-white/80 text-[13px]" style={{ fontFamily: "'Consulate', monospace" }}>
+                              "{voice.label}"
+                            </span>
+                            <span className="text-white/40 text-[11px] ml-2">
+                              ID: {voice.modelId.length > 20 ? voice.modelId.slice(0, 20) + '...' : voice.modelId}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => removeVoice(voice.id)}
+                            className="p-1 text-white/30 hover:text-[#903e4f] transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                      {ttsVoices.filter(v => v.provider === 'fish_audio').length === 0 && (
+                        <div className="text-white/30 text-[12px] py-2" style={{ fontFamily: "'Consulate', monospace" }}>
+                          No voices added yet
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Add Voice Form - Fish Audio */}
+                    {newVoiceProvider === 'fish_audio' && (
+                      <div className="mt-3 flex gap-2">
+                        <input
+                          type="text"
+                          value={newVoiceLabel}
+                          onChange={(e) => setNewVoiceLabel(e.target.value)}
+                          placeholder="Label (e.g., Chinese Host)"
+                          className="flex-1 px-3 py-2 bg-black/40 border border-white/15 rounded text-white/90 text-[13px] placeholder:text-white/25 focus:outline-none focus:border-white/30"
+                          style={{ fontFamily: "'Consulate', monospace" }}
+                        />
+                        <input
+                          type="text"
+                          value={newVoiceModelId}
+                          onChange={(e) => setNewVoiceModelId(e.target.value)}
+                          placeholder="Model ID"
+                          className="w-32 px-3 py-2 bg-black/40 border border-white/15 rounded text-white/90 text-[13px] placeholder:text-white/25 focus:outline-none focus:border-white/30"
+                          style={{ fontFamily: "'Consulate', monospace" }}
+                        />
+                        <button
+                          onClick={addVoice}
+                          disabled={!newVoiceLabel.trim() || !newVoiceModelId.trim()}
+                          className="px-3 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 rounded text-white/80 transition-colors"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    )}
+                    {newVoiceProvider !== 'fish_audio' && (
+                      <button
+                        onClick={() => setNewVoiceProvider('fish_audio')}
+                        className="mt-3 flex items-center gap-1.5 text-[12px] text-white/40 hover:text-white/60 transition-colors"
+                        style={{ fontFamily: "'Consulate', monospace" }}
+                      >
+                        <Plus size={12} />
+                        Add Voice
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Instructions */}
+                <div className="text-white/30 text-[12px] space-y-1" style={{ fontFamily: "'Consulate', monospace" }}>
+                  <p>• Get your Voice ID from the ElevenLabs Voice Library or your cloned voices</p>
+                  <p>• For Fish Audio, use the Model ID from your voice models</p>
+                  <p>• Remember to save after making changes</p>
+                </div>
 
                 {/* Save Section */}
                 <SaveSection

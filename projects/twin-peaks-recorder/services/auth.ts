@@ -1,11 +1,25 @@
 import { supabase } from './supabase';
 
+// TTS Voice 配置
+export interface TTSVoice {
+  id: string;                           // UUID
+  provider: 'elevenlabs' | 'fish_audio';
+  modelId: string;                      // API 的 voice/model ID
+  label: string;                        // 用户自定义名字
+  language?: string;                    // 可选语言标识
+}
+
 // API keys 结构（明文存储）
 export interface ApiKeys {
   deepgram?: string;
   dashscope?: string;  // 千问/百炼 API key
   openai?: string;
   primarySpeechApi?: 'deepgram' | 'dashscope';  // 用户选择的主要语音 API
+
+  // TTS 配置
+  elevenlabs_api_key?: string;
+  fish_audio_api_key?: string;
+  tts_voices?: TTSVoice[];
 }
 
 /**
