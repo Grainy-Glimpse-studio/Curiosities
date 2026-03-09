@@ -442,7 +442,7 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   // 面板尺寸
   const TOC_SIDEBAR_WIDTH = 180;
   const SHORTCUTS_WIDTH = 240;
-  const EXPORT_PANEL_HEIGHT = 200;
+  const EXPORT_PANEL_HEIGHT = 240;
 
   const windowRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLSpanElement>(null);
@@ -1919,7 +1919,7 @@ Sent from Diane`
                   {/* Export 两列布局 */}
                   <div className="flex-1 flex flex-row overflow-hidden">
                     {/* 左列：文本输出 */}
-                    <div className="flex-1 p-4 border-r border-white/20">
+                    <div className="flex-1 p-4 pb-6 border-r border-white/20">
                       <div className="text-white/50 text-xs uppercase tracking-wider mb-3">Text</div>
                       <div className="space-y-1">
                         <button
@@ -1954,7 +1954,7 @@ Sent from Diane`
                     </div>
 
                     {/* 右列：音频输出 */}
-                    <div className="flex-1 p-4">
+                    <div className="flex-1 p-4 pb-6">
                       <div className="text-white/50 text-xs uppercase tracking-wider mb-3">Audio</div>
                       <div className="space-y-1">
                         <button
