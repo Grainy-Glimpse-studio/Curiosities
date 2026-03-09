@@ -297,47 +297,6 @@ const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onStop, onDel
     }
   };
 
-  // 上传工具卡带 - 特殊样式
-  if (memo.isUploadTape) {
-    return (
-      <div className="relative group w-full mb-6 perspective-1000">
-        {/* Tape Body - Glass 3D Effect */}
-        <div
-          className="bg-[#1a1a1a]/80 backdrop-blur-xl rounded-xl shadow-[12px_12px_30px_rgba(0,0,0,0.8),-6px_-6px_20px_rgba(50,50,50,0.1),0_20px_40px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.15),inset_0_-2px_8px_rgba(0,0,0,0.4)] border-t border-l border-white/10 border-r-[8px] border-b-[8px] border-r-black/50 border-b-black/50 p-3 transform transition-all duration-300 group-hover:-rotate-1 group-hover:scale-[1.02] group-hover:shadow-[15px_15px_35px_rgba(0,0,0,0.9),-8px_-8px_25px_rgba(60,60,60,0.15),0_25px_50px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.2)] relative overflow-hidden"
-        >
-          {/* Plastic Texture */}
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/black-scales.png')] opacity-20 pointer-events-none"></div>
-
-          {/* Upload Label Area - 虚线边框 */}
-          <div
-            onClick={handleCardClick}
-            className="relative z-10 rounded-lg p-4 border-2 border-dashed border-white/30 flex flex-col items-center justify-center aspect-[3/2] cursor-pointer overflow-hidden hover:border-white/50 hover:bg-white/5 transition-all duration-300"
-          >
-            {/* Upload Icon */}
-            <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mb-3">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/60">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-            </div>
-
-            {/* Title */}
-            <span className="text-white/80 text-lg font-medium mb-1" style={{ fontFamily: titleFont }}>
-              Convert
-            </span>
-
-            {/* Subtitle */}
-            <span className="text-white/40 text-xs text-center">
-              Audio/Video → Text<br />
-              SRT → TTS
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       {/* Cassette Tape Card - Black Design */}

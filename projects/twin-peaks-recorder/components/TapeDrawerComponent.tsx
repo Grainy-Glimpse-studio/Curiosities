@@ -24,6 +24,7 @@ interface TapeDrawerProps {
   onOpenTranscript?: (memo: Memo) => void;
   onOpenAbout?: () => void;
   onOpenRecycleBin?: () => void;
+  onOpenUploadWindow?: () => void; // 打开上传转换窗口
   trashedCount?: number;
   globalPlayingMemoId?: string | null; // 当前正在播放的 memo ID
 }
@@ -45,6 +46,7 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
   onOpenTranscript,
   onOpenAbout,
   onOpenRecycleBin,
+  onOpenUploadWindow,
   trashedCount = 0,
   globalPlayingMemoId,
 }) => {
@@ -880,10 +882,7 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
                  titleFont={titleFont}
                  contentFont={contentFont}
                  shouldAllowClick={shouldAllowClick}
-                 onTranscriptionComplete={(result) => {
-                   console.log('[TapeDrawer] Transcription ready:', result);
-                   // TODO: Handle transcription result - create new memo
-                 }}
+                 onOpenWindow={onOpenUploadWindow}
                />
              </motion.div>
 

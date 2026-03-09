@@ -7,6 +7,7 @@ interface UploadTapeProps {
   titleFont: string;
   contentFont: string;
   shouldAllowClick?: () => boolean;
+  onOpenWindow?: () => void; // 外部提供的打开窗口回调
   onTranscriptionComplete?: (result: {
     audioBlob: Blob;
     audioUrl: string;
@@ -21,6 +22,7 @@ const UploadTape: React.FC<UploadTapeProps> = ({
   titleFont,
   contentFont,
   shouldAllowClick,
+  onOpenWindow,
   onTranscriptionComplete,
 }) => {
   const [isWindowOpen, setIsWindowOpen] = useState(false);
@@ -468,7 +470,11 @@ const UploadTape: React.FC<UploadTapeProps> = ({
           className="bg-[#1a1a1a]/80 backdrop-blur-xl rounded-xl shadow-[12px_12px_30px_rgba(0,0,0,0.8),-6px_-6px_20px_rgba(50,50,50,0.1),0_20px_40px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.15),inset_0_-2px_8px_rgba(0,0,0,0.4)] border-t border-l border-white/10 border-r-[8px] border-b-[8px] border-r-black/50 border-b-black/50 p-3 transform transition-all duration-300 group-hover:-rotate-1 group-hover:scale-[1.02] group-hover:shadow-[15px_15px_35px_rgba(0,0,0,0.9),-8px_-8px_25px_rgba(60,60,60,0.15),0_25px_50px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.2)] relative overflow-hidden cursor-pointer"
           onClick={() => {
             if (shouldAllowClick && !shouldAllowClick()) return;
-            openWindow();
+            if (onOpenWindow) {
+              onOpenWindow();
+            } else {
+              openWindow();
+            }
           }}
         >
           {/* Plastic Texture */}

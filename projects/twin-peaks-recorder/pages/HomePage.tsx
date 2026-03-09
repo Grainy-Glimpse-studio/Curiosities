@@ -49,19 +49,6 @@ Second stop, the Regional Bureau Office, to pick up some files. Although I have 
   audioOffset: 8, // 开头静音约 8 秒
 };
 
-// Upload/Convert tape - 转换工具卡带
-const UPLOAD_MEMO: Memo = {
-  id: 'upload-convert',
-  audioUrls: [],
-  transcription: '',
-  tags: ['Tools'],
-  createdAt: new Date('2026-01-01T00:00:00').getTime(), // 固定时间，排在最后
-  isPermanent: true,
-  isUploadTape: true, // 特殊标记：这是上传工具卡带
-  duration: 0,
-  title: 'Convert',
-};
-
 // Storage keys for localStorage
 const MEMOS_STORAGE_KEY = 'diane-recorder-memos';
 const TRASH_STORAGE_KEY = 'diane-recorder-trash';
@@ -123,13 +110,13 @@ const loadMemosFromStorage = (): Memo[] => {
     const stored = localStorage.getItem(MEMOS_STORAGE_KEY);
     if (!stored) {
       console.log('[Storage] No stored memos, returning default memos');
-      return [UPLOAD_MEMO, DEFAULT_MEMO];
+      return [DEFAULT_MEMO];
     }
 
     const serialized: SerializedMemo[] = JSON.parse(stored);
     const memos = serialized
       // Remove any stored permanent memos (we'll add fresh ones)
-      .filter(item => item.id !== 'twin-peaks-pilot' && item.id !== 'upload-convert')
+      .filter(item => item.id !== 'twin-peaks-pilot')
       .map(item => {
         // 新格式：多段音频
         if (item.audioBase64Array && item.audioBase64Array.length > 0) {
@@ -152,14 +139,13 @@ const loadMemosFromStorage = (): Memo[] => {
       });
 
     // Always add permanent memos at the end (they will appear last due to old dates)
-    memos.push(UPLOAD_MEMO);
     memos.push(DEFAULT_MEMO);
 
     console.log(`[Storage] Loaded ${memos.length} memos (including permanent memos)`);
     return memos;
   } catch (e) {
     console.error('Failed to load memos from localStorage:', e);
-    return [UPLOAD_MEMO, DEFAULT_MEMO];
+    return [DEFAULT_MEMO];
   }
 };
 
@@ -1647,12 +1633,7 @@ const HomePage: React.FC = () => {
         onTitleFontChange={setTitleFont}
         onContentFontChange={setContentFont}
         onOpenTranscript={(memo) => {
-          // 上传工具卡带 - 打开转换窗口
-          if (memo.isUploadTape) {
-            setIsUploadWindowOpen(true);
-            return;
-          }
-          // 普通卡带 - 打开浮动窗口
+          // 打开浮动窗口
           setOpenTranscripts(prev => {
             if (prev.some(m => m.id === memo.id)) return prev;
             return [...prev, memo];
@@ -1660,6 +1641,7 @@ const HomePage: React.FC = () => {
         }}
         onOpenAbout={() => goToAbout('archive')}
         onOpenRecycleBin={() => setIsRecycleBinOpen(true)}
+        onOpenUploadWindow={() => setIsUploadWindowOpen(true)}
         trashedCount={trashedMemos.length}
         onStop={handleStopPlay}
         globalPlayingMemoId={globalPlayingMemoId}
