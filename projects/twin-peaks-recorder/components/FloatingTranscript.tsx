@@ -447,6 +447,8 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const windowRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLSpanElement>(null);
   const editorRef = useRef<MarkdownEditorRef>(null);
+  const joinButtonRef = useRef<HTMLButtonElement>(null);
+  const [joinMenuPosition, setJoinMenuPosition] = useState({ x: 0, y: 0 });
   const dragStartPos = useRef({ x: 0, y: 0 });
   const resizeStartPos = useRef({ x: 0, y: 0 });
   const resizeStartSize = useRef({ width: 0, height: 0 });
@@ -498,6 +500,25 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
       clearTimeout(timeoutId);
     };
   }, [showTOC, updateTOC]);
+
+  // 点击外部关闭 Join 菜单
+  useEffect(() => {
+    if (!showJoinMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // 如果点击的是 Join 按钮本身，不处理（按钮有自己的 toggle 逻辑）
+      if (joinButtonRef.current?.contains(target)) return;
+      setShowJoinMenu(false);
+    };
+    // 延迟添加，避免立即触发
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showJoinMenu]);
 
   // 滚动到指定标题
   const scrollToHeading = (headingIndex: number) => {
@@ -1625,49 +1646,37 @@ Sent from Diane`
                       </button>
                     )}
 
-                    {/* Join Project 按钮 - 菜单向下展开 */}
-                    <div className="relative">
-                      <button
-                        onClick={() => {
-                          setShowJoinMenu(!showJoinMenu);
-                          setShowExportPanel(false); // 互斥
-                        }}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-colors ${
-                          sendStatus === 'sent'
-                            ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                            : sendStatus === 'sending'
-                            ? 'bg-white/10 text-white/80 border-white/20'
-                            : 'bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border-white/10 hover:border-white/20'
-                        }`}
-                        style={{ fontFamily: contentFont }}
-                        disabled={sendStatus === 'sending'}
-                      >
-                        <Sparkles size={14} />
-                        <span className="text-sm">
-                          {sendStatus === 'sending' ? 'Sending...' : sendStatus === 'sent' ? 'Sent ✓' : 'Join'}
-                        </span>
-                      </button>
-                      {/* 向下展开的菜单 */}
-                      {showJoinMenu && (
-                        <div className="absolute top-full right-0 mt-2 backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[160px] shadow-2xl border border-white/20 z-50">
-                          <button
-                            onClick={() => { setShowJoinMenu(false); setShowProjectInfo(true); }}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 transition-colors text-sm"
-                          >
-                            <Info size={16} />
-                            What is this?
-                          </button>
-                          <div className="mx-3 border-t border-white/20" />
-                          <button
-                            onClick={sendToCreator}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 transition-colors text-sm"
-                          >
-                            <Mail size={16} />
-                            Send your Ephemera
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                    {/* Join Project 按钮 - 菜单向下展开（使用 portal 避免被裁剪） */}
+                    <button
+                      ref={joinButtonRef}
+                      onClick={() => {
+                        if (!showJoinMenu && joinButtonRef.current) {
+                          const rect = joinButtonRef.current.getBoundingClientRect();
+                          setJoinMenuPosition({
+                            x: rect.right - 160, // 右对齐，菜单宽度 160px
+                            y: rect.bottom + 8,  // 按钮下方 8px
+                          });
+                        }
+                        setShowJoinMenu(!showJoinMenu);
+                        setShowExportPanel(false); // 互斥
+                      }}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-colors ${
+                        sendStatus === 'sent'
+                          ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                          : sendStatus === 'sending'
+                          ? 'bg-white/10 text-white/80 border-white/20'
+                          : showJoinMenu
+                          ? 'bg-white/20 text-white border-white/30'
+                          : 'bg-white/5 hover:bg-white/15 text-white/60 hover:text-white border-white/10 hover:border-white/20'
+                      }`}
+                      style={{ fontFamily: contentFont }}
+                      disabled={sendStatus === 'sending'}
+                    >
+                      <Sparkles size={14} />
+                      <span className="text-sm">
+                        {sendStatus === 'sending' ? 'Sending...' : sendStatus === 'sent' ? 'Sent ✓' : 'Join'}
+                      </span>
+                    </button>
 
                     {/* Export 按钮 - 打开底部面板 */}
                     <button
@@ -1917,7 +1926,7 @@ Sent from Diane`
                   </div>
 
                   {/* Export 两列布局 */}
-                  <div className="flex-1 flex flex-row overflow-hidden">
+                  <div className="flex-1 flex flex-row overflow-y-auto">
                     {/* 左列：文本输出 */}
                     <div className="flex-1 p-4 pb-6 border-r border-white/20">
                       <div className="text-white/50 text-xs uppercase tracking-wider mb-3">Text</div>
@@ -2006,6 +2015,33 @@ Sent from Diane`
               </>
             )}
           </motion.div>
+
+          {/* Join 菜单 - 使用独立 portal 避免被 overflow-hidden 裁剪 */}
+          {showJoinMenu && (
+            <div
+              className="fixed backdrop-blur-3xl rounded-2xl overflow-hidden min-w-[160px] shadow-2xl border border-white/20 z-[300]"
+              style={{
+                left: joinMenuPosition.x,
+                top: joinMenuPosition.y,
+              }}
+            >
+              <button
+                onClick={() => { setShowJoinMenu(false); setShowProjectInfo(true); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 transition-colors text-sm"
+              >
+                <Info size={16} />
+                What is this?
+              </button>
+              <div className="mx-3 border-t border-white/20" />
+              <button
+                onClick={sendToCreator}
+                className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 transition-colors text-sm"
+              >
+                <Mail size={16} />
+                Send your Ephemera
+              </button>
+            </div>
+          )}
         </>
       )}
     </AnimatePresence>
