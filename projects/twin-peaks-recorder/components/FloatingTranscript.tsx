@@ -95,41 +95,76 @@ const generateDefaultTitle = (createdAt: number): string => {
   return `${month} ${day}, ${year} ${time}`;
 };
 
-// 目录项结构
+// 目录项结构 (Bear-style: headings + bullets)
 interface TOCItem {
   id: string;
   text: string;
-  level: number; // 1 = H1, 2 = H2, etc.
+  level: number; // 1 = H1, 2 = H2, 3 = H3, 10 = bullet, 11 = nested bullet
+  type: 'heading' | 'bullet';
+  nodePos: number; // 用于跳转
 }
 
-// 从编辑器 JSON 结构中提取标题
+// 从编辑器 JSON 结构中提取标题和列表项 (Bear-style)
 const extractTOCFromEditor = (editor: any): TOCItem[] => {
   if (!editor) return [];
   const toc: TOCItem[] = [];
   const json = editor.getJSON();
+  let currentPos = 0;
 
-  const traverse = (node: any, index: number = 0) => {
+  const extractText = (node: any): string => {
+    if (node.type === 'text' && node.text) return node.text;
+    if (node.content) return node.content.map(extractText).join('');
+    return '';
+  };
+
+  const traverse = (node: any, depth: number = 0, listDepth: number = 0) => {
+    const nodeStart = currentPos;
+
+    // 标题
     if (node.type === 'heading' && node.attrs?.level) {
-      // 提取标题文本
-      let text = '';
-      if (node.content) {
-        node.content.forEach((child: any) => {
-          if (child.type === 'text' && child.text) {
-            text += child.text;
-          }
-        });
-      }
+      const text = extractText(node);
       if (text.trim()) {
         toc.push({
-          id: `heading-${toc.length}`,
+          id: `toc-${toc.length}`,
           text: text.trim(),
           level: node.attrs.level,
+          type: 'heading',
+          nodePos: nodeStart,
         });
       }
     }
-    if (node.content) {
-      node.content.forEach((child: any, idx: number) => traverse(child, idx));
+
+    // 列表项 (bullet points)
+    if (node.type === 'listItem') {
+      // 提取列表项的第一段文字
+      const firstParagraph = node.content?.find((c: any) => c.type === 'paragraph');
+      if (firstParagraph) {
+        const text = extractText(firstParagraph);
+        if (text.trim()) {
+          toc.push({
+            id: `toc-${toc.length}`,
+            text: text.trim(),
+            level: 10 + listDepth, // 10 = 一级列表, 11 = 二级列表, etc.
+            type: 'bullet',
+            nodePos: nodeStart,
+          });
+        }
+      }
     }
+
+    // 递归处理子节点
+    if (node.content) {
+      const isList = node.type === 'bulletList' || node.type === 'orderedList';
+      node.content.forEach((child: any) => {
+        traverse(child, depth + 1, isList ? listDepth + 1 : listDepth);
+      });
+    }
+
+    // 估算位置（简化版）
+    if (node.type === 'text' && node.text) {
+      currentPos += node.text.length;
+    }
+    currentPos += 1; // 节点边界
   };
 
   traverse(json);
@@ -1134,31 +1169,42 @@ Sent from Diane`
           <motion.div
             ref={windowRef}
             initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
-            transition={{ duration: 0.3 }}
-            className="fixed z-[200] flex flex-col backdrop-blur-2xl rounded-2xl shadow-2xl overflow-hidden border border-white/60"
-            style={{
+            animate={{
+              opacity: 1,
+              scale: 1,
               left: position.x - (showTOC ? TOC_SIDEBAR_WIDTH / 2 : 0) - (showShortcuts ? SHORTCUTS_WIDTH / 2 : 0),
-              top: position.y,
               width: isMinimized ? 300 : (size.width + (showTOC ? TOC_SIDEBAR_WIDTH : 0) + (showShortcuts ? SHORTCUTS_WIDTH : 0)),
               height: isMinimized ? 48 : (size.height + (showExportPanel ? EXPORT_PANEL_HEIGHT : 0)),
+            }}
+            exit={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
+            transition={{
+              opacity: { duration: 0.3 },
+              scale: { duration: 0.3 },
+              // 使用 spring 动画让展开更流畅自然（Bear 风格）
+              left: { type: 'spring', stiffness: 300, damping: 30 },
+              width: { type: 'spring', stiffness: 300, damping: 30 },
+              height: { type: 'spring', stiffness: 300, damping: 30 },
+            }}
+            className="fixed z-[200] flex flex-col backdrop-blur-2xl rounded-2xl shadow-2xl overflow-hidden border border-white/60"
+            style={{
+              top: position.y,
               backgroundColor: 'rgba(255, 255, 255, 0)',
-              transition: 'left 0.3s ease, width 0.3s ease, height 0.3s ease',
             }}
           >
             {/* 上层：TOC + 主内容 + Shortcuts（水平排列） */}
             <div className="flex flex-row flex-1 min-h-0">
-            {/* 左侧目录栏 (TOC) */}
+            {/* 左侧目录栏 (TOC) - Bear 风格 */}
             <AnimatePresence>
               {showTOC && !isMinimized && (
                 <motion.div
                   initial={{ width: 0, opacity: 0 }}
                   animate={{ width: TOC_SIDEBAR_WIDTH, opacity: 1 }}
                   exit={{ width: 0, opacity: 0 }}
-                  transition={{ duration: 0.3, ease: 'easeInOut' }}
-                  className="flex flex-col border-r border-white/20 overflow-hidden"
-                  style={{ minWidth: TOC_SIDEBAR_WIDTH }}
+                  transition={{
+                    width: { type: 'spring', stiffness: 300, damping: 30 },
+                    opacity: { duration: 0.2 },
+                  }}
+                  className="flex flex-col border-r border-white/20 overflow-hidden shrink-0"
                 >
                   {/* 目录标题 */}
                   <div className="px-3 py-3 border-b border-white/20 flex items-center justify-between shrink-0">
@@ -1171,29 +1217,53 @@ Sent from Diane`
                     </button>
                   </div>
 
-                  {/* 目录列表 */}
+                  {/* 目录列表 - Bear 风格 */}
                   <div className="flex-1 overflow-y-auto py-2">
                     {tocItems.length === 0 ? (
                       <div className="px-3 py-4 text-white/40 text-xs text-center">
-                        No headings found.<br/>
-                        <span className="text-white/30">Use H1/H2 to create sections</span>
+                        No content yet.<br/>
+                        <span className="text-white/30">Add headings or lists</span>
                       </div>
                     ) : (
-                      tocItems.map((item, index) => (
-                        <button
-                          key={item.id}
-                          onClick={() => scrollToHeading(index)}
-                          className="w-full text-left px-3 py-1.5 text-sm text-white/70 hover:text-white hover:bg-white/10 transition-colors truncate"
-                          style={{
-                            paddingLeft: `${8 + (item.level - 1) * 12}px`,
-                            fontSize: item.level === 1 ? '13px' : '12px',
-                            fontWeight: item.level === 1 ? 500 : 400,
-                          }}
-                          title={item.text}
-                        >
-                          {item.text}
-                        </button>
-                      ))
+                      tocItems.map((item, index) => {
+                        const isBullet = item.type === 'bullet';
+                        const bulletDepth = isBullet ? item.level - 10 : 0; // 10=一级, 11=二级...
+                        const headingLevel = !isBullet ? item.level : 0;
+
+                        // 计算缩进: 标题按 level, bullet 按嵌套深度
+                        const indent = isBullet
+                          ? 12 + bulletDepth * 12  // bullets 从 12px 开始，每级 +12
+                          : 8 + (headingLevel - 1) * 8;  // headings 从 8px 开始
+
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => scrollToHeading(index)}
+                            className={`w-full text-left py-1 transition-colors truncate flex items-center gap-1.5 ${
+                              isBullet
+                                ? 'text-white/50 hover:text-white/80 hover:bg-white/5'
+                                : 'text-white/70 hover:text-white hover:bg-white/10'
+                            }`}
+                            style={{
+                              paddingLeft: `${indent}px`,
+                              paddingRight: '8px',
+                              fontSize: headingLevel === 1 ? '13px' : isBullet ? '11px' : '12px',
+                              fontWeight: headingLevel === 1 ? 600 : headingLevel === 2 ? 500 : 400,
+                            }}
+                            title={item.text}
+                          >
+                            {/* Bullet point indicator */}
+                            {isBullet && (
+                              <span className="text-white/30 text-[8px]">•</span>
+                            )}
+                            {/* H1 indicator */}
+                            {headingLevel === 1 && (
+                              <span className="text-white/30 text-[9px] font-bold mr-0.5">#</span>
+                            )}
+                            <span className="truncate">{item.text}</span>
+                          </button>
+                        );
+                      })
                     )}
                   </div>
                 </motion.div>
@@ -1716,9 +1786,11 @@ Sent from Diane`
                   initial={{ width: 0, opacity: 0 }}
                   animate={{ width: SHORTCUTS_WIDTH, opacity: 1 }}
                   exit={{ width: 0, opacity: 0 }}
-                  transition={{ duration: 0.3, ease: 'easeInOut' }}
-                  className="flex flex-col border-l border-white/20 overflow-hidden"
-                  style={{ minWidth: SHORTCUTS_WIDTH }}
+                  transition={{
+                    width: { type: 'spring', stiffness: 300, damping: 30 },
+                    opacity: { duration: 0.2 },
+                  }}
+                  className="flex flex-col border-l border-white/20 overflow-hidden shrink-0"
                 >
                   {/* 面板标题 */}
                   <div className="px-4 py-3 border-b border-white/20 flex items-center justify-between shrink-0">
@@ -1910,9 +1982,11 @@ Sent from Diane`
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: EXPORT_PANEL_HEIGHT, opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  transition={{
+                    height: { type: 'spring', stiffness: 300, damping: 30 },
+                    opacity: { duration: 0.2 },
+                  }}
                   className="flex flex-col border-t border-white/20 overflow-hidden shrink-0"
-                  style={{ minHeight: EXPORT_PANEL_HEIGHT }}
                 >
                   {/* Export 面板标题 */}
                   <div className="px-4 py-3 border-b border-white/20 flex items-center justify-between shrink-0">
