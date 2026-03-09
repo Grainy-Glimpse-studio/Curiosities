@@ -154,13 +154,13 @@ const SRTEditor: React.FC<SRTEditorProps> = ({
                   📄 {fileName}
                 </h2>
                 <div className="text-white/50 text-sm mt-1">
-                  共 {stats.total} 条字幕 &nbsp;|&nbsp;
-                  中文 {stats.chinese} 条 &nbsp;|&nbsp;
-                  英文 {stats.english} 条 &nbsp;|&nbsp;
-                  总时长 {stats.duration.toFixed(1)}s
+                  {stats.total} entries &nbsp;|&nbsp;
+                  ZH: {stats.chinese} &nbsp;|&nbsp;
+                  EN: {stats.english} &nbsp;|&nbsp;
+                  Duration: {stats.duration.toFixed(1)}s
                   {timingAnalysis?.hasIssues && (
                     <span className="ml-3 text-yellow-400">
-                      ⚠ {timingAnalysis.summary.overflowCount} 条可能超时
+                      ⚠ {timingAnalysis.summary.overflowCount} may overflow
                     </span>
                   )}
                 </div>
@@ -188,14 +188,14 @@ const SRTEditor: React.FC<SRTEditorProps> = ({
             <div className="flex-1 overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10">
-                  <tr style={{ backgroundColor: 'rgba(45, 45, 78, 0.98)' }}>
-                    <th className="px-4 py-3 text-left text-[#a29bfe] font-medium w-12">#</th>
-                    <th className="px-4 py-3 text-left text-[#a29bfe] font-medium w-36">开始</th>
-                    <th className="px-4 py-3 text-left text-[#a29bfe] font-medium w-36">结束</th>
-                    <th className="px-4 py-3 text-center text-[#a29bfe] font-medium w-20">时长</th>
-                    <th className="px-4 py-3 text-left text-[#a29bfe] font-medium w-20">语言</th>
-                    <th className="px-4 py-3 text-left text-[#a29bfe] font-medium">内容</th>
-                    <th className="px-4 py-3 text-center text-[#a29bfe] font-medium w-20">状态</th>
+                  <tr style={{ backgroundColor: 'rgba(26, 26, 46, 0.98)' }}>
+                    <th className="px-4 py-3 text-left text-white/60 font-medium w-12">#</th>
+                    <th className="px-4 py-3 text-left text-white/60 font-medium w-36">Start</th>
+                    <th className="px-4 py-3 text-left text-white/60 font-medium w-36">End</th>
+                    <th className="px-4 py-3 text-center text-white/60 font-medium w-20">Duration</th>
+                    <th className="px-4 py-3 text-left text-white/60 font-medium w-20">Lang</th>
+                    <th className="px-4 py-3 text-left text-white/60 font-medium">Content</th>
+                    <th className="px-4 py-3 text-center text-white/60 font-medium w-20">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -210,10 +210,10 @@ const SRTEditor: React.FC<SRTEditorProps> = ({
                         key={entry.index}
                         className={`border-b border-white/5 transition-colors ${
                           isOverflow
-                            ? 'bg-yellow-500/10 hover:bg-yellow-500/15'
+                            ? 'bg-yellow-500/5 hover:bg-yellow-500/10'
                             : index % 2 === 0
-                            ? 'bg-white/[0.02] hover:bg-white/[0.05]'
-                            : 'hover:bg-white/[0.05]'
+                            ? 'bg-white/[0.02] hover:bg-white/[0.04]'
+                            : 'hover:bg-white/[0.04]'
                         }`}
                       >
                         <td className="px-4 py-3 text-white/40">{entry.index}</td>
@@ -222,7 +222,7 @@ const SRTEditor: React.FC<SRTEditorProps> = ({
                             type="text"
                             value={formatTimeDisplay(entry.startTime)}
                             onChange={(e) => updateEntry(index, 'startTime', e.target.value)}
-                            className="w-full bg-transparent text-[#00b894] font-mono focus:outline-none focus:bg-white/10 rounded px-1"
+                            className="w-full bg-white/5 hover:bg-white/10 text-white/80 font-mono focus:outline-none focus:bg-white/15 focus:ring-1 focus:ring-white/20 rounded px-2 py-1 cursor-text"
                           />
                         </td>
                         <td className="px-4 py-3">
@@ -230,37 +230,37 @@ const SRTEditor: React.FC<SRTEditorProps> = ({
                             type="text"
                             value={formatTimeDisplay(entry.endTime)}
                             onChange={(e) => updateEntry(index, 'endTime', e.target.value)}
-                            className={`w-full bg-transparent font-mono focus:outline-none focus:bg-white/10 rounded px-1 ${
-                              isOverflow ? 'text-yellow-400' : 'text-[#00b894]'
+                            className={`w-full bg-white/5 hover:bg-white/10 font-mono focus:outline-none focus:bg-white/15 focus:ring-1 focus:ring-white/20 rounded px-2 py-1 cursor-text ${
+                              isOverflow ? 'text-yellow-400' : 'text-white/80'
                             }`}
                           />
                         </td>
-                        <td className="px-4 py-3 text-center text-[#fdcb6e]">
+                        <td className="px-4 py-3 text-center text-white/50">
                           {duration.toFixed(1)}s
                         </td>
                         <td className="px-4 py-3 text-xs">
                           {lang === 'zh' ? (
-                            <span className="text-red-400">🇨🇳 中文</span>
+                            <span className="text-white/50">ZH</span>
                           ) : (
-                            <span className="text-blue-400">🇺🇸 英文</span>
+                            <span className="text-white/50">EN</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
                           <textarea
                             value={entry.text}
                             onChange={(e) => updateEntry(index, 'text', e.target.value)}
-                            className="w-full bg-transparent text-white/90 focus:outline-none focus:bg-white/10 rounded px-1 resize-none leading-relaxed"
+                            className="w-full bg-white/5 hover:bg-white/10 text-white/90 focus:outline-none focus:bg-white/15 focus:ring-1 focus:ring-white/20 rounded px-2 py-1 resize-none leading-relaxed cursor-text"
                             rows={Math.ceil(entry.text.length / 50) || 1}
                           />
                         </td>
                         <td className="px-4 py-3 text-center">
                           {isOverflow ? (
-                            <span className="inline-flex items-center gap-1 text-yellow-400 text-xs">
+                            <span className="inline-flex items-center gap-1 text-yellow-400/80 text-xs">
                               <AlertTriangle size={12} />
                               {overflow?.requiredSpeed.toFixed(1)}x
                             </span>
                           ) : (
-                            <span className="text-green-400">
+                            <span className="text-white/30">
                               <Check size={14} />
                             </span>
                           )}
@@ -275,7 +275,7 @@ const SRTEditor: React.FC<SRTEditorProps> = ({
             {/* Footer */}
             <div className="flex items-center justify-between px-6 py-4 border-t border-white/10 bg-white/[0.02]">
               <div className="text-white/40 text-xs">
-                点击时间或文字可直接编辑 &nbsp;|&nbsp; 当前语速: {speed.toFixed(1)}x
+                Click time or text to edit &nbsp;|&nbsp; Speed: {speed.toFixed(1)}x
               </div>
               <div className="flex items-center gap-3">
                 <button
