@@ -334,30 +334,32 @@ const UserPage: React.FC = () => {
 
                     {/* Add Voice Form - ElevenLabs */}
                     {newVoiceProvider === 'elevenlabs' && (
-                      <div className="mt-3 flex gap-2">
-                        <input
-                          type="text"
-                          value={newVoiceLabel}
-                          onChange={(e) => setNewVoiceLabel(e.target.value)}
-                          placeholder="Label (e.g., English Narrator)"
-                          className="flex-1 px-3 py-2 bg-black/40 border border-white/15 rounded text-white/90 text-[13px] placeholder:text-white/25 focus:outline-none focus:border-white/30"
-                          style={{ fontFamily: "'Consulate', monospace" }}
-                        />
-                        <input
-                          type="text"
-                          value={newVoiceModelId}
-                          onChange={(e) => setNewVoiceModelId(e.target.value)}
-                          placeholder="Voice ID"
-                          className="w-32 px-3 py-2 bg-black/40 border border-white/15 rounded text-white/90 text-[13px] placeholder:text-white/25 focus:outline-none focus:border-white/30"
-                          style={{ fontFamily: "'Consulate', monospace" }}
-                        />
-                        <button
-                          onClick={addVoice}
-                          disabled={!newVoiceLabel.trim() || !newVoiceModelId.trim()}
-                          className="px-3 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 rounded text-white/80 transition-colors"
-                        >
-                          <Plus size={16} />
-                        </button>
+                      <div className="mt-3 flex flex-col gap-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newVoiceLabel}
+                            onChange={(e) => setNewVoiceLabel(e.target.value)}
+                            placeholder="Label (e.g., English)"
+                            className="w-28 px-3 py-2 bg-black/40 border border-white/15 rounded text-white/90 text-[13px] placeholder:text-white/25 focus:outline-none focus:border-white/30"
+                            style={{ fontFamily: "'Consulate', monospace" }}
+                          />
+                          <input
+                            type="text"
+                            value={newVoiceModelId}
+                            onChange={(e) => setNewVoiceModelId(e.target.value)}
+                            placeholder="Voice ID (paste from ElevenLabs)"
+                            className="flex-1 px-3 py-2 bg-black/40 border border-white/15 rounded text-white/90 text-[13px] placeholder:text-white/25 focus:outline-none focus:border-white/30"
+                            style={{ fontFamily: "'Consulate', monospace" }}
+                          />
+                          <button
+                            onClick={addVoice}
+                            disabled={!newVoiceLabel.trim() || !newVoiceModelId.trim()}
+                            className="px-3 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 rounded text-white/80 transition-colors"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
                       </div>
                     )}
                     {newVoiceProvider !== 'elevenlabs' && (
@@ -433,30 +435,32 @@ const UserPage: React.FC = () => {
 
                     {/* Add Voice Form - Fish Audio */}
                     {newVoiceProvider === 'fish_audio' && (
-                      <div className="mt-3 flex gap-2">
-                        <input
-                          type="text"
-                          value={newVoiceLabel}
-                          onChange={(e) => setNewVoiceLabel(e.target.value)}
-                          placeholder="Label (e.g., Chinese Host)"
-                          className="flex-1 px-3 py-2 bg-black/40 border border-white/15 rounded text-white/90 text-[13px] placeholder:text-white/25 focus:outline-none focus:border-white/30"
-                          style={{ fontFamily: "'Consulate', monospace" }}
-                        />
-                        <input
-                          type="text"
-                          value={newVoiceModelId}
-                          onChange={(e) => setNewVoiceModelId(e.target.value)}
-                          placeholder="Model ID"
-                          className="w-32 px-3 py-2 bg-black/40 border border-white/15 rounded text-white/90 text-[13px] placeholder:text-white/25 focus:outline-none focus:border-white/30"
-                          style={{ fontFamily: "'Consulate', monospace" }}
-                        />
-                        <button
-                          onClick={addVoice}
-                          disabled={!newVoiceLabel.trim() || !newVoiceModelId.trim()}
-                          className="px-3 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 rounded text-white/80 transition-colors"
-                        >
-                          <Plus size={16} />
-                        </button>
+                      <div className="mt-3 flex flex-col gap-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newVoiceLabel}
+                            onChange={(e) => setNewVoiceLabel(e.target.value)}
+                            placeholder="Label (e.g., 中文)"
+                            className="w-28 px-3 py-2 bg-black/40 border border-white/15 rounded text-white/90 text-[13px] placeholder:text-white/25 focus:outline-none focus:border-white/30"
+                            style={{ fontFamily: "'Consulate', monospace" }}
+                          />
+                          <input
+                            type="text"
+                            value={newVoiceModelId}
+                            onChange={(e) => setNewVoiceModelId(e.target.value)}
+                            placeholder="Model ID (paste from Fish Audio)"
+                            className="flex-1 px-3 py-2 bg-black/40 border border-white/15 rounded text-white/90 text-[13px] placeholder:text-white/25 focus:outline-none focus:border-white/30"
+                            style={{ fontFamily: "'Consulate', monospace" }}
+                          />
+                          <button
+                            onClick={addVoice}
+                            disabled={!newVoiceLabel.trim() || !newVoiceModelId.trim()}
+                            className="px-3 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 rounded text-white/80 transition-colors"
+                          >
+                            <Plus size={16} />
+                          </button>
+                        </div>
                       </div>
                     )}
                     {newVoiceProvider !== 'fish_audio' && (
