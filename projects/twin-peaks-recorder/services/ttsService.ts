@@ -7,11 +7,22 @@ import { SRTEntry, parseSRT, getTotalDuration } from '../utils/srtParser';
 import { mergeAudioWithTimestamps, MergedAudioResult, createBwfBlob } from '../utils/audioMerge';
 import { TTSVoice } from './auth';
 
+export interface ElevenLabsVoiceSettings {
+  speed?: number;           // 0.5-2.0, default 1.0
+  stability?: number;       // 0-1, default 0.5
+  similarity_boost?: number; // 0-1, default 0.75
+  style?: number;           // 0-1, default 0
+  use_speaker_boost?: boolean; // default false
+}
+
 export interface TTSConfig {
   provider: 'elevenlabs' | 'fish_audio';
   apiKey: string;
   voiceId: string;
   voiceLabel?: string;
+  // ElevenLabs specific settings
+  voiceSettings?: ElevenLabsVoiceSettings;
+  languageCode?: string;    // e.g., "en", "zh", "ja"
 }
 
 export interface TTSProgress {
@@ -35,17 +46,35 @@ async function generateSingleTTS(
   text: string,
   config: TTSConfig
 ): Promise<Blob> {
+  // Build request body
+  const requestBody: Record<string, unknown> = {
+    provider: config.provider,
+    apiKey: config.apiKey,
+    voiceId: config.voiceId,
+    text,
+  };
+
+  // Add ElevenLabs-specific settings
+  if (config.provider === 'elevenlabs' && config.voiceSettings) {
+    const { speed, stability, similarity_boost, style, use_speaker_boost } = config.voiceSettings;
+    if (speed !== undefined) requestBody.speed = speed;
+    if (stability !== undefined) requestBody.stability = stability;
+    if (similarity_boost !== undefined) requestBody.similarity_boost = similarity_boost;
+    if (style !== undefined) requestBody.style = style;
+    if (use_speaker_boost !== undefined) requestBody.use_speaker_boost = use_speaker_boost;
+  }
+
+  // Add language code if specified
+  if (config.languageCode && config.languageCode !== 'auto') {
+    requestBody.language_code = config.languageCode;
+  }
+
   const response = await fetch('/api/tts', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      provider: config.provider,
-      apiKey: config.apiKey,
-      voiceId: config.voiceId,
-      text,
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {

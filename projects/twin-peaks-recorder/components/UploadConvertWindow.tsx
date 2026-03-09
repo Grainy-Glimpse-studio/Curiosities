@@ -5,8 +5,8 @@ import { X, Minus, Maximize2, Minimize2, Upload, FileAudio, FileVideo, Copy, Dow
 import { Memo } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { TTSVoice } from '../services/auth';
-import { generateTTSFromSRT, TTSProgress, TTSResult } from '../services/ttsService';
-import { parseSRT, validateSRT, getTotalDuration } from '../utils/srtParser';
+import { generateTTSFromSRT, TTSProgress, TTSResult, ElevenLabsVoiceSettings } from '../services/ttsService';
+import { parseSRT, validateSRT, getTotalDuration, analyzeTTSTiming, TimingAnalysis } from '../utils/srtParser';
 import { useNavigate } from 'react-router-dom';
 
 interface UploadConvertWindowProps {
@@ -18,7 +18,7 @@ interface UploadConvertWindowProps {
   initialOffset?: number;
 }
 
-type TabType = 'audio-to-text' | 'srt-to-tts';
+type TabType = 'audio-to-text' | 'srt-to-tts' | 'audio-to-voice';
 
 interface TranscriptionResult {
   text: string;
@@ -69,6 +69,39 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
   const [isGeneratingTTS, setIsGeneratingTTS] = useState(false);
   const [isPlayingPreview, setIsPlayingPreview] = useState(false);
   const [showTTSExportMenu, setShowTTSExportMenu] = useState(false);
+  const [timingAnalysis, setTimingAnalysis] = useState<TimingAnalysis | null>(null);
+
+  // ElevenLabs voice settings
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('auto');
+  const [ttsSpeed, setTtsSpeed] = useState(1.0);
+  const [ttsStability, setTtsStability] = useState(0.5);
+  const [ttsSimilarity, setTtsSimilarity] = useState(0.75);
+  const [ttsStyle, setTtsStyle] = useState(0);
+  const [ttsSpeakerBoost, setTtsSpeakerBoost] = useState(false);
+
+  // Language options
+  const LANGUAGE_OPTIONS = [
+    { value: 'auto', label: 'Auto Detect' },
+    { value: 'en', label: 'English' },
+    { value: 'zh', label: '中文' },
+    { value: 'ja', label: '日本語' },
+    { value: 'ko', label: '한국어' },
+    { value: 'es', label: 'Español' },
+    { value: 'fr', label: 'Français' },
+    { value: 'de', label: 'Deutsch' },
+  ];
+
+  // Audio to AI Voice state (Tab 3)
+  const [voiceConvertFile, setVoiceConvertFile] = useState<File | null>(null);
+  const [voiceConvertStep, setVoiceConvertStep] = useState<'upload' | 'transcribing' | 'review' | 'generating' | 'done'>('upload');
+  const [voiceConvertTranscript, setVoiceConvertTranscript] = useState<string>('');
+  const [voiceConvertTimestamps, setVoiceConvertTimestamps] = useState<Array<{ word: string; start: number; end: number }>>([]);
+  const [voiceConvertProgress, setVoiceConvertProgress] = useState(0);
+  const [voiceConvertResult, setVoiceConvertResult] = useState<TTSResult | null>(null);
+  const [voiceConvertError, setVoiceConvertError] = useState<string | null>(null);
+  const [isPlayingVoiceConvert, setIsPlayingVoiceConvert] = useState(false);
+  const [showVoiceConvertExportMenu, setShowVoiceConvertExportMenu] = useState(false);
+  const voiceConvertAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Auth context for API keys and voices
   const { apiKeys } = useAuth();
@@ -116,6 +149,14 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
       setTtsResult(null);
       setTtsError(null);
       setTtsProgress(null);
+      // Reset Voice Convert state
+      setVoiceConvertFile(null);
+      setVoiceConvertStep('upload');
+      setVoiceConvertTranscript('');
+      setVoiceConvertTimestamps([]);
+      setVoiceConvertProgress(0);
+      setVoiceConvertResult(null);
+      setVoiceConvertError(null);
     }
   }, [isOpen, initialOffset]);
 
@@ -472,6 +513,20 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
     }
   };
 
+  // Check timing before TTS generation (free, no API call)
+  const checkTiming = () => {
+    if (!srtContent) return;
+
+    const entries = parseSRT(srtContent);
+    const analysis = analyzeTTSTiming(entries, ttsSpeed);
+    setTimingAnalysis(analysis);
+  };
+
+  // Clear timing analysis
+  const clearTimingAnalysis = () => {
+    setTimingAnalysis(null);
+  };
+
   // Generate TTS from SRT
   const generateTTS = async () => {
     if (!srtContent || !selectedVoiceId) return;
@@ -491,10 +546,21 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
     setTtsProgress({ current: 0, total: srtEntryCount, percentage: 0, status: 'Starting...' });
 
     try {
+      // Build voice settings for ElevenLabs
+      const voiceSettings: ElevenLabsVoiceSettings | undefined = selectedProvider === 'elevenlabs' ? {
+        speed: ttsSpeed,
+        stability: ttsStability,
+        similarity_boost: ttsSimilarity,
+        style: ttsStyle,
+        use_speaker_boost: ttsSpeakerBoost,
+      } : undefined;
+
       const result = await generateTTSFromSRT(srtContent, {
         provider: selectedProvider,
         apiKey,
         voiceId: selectedVoiceId,
+        voiceSettings,
+        languageCode: selectedLanguage !== 'auto' ? selectedLanguage : undefined,
       }, setTtsProgress);
 
       setTtsResult(result);
@@ -576,6 +642,7 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
     setTtsResult(null);
     setTtsError(null);
     setTtsProgress(null);
+    setTimingAnalysis(null);
     if (srtFileInputRef.current) {
       srtFileInputRef.current.value = '';
     }
@@ -591,6 +658,244 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // ========== Audio to AI Voice Functions (Tab 3) ==========
+
+  // File input ref for voice convert
+  const voiceConvertFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle file selection for voice conversion
+  const handleVoiceConvertFileSelect = (file: File) => {
+    const validAudioTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/m4a', 'audio/webm', 'audio/ogg'];
+    const validVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-m4v'];
+
+    if (!validAudioTypes.includes(file.type) && !validVideoTypes.includes(file.type)) {
+      setVoiceConvertError('Unsupported file type. Please upload MP3, MP4, WAV, M4A, or WebM files.');
+      return;
+    }
+
+    setVoiceConvertFile(file);
+    setVoiceConvertError(null);
+    setVoiceConvertResult(null);
+    setVoiceConvertStep('upload');
+  };
+
+  // Handle drop for voice convert
+  const handleVoiceConvertDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleVoiceConvertFileSelect(files[0]);
+    }
+  };
+
+  // Start transcription for voice convert
+  const startVoiceConvertTranscription = async () => {
+    if (!voiceConvertFile) return;
+
+    setVoiceConvertStep('transcribing');
+    setVoiceConvertProgress(0);
+    setVoiceConvertError(null);
+
+    try {
+      const progressInterval = setInterval(() => {
+        setVoiceConvertProgress(prev => Math.min(prev + 10, 90));
+      }, 500);
+
+      const arrayBuffer = await voiceConvertFile.arrayBuffer();
+
+      const response = await fetch('/api/transcribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': voiceConvertFile.type || 'audio/mpeg',
+        },
+        body: arrayBuffer,
+      });
+
+      clearInterval(progressInterval);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Transcription failed');
+      }
+
+      const result = await response.json();
+      setVoiceConvertProgress(100);
+      setVoiceConvertTranscript(result.text || result.transcript || '');
+      setVoiceConvertTimestamps(result.words || []);
+      setVoiceConvertStep('review');
+
+    } catch (err) {
+      setVoiceConvertError(err instanceof Error ? err.message : 'Transcription failed');
+      setVoiceConvertStep('upload');
+    }
+  };
+
+  // Convert timestamps to SRT format for TTS
+  const timestampsToSRT = (timestamps: Array<{ word: string; start: number; end: number }>): string => {
+    if (!timestamps || timestamps.length === 0) {
+      // If no timestamps, create a simple SRT with the full text
+      return `1\n00:00:00,000 --> 00:00:10,000\n${voiceConvertTranscript}\n`;
+    }
+
+    const formatTime = (seconds: number): string => {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+      const ms = Math.round((seconds % 1) * 1000);
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
+    };
+
+    // Group words into subtitle chunks
+    const chunks: Array<{ start: number; end: number; text: string }> = [];
+    let currentChunk: string[] = [];
+    let chunkStart = 0;
+    let chunkEnd = 0;
+
+    timestamps.forEach((word, i) => {
+      if (currentChunk.length === 0) {
+        chunkStart = word.start;
+      }
+      currentChunk.push(word.word);
+      chunkEnd = word.end;
+
+      // Start new chunk after ~8 words or punctuation
+      if (currentChunk.length >= 8 || /[.!?]$/.test(word.word)) {
+        chunks.push({ start: chunkStart, end: chunkEnd, text: currentChunk.join(' ') });
+        currentChunk = [];
+      }
+    });
+
+    if (currentChunk.length > 0) {
+      chunks.push({ start: chunkStart, end: chunkEnd, text: currentChunk.join(' ') });
+    }
+
+    return chunks.map((chunk, i) =>
+      `${i + 1}\n${formatTime(chunk.start)} --> ${formatTime(chunk.end)}\n${chunk.text}\n`
+    ).join('\n');
+  };
+
+  // Generate AI voice from transcription
+  const generateVoiceConvert = async () => {
+    if (!voiceConvertTranscript || !selectedVoiceId) return;
+
+    const apiKey = selectedProvider === 'elevenlabs'
+      ? apiKeys?.elevenlabs_api_key
+      : apiKeys?.fish_audio_api_key;
+
+    if (!apiKey) {
+      setVoiceConvertError(`No ${selectedProvider === 'elevenlabs' ? 'ElevenLabs' : 'Fish Audio'} API key configured.`);
+      return;
+    }
+
+    setVoiceConvertStep('generating');
+    setVoiceConvertError(null);
+
+    try {
+      // Convert timestamps to SRT format
+      const srtContent = timestampsToSRT(voiceConvertTimestamps);
+
+      // Build voice settings for ElevenLabs
+      const voiceSettings: ElevenLabsVoiceSettings | undefined = selectedProvider === 'elevenlabs' ? {
+        speed: ttsSpeed,
+        stability: ttsStability,
+        similarity_boost: ttsSimilarity,
+        style: ttsStyle,
+        use_speaker_boost: ttsSpeakerBoost,
+      } : undefined;
+
+      const result = await generateTTSFromSRT(srtContent, {
+        provider: selectedProvider,
+        apiKey,
+        voiceId: selectedVoiceId,
+        voiceSettings,
+        languageCode: selectedLanguage !== 'auto' ? selectedLanguage : undefined,
+      }, (progress) => {
+        setVoiceConvertProgress(progress.percentage);
+      });
+
+      setVoiceConvertResult(result);
+      setVoiceConvertStep('done');
+
+    } catch (err) {
+      setVoiceConvertError(err instanceof Error ? err.message : 'Voice generation failed');
+      setVoiceConvertStep('review');
+    }
+  };
+
+  // Play/pause voice convert result
+  const toggleVoiceConvertPreview = () => {
+    if (!voiceConvertResult) return;
+
+    if (isPlayingVoiceConvert && voiceConvertAudioRef.current) {
+      voiceConvertAudioRef.current.pause();
+      setIsPlayingVoiceConvert(false);
+    } else {
+      const audio = new Audio(URL.createObjectURL(voiceConvertResult.audioBlob));
+      voiceConvertAudioRef.current = audio;
+      audio.onended = () => setIsPlayingVoiceConvert(false);
+      audio.play();
+      setIsPlayingVoiceConvert(true);
+    }
+  };
+
+  // Download voice convert result
+  const downloadVoiceConvert = async (format: 'mp3' | 'wav' | 'bwf') => {
+    if (!voiceConvertResult) return;
+
+    let blob = voiceConvertResult.audioBlob;
+    let filename = `ai-voice-${Date.now()}`;
+
+    if (format === 'bwf') {
+      const startTime = voiceConvertTimestamps.length > 0 ? voiceConvertTimestamps[0].start : 0;
+      const sampleRate = 44100;
+      const timeReferenceSamples = Math.round(startTime * sampleRate);
+
+      try {
+        const { createBwfBlob } = await import('../utils/audioMerge');
+        const arrayBuffer = await blob.arrayBuffer();
+        blob = createBwfBlob(arrayBuffer, timeReferenceSamples);
+        filename += '.wav';
+      } catch (err) {
+        console.error('BWF export failed:', err);
+        filename += '.wav';
+      }
+    } else if (format === 'wav') {
+      filename += '.wav';
+    } else {
+      filename += '.wav';
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setShowVoiceConvertExportMenu(false);
+  };
+
+  // Reset voice convert state
+  const resetVoiceConvert = () => {
+    setVoiceConvertFile(null);
+    setVoiceConvertStep('upload');
+    setVoiceConvertTranscript('');
+    setVoiceConvertTimestamps([]);
+    setVoiceConvertProgress(0);
+    setVoiceConvertResult(null);
+    setVoiceConvertError(null);
+    if (voiceConvertFileInputRef.current) {
+      voiceConvertFileInputRef.current.value = '';
+    }
+    if (voiceConvertAudioRef.current) {
+      voiceConvertAudioRef.current.pause();
+      voiceConvertAudioRef.current = null;
+    }
+    setIsPlayingVoiceConvert(false);
   };
 
   const content = (
@@ -666,6 +971,17 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                   style={{ fontFamily: contentFont }}
                 >
                   SRT → TTS
+                </button>
+                <button
+                  onClick={() => setActiveTab('audio-to-voice')}
+                  className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                    activeTab === 'audio-to-voice'
+                      ? 'text-white border-b-2 border-white'
+                      : 'text-white/50 hover:text-white/80'
+                  }`}
+                  style={{ fontFamily: contentFont }}
+                >
+                  Audio → AI Voice
                 </button>
               </div>
 
@@ -839,7 +1155,7 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                 {activeTab === 'srt-to-tts' && (
                   <div className="h-full flex flex-row gap-4">
                     {/* Left: Settings Panel */}
-                    <div className="w-[160px] shrink-0 flex flex-col gap-4">
+                    <div className="w-[200px] shrink-0 flex flex-col gap-3 overflow-y-auto thin-scrollbar pr-2">
                       {/* API Selection */}
                       <div>
                         <div className="text-white/50 text-xs uppercase tracking-wider mb-2">API</div>
@@ -849,28 +1165,28 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                               setSelectedProvider('elevenlabs');
                               setSelectedVoiceId('');
                             }}
-                            className={`w-full px-3 py-2 rounded text-left text-sm transition-colors ${
+                            className={`w-full px-3 py-1.5 rounded text-left text-sm transition-colors ${
                               selectedProvider === 'elevenlabs'
                                 ? 'bg-white/20 text-white'
                                 : 'bg-white/5 text-white/50 hover:bg-white/10'
                             }`}
                             style={{ fontFamily: contentFont }}
                           >
-                            ○ ElevenLabs
+                            {selectedProvider === 'elevenlabs' ? '●' : '○'} ElevenLabs
                           </button>
                           <button
                             onClick={() => {
                               setSelectedProvider('fish_audio');
                               setSelectedVoiceId('');
                             }}
-                            className={`w-full px-3 py-2 rounded text-left text-sm transition-colors ${
+                            className={`w-full px-3 py-1.5 rounded text-left text-sm transition-colors ${
                               selectedProvider === 'fish_audio'
                                 ? 'bg-white/20 text-white'
                                 : 'bg-white/5 text-white/50 hover:bg-white/10'
                             }`}
                             style={{ fontFamily: contentFont }}
                           >
-                            ○ Fish Audio
+                            {selectedProvider === 'fish_audio' ? '●' : '○'} Fish Audio
                           </button>
                         </div>
                       </div>
@@ -879,12 +1195,12 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                       <div>
                         <div className="text-white/50 text-xs uppercase tracking-wider mb-2">Voice</div>
                         {availableVoices.length > 0 ? (
-                          <div className="space-y-1 max-h-[150px] overflow-y-auto thin-scrollbar">
+                          <div className="space-y-1 max-h-[100px] overflow-y-auto thin-scrollbar">
                             {availableVoices.map(voice => (
                               <button
                                 key={voice.id}
                                 onClick={() => setSelectedVoiceId(voice.modelId)}
-                                className={`w-full px-3 py-2 rounded text-left text-sm transition-colors ${
+                                className={`w-full px-3 py-1.5 rounded text-left text-sm transition-colors ${
                                   selectedVoiceId === voice.modelId
                                     ? 'bg-white/20 text-white'
                                     : 'bg-white/5 text-white/50 hover:bg-white/10'
@@ -902,13 +1218,131 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                         )}
                       </div>
 
+                      {/* Language Selection */}
+                      <div>
+                        <div className="text-white/50 text-xs uppercase tracking-wider mb-2">Language</div>
+                        <select
+                          value={selectedLanguage}
+                          onChange={(e) => setSelectedLanguage(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-white/10 border border-white/20 rounded text-white text-sm focus:outline-none focus:border-white/40"
+                          style={{ fontFamily: contentFont }}
+                        >
+                          {LANGUAGE_OPTIONS.map(lang => (
+                            <option key={lang.value} value={lang.value} className="bg-[#1a1a1a]">
+                              {lang.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* ElevenLabs Voice Settings - Only show for ElevenLabs */}
+                      {selectedProvider === 'elevenlabs' && (
+                        <div className="border-t border-white/10 pt-3">
+                          <div className="text-white/50 text-xs uppercase tracking-wider mb-3">Voice Settings</div>
+
+                          {/* Speed Slider */}
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Speed</span>
+                              <span className="text-white/80">{ttsSpeed.toFixed(1)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.5"
+                              max="2.0"
+                              step="0.1"
+                              value={ttsSpeed}
+                              onChange={(e) => {
+                                setTtsSpeed(parseFloat(e.target.value));
+                                setTimingAnalysis(null); // Clear analysis when speed changes
+                              }}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
+                          </div>
+
+                          {/* Stability Slider */}
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Stability</span>
+                              <span className="text-white/80">{ttsStability.toFixed(2)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={ttsStability}
+                              onChange={(e) => setTtsStability(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
+                          </div>
+
+                          {/* Similarity Slider */}
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Similarity</span>
+                              <span className="text-white/80">{ttsSimilarity.toFixed(2)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={ttsSimilarity}
+                              onChange={(e) => setTtsSimilarity(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
+                          </div>
+
+                          {/* Style Slider */}
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Style</span>
+                              <span className="text-white/80">{ttsStyle.toFixed(2)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={ttsStyle}
+                              onChange={(e) => setTtsStyle(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
+                          </div>
+
+                          {/* Speaker Boost Toggle */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setTtsSpeakerBoost(!ttsSpeakerBoost)}
+                              className={`w-4 h-4 rounded border transition-colors flex items-center justify-center ${
+                                ttsSpeakerBoost
+                                  ? 'bg-white/30 border-white/60'
+                                  : 'bg-transparent border-white/30'
+                              }`}
+                            >
+                              {ttsSpeakerBoost && <Check size={10} className="text-white" />}
+                            </button>
+                            <span className="text-white/60 text-xs">Speaker Boost</span>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Manage Voices Link */}
                       <button
                         onClick={() => {
                           onClose();
                           navigate('/user');
                         }}
-                        className="flex items-center gap-2 px-3 py-2 text-white/40 hover:text-white/60 text-xs transition-colors"
+                        className="flex items-center gap-2 px-3 py-2 text-white/40 hover:text-white/60 text-xs transition-colors mt-auto"
                         style={{ fontFamily: contentFont }}
                       >
                         <Settings size={12} />
@@ -958,7 +1392,7 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                                 </div>
                               </div>
                             ) : srtFile ? (
-                              <div className="flex flex-col items-center gap-4">
+                              <div className="flex flex-col items-center gap-4 w-full px-4">
                                 <Subtitles size={40} className="text-white/60" />
                                 <div className="text-white/80 text-sm text-center">
                                   <div className="font-medium">{srtFile.name}</div>
@@ -966,7 +1400,60 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                                     {srtEntryCount} entries • {formatDuration(srtDuration)}
                                   </div>
                                 </div>
+
+                                {/* Timing Analysis Result */}
+                                {timingAnalysis && (
+                                  <div className={`w-full p-3 rounded-lg text-sm ${
+                                    timingAnalysis.hasIssues
+                                      ? 'bg-yellow-500/20 border border-yellow-500/30'
+                                      : 'bg-green-500/20 border border-green-500/30'
+                                  }`}>
+                                    {timingAnalysis.hasIssues ? (
+                                      <div>
+                                        <div className="text-yellow-300 font-medium mb-2">
+                                          ⚠ {timingAnalysis.summary.overflowCount} entries may overflow
+                                        </div>
+                                        <div className="text-white/70 text-xs space-y-1 max-h-[100px] overflow-y-auto">
+                                          {timingAnalysis.entries
+                                            .filter(e => e.overflow)
+                                            .map(e => (
+                                              <div key={e.index} className="flex justify-between">
+                                                <span>#{e.index}: "{e.text.slice(0, 20)}..."</span>
+                                                <span className="text-yellow-300">
+                                                  needs {e.requiredSpeed.toFixed(1)}x speed
+                                                </span>
+                                              </div>
+                                            ))
+                                          }
+                                        </div>
+                                        <div className="text-white/50 text-xs mt-2">
+                                          Tip: Increase Speed to {Math.min(2.0, timingAnalysis.summary.maxRequiredSpeed).toFixed(1)} or edit SRT
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-green-300">
+                                        ✓ All entries OK at current speed ({ttsSpeed.toFixed(1)}x)
+                                      </div>
+                                    )}
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); clearTimingAnalysis(); }}
+                                      className="text-white/40 hover:text-white/60 text-xs mt-2"
+                                    >
+                                      Dismiss
+                                    </button>
+                                  </div>
+                                )}
+
                                 <div className="flex gap-2">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      checkTiming();
+                                    }}
+                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white/70 rounded-lg text-sm transition-colors"
+                                  >
+                                    Check Timing
+                                  </button>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -1072,6 +1559,428 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                             </div>
                           </div>
                         </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'audio-to-voice' && (
+                  <div className="h-full flex flex-row gap-4">
+                    {/* Left: Settings Panel (same as SRT → TTS) */}
+                    <div className="w-[200px] shrink-0 flex flex-col gap-3 overflow-y-auto thin-scrollbar pr-2">
+                      {/* API Selection */}
+                      <div>
+                        <div className="text-white/50 text-xs uppercase tracking-wider mb-2">API</div>
+                        <div className="space-y-1">
+                          <button
+                            onClick={() => {
+                              setSelectedProvider('elevenlabs');
+                              setSelectedVoiceId('');
+                            }}
+                            className={`w-full px-3 py-1.5 rounded text-left text-sm transition-colors ${
+                              selectedProvider === 'elevenlabs'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-white/5 text-white/50 hover:bg-white/10'
+                            }`}
+                            style={{ fontFamily: contentFont }}
+                          >
+                            {selectedProvider === 'elevenlabs' ? '●' : '○'} ElevenLabs
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedProvider('fish_audio');
+                              setSelectedVoiceId('');
+                            }}
+                            className={`w-full px-3 py-1.5 rounded text-left text-sm transition-colors ${
+                              selectedProvider === 'fish_audio'
+                                ? 'bg-white/20 text-white'
+                                : 'bg-white/5 text-white/50 hover:bg-white/10'
+                            }`}
+                            style={{ fontFamily: contentFont }}
+                          >
+                            {selectedProvider === 'fish_audio' ? '●' : '○'} Fish Audio
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Voice Selection */}
+                      <div>
+                        <div className="text-white/50 text-xs uppercase tracking-wider mb-2">Voice</div>
+                        {availableVoices.length > 0 ? (
+                          <div className="space-y-1 max-h-[100px] overflow-y-auto thin-scrollbar">
+                            {availableVoices.map(voice => (
+                              <button
+                                key={voice.id}
+                                onClick={() => setSelectedVoiceId(voice.modelId)}
+                                className={`w-full px-3 py-1.5 rounded text-left text-sm transition-colors ${
+                                  selectedVoiceId === voice.modelId
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-white/5 text-white/50 hover:bg-white/10'
+                                }`}
+                                style={{ fontFamily: contentFont }}
+                              >
+                                {selectedVoiceId === voice.modelId ? '●' : '○'} {voice.label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-white/30 text-xs py-2" style={{ fontFamily: contentFont }}>
+                            No voices configured
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Language Selection */}
+                      <div>
+                        <div className="text-white/50 text-xs uppercase tracking-wider mb-2">Language</div>
+                        <select
+                          value={selectedLanguage}
+                          onChange={(e) => setSelectedLanguage(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-white/10 border border-white/20 rounded text-white text-sm focus:outline-none focus:border-white/40"
+                          style={{ fontFamily: contentFont }}
+                        >
+                          {LANGUAGE_OPTIONS.map(lang => (
+                            <option key={lang.value} value={lang.value} className="bg-[#1a1a1a]">
+                              {lang.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* ElevenLabs Voice Settings */}
+                      {selectedProvider === 'elevenlabs' && (
+                        <div className="border-t border-white/10 pt-3">
+                          <div className="text-white/50 text-xs uppercase tracking-wider mb-3">Voice Settings</div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Speed</span>
+                              <span className="text-white/80">{ttsSpeed.toFixed(1)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.5"
+                              max="2.0"
+                              step="0.1"
+                              value={ttsSpeed}
+                              onChange={(e) => setTtsSpeed(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Stability</span>
+                              <span className="text-white/80">{ttsStability.toFixed(2)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={ttsStability}
+                              onChange={(e) => setTtsStability(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Similarity</span>
+                              <span className="text-white/80">{ttsSimilarity.toFixed(2)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={ttsSimilarity}
+                              onChange={(e) => setTtsSimilarity(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Style</span>
+                              <span className="text-white/80">{ttsStyle.toFixed(2)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={ttsStyle}
+                              onChange={(e) => setTtsStyle(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setTtsSpeakerBoost(!ttsSpeakerBoost)}
+                              className={`w-4 h-4 rounded border transition-colors flex items-center justify-center ${
+                                ttsSpeakerBoost
+                                  ? 'bg-white/30 border-white/60'
+                                  : 'bg-transparent border-white/30'
+                              }`}
+                            >
+                              {ttsSpeakerBoost && <Check size={10} className="text-white" />}
+                            </button>
+                            <span className="text-white/60 text-xs">Speaker Boost</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Manage Voices Link */}
+                      <button
+                        onClick={() => {
+                          onClose();
+                          navigate('/user');
+                        }}
+                        className="flex items-center gap-2 px-3 py-2 text-white/40 hover:text-white/60 text-xs transition-colors mt-auto"
+                        style={{ fontFamily: contentFont }}
+                      >
+                        <Settings size={12} />
+                        Manage Voices
+                      </button>
+                    </div>
+
+                    {/* Right: Main Content */}
+                    <div className="flex-1 flex flex-col">
+                      {/* Step indicator */}
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className={`flex items-center gap-1 ${voiceConvertStep === 'upload' ? 'text-white' : 'text-white/40'}`}>
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${voiceConvertStep === 'upload' ? 'bg-white/20' : 'bg-white/5'}`}>1</div>
+                          <span className="text-xs">Upload</span>
+                        </div>
+                        <div className="w-4 h-px bg-white/20" />
+                        <div className={`flex items-center gap-1 ${voiceConvertStep === 'transcribing' || voiceConvertStep === 'review' ? 'text-white' : 'text-white/40'}`}>
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${voiceConvertStep === 'transcribing' || voiceConvertStep === 'review' ? 'bg-white/20' : 'bg-white/5'}`}>2</div>
+                          <span className="text-xs">Review</span>
+                        </div>
+                        <div className="w-4 h-px bg-white/20" />
+                        <div className={`flex items-center gap-1 ${voiceConvertStep === 'generating' || voiceConvertStep === 'done' ? 'text-white' : 'text-white/40'}`}>
+                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${voiceConvertStep === 'generating' || voiceConvertStep === 'done' ? 'bg-white/20' : 'bg-white/5'}`}>3</div>
+                          <span className="text-xs">Generate</span>
+                        </div>
+                      </div>
+
+                      {/* Upload step */}
+                      {voiceConvertStep === 'upload' && (
+                        <div
+                          className={`flex-1 flex flex-col items-center justify-center border-2 border-dashed rounded-xl transition-colors cursor-pointer ${
+                            isDraggingFile
+                              ? 'border-white/60 bg-white/10'
+                              : voiceConvertFile
+                              ? 'border-white/40 bg-white/5'
+                              : 'border-white/20 hover:border-white/40'
+                          }`}
+                          onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
+                          onDragLeave={(e) => { e.preventDefault(); setIsDraggingFile(false); }}
+                          onDrop={handleVoiceConvertDrop}
+                          onClick={() => !voiceConvertFile && voiceConvertFileInputRef.current?.click()}
+                        >
+                          <input
+                            ref={voiceConvertFileInputRef}
+                            type="file"
+                            accept="audio/*,video/*"
+                            onChange={(e) => e.target.files?.[0] && handleVoiceConvertFileSelect(e.target.files[0])}
+                            className="hidden"
+                          />
+
+                          {voiceConvertFile ? (
+                            <div className="flex flex-col items-center gap-4">
+                              {voiceConvertFile.type.startsWith('video/') ? (
+                                <FileVideo size={40} className="text-white/60" />
+                              ) : (
+                                <FileAudio size={40} className="text-white/60" />
+                              )}
+                              <div className="text-white/80 text-sm text-center">
+                                <div className="font-medium">{voiceConvertFile.name}</div>
+                                <div className="text-white/50 text-xs mt-1">
+                                  {(voiceConvertFile.size / (1024 * 1024)).toFixed(2)} MB
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!selectedVoiceId) {
+                                      setVoiceConvertError('Please select a voice first');
+                                      return;
+                                    }
+                                    startVoiceConvertTranscription();
+                                  }}
+                                  disabled={!selectedVoiceId}
+                                  className="px-4 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+                                >
+                                  Start Conversion
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); resetVoiceConvert(); }}
+                                  className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white/70 rounded-lg text-sm transition-colors"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center gap-3">
+                              <Upload size={40} className="text-white/40" />
+                              <div className="text-white/60 text-sm text-center">
+                                Drop audio/video file here<br />
+                                <span className="text-white/40 text-xs">or click to select</span>
+                              </div>
+                              <div className="text-white/30 text-xs">
+                                MP3, MP4, WAV, M4A, WebM
+                              </div>
+                            </div>
+                          )}
+
+                          {voiceConvertError && (
+                            <div className="mt-4 px-4 py-2 bg-red-500/20 text-red-300 rounded-lg text-sm">
+                              {voiceConvertError}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Transcribing step */}
+                      {voiceConvertStep === 'transcribing' && (
+                        <div className="flex-1 flex flex-col items-center justify-center">
+                          <Loader2 size={40} className="text-white/60 animate-spin" />
+                          <div className="text-white/80 text-sm mt-4">Transcribing audio...</div>
+                          <div className="w-48 h-1 bg-white/20 rounded-full overflow-hidden mt-4">
+                            <div
+                              className="h-full bg-white/60 transition-all duration-300"
+                              style={{ width: `${voiceConvertProgress}%` }}
+                            />
+                          </div>
+                          <div className="text-white/50 text-xs mt-2">{voiceConvertProgress}%</div>
+                        </div>
+                      )}
+
+                      {/* Review step */}
+                      {voiceConvertStep === 'review' && (
+                        <div className="flex-1 flex flex-col gap-4">
+                          <div className="text-white/50 text-xs uppercase tracking-wider">Transcription Preview</div>
+                          <div className="flex-1 p-4 bg-white/5 rounded-xl border border-white/10 overflow-y-auto thin-scrollbar">
+                            <div className="text-white/90 text-sm whitespace-pre-wrap" style={{ fontFamily: contentFont }}>
+                              {voiceConvertTranscript || '(No text transcribed)'}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <button
+                              onClick={resetVoiceConvert}
+                              className="px-3 py-2 text-white/50 hover:text-white text-sm transition-colors"
+                            >
+                              ← Start over
+                            </button>
+                            <button
+                              onClick={generateVoiceConvert}
+                              disabled={!voiceConvertTranscript || !selectedVoiceId}
+                              className="px-4 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+                            >
+                              Generate AI Voice
+                            </button>
+                          </div>
+
+                          {voiceConvertError && (
+                            <div className="px-4 py-2 bg-red-500/20 text-red-300 rounded-lg text-sm">
+                              {voiceConvertError}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Generating step */}
+                      {voiceConvertStep === 'generating' && (
+                        <div className="flex-1 flex flex-col items-center justify-center">
+                          <Loader2 size={40} className="text-white/60 animate-spin" />
+                          <div className="text-white/80 text-sm mt-4">Generating AI voice...</div>
+                          <div className="w-48 h-1 bg-white/20 rounded-full overflow-hidden mt-4">
+                            <div
+                              className="h-full bg-white/60 transition-all duration-300"
+                              style={{ width: `${voiceConvertProgress}%` }}
+                            />
+                          </div>
+                          <div className="text-white/50 text-xs mt-2">{voiceConvertProgress}%</div>
+                        </div>
+                      )}
+
+                      {/* Done step */}
+                      {voiceConvertStep === 'done' && voiceConvertResult && (
+                        <div className="flex-1 flex flex-col gap-4">
+                          {/* Audio Preview */}
+                          <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+                            <div className="flex items-center gap-4">
+                              <button
+                                onClick={toggleVoiceConvertPreview}
+                                className="p-3 bg-white/20 hover:bg-white/30 rounded-full transition-colors"
+                              >
+                                {isPlayingVoiceConvert ? <Pause size={20} /> : <Play size={20} />}
+                              </button>
+                              <div className="flex-1">
+                                <div className="text-white/80 text-sm">{voiceConvertFile?.name}</div>
+                                <div className="text-white/50 text-xs">
+                                  AI Voice • {voiceConvertResult.format.toUpperCase()}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center justify-between">
+                            <button
+                              onClick={resetVoiceConvert}
+                              className="px-3 py-2 text-white/50 hover:text-white text-sm transition-colors"
+                            >
+                              ← Convert another
+                            </button>
+
+                            <div className="relative">
+                              <button
+                                onClick={() => setShowVoiceConvertExportMenu(!showVoiceConvertExportMenu)}
+                                className="flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-sm font-medium transition-colors"
+                              >
+                                <Download size={14} />
+                                Download
+                              </button>
+                              {showVoiceConvertExportMenu && (
+                                <div className="absolute bottom-full right-0 mb-2 backdrop-blur-3xl rounded-xl overflow-hidden min-w-[140px] shadow-2xl border border-white/20 z-50">
+                                  <button
+                                    onClick={() => downloadVoiceConvert('mp3')}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 transition-colors text-sm"
+                                  >
+                                    MP3
+                                  </button>
+                                  <button
+                                    onClick={() => downloadVoiceConvert('wav')}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 transition-colors text-sm"
+                                  >
+                                    WAV
+                                  </button>
+                                  <button
+                                    onClick={() => downloadVoiceConvert('bwf')}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-white hover:bg-white/10 transition-colors text-sm"
+                                    title="Broadcast Wave Format with timecode"
+                                  >
+                                    BWF
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>

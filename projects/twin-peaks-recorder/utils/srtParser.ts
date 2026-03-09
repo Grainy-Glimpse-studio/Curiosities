@@ -148,3 +148,79 @@ export function getTotalDuration(entries: SRTEntry[]): number {
   if (entries.length === 0) return 0;
   return Math.max(...entries.map(e => e.endTime));
 }
+
+/**
+ * TTS Timing Analysis Result
+ */
+export interface TimingAnalysis {
+  hasIssues: boolean;
+  entries: Array<{
+    index: number;
+    text: string;
+    availableTime: number;    // SRT 给的时间（秒）
+    estimatedTime: number;    // 估算需要的时间（秒）
+    requiredSpeed: number;    // 需要的语速（1.0 = 正常）
+    overflow: boolean;        // 是否会超时
+  }>;
+  summary: {
+    totalEntries: number;
+    overflowCount: number;
+    maxRequiredSpeed: number;
+  };
+}
+
+/**
+ * Estimate speech duration for text
+ * - Chinese: ~4 characters per second at normal speed
+ * - English: ~2.5 words per second at normal speed
+ */
+function estimateSpeechDuration(text: string, speed: number = 1.0): number {
+  // Count Chinese characters
+  const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+
+  // Count English words (non-Chinese text)
+  const nonChineseText = text.replace(/[\u4e00-\u9fa5]/g, ' ').trim();
+  const englishWords = nonChineseText.split(/\s+/).filter(w => w.length > 0).length;
+
+  // Estimate duration at normal speed (speed = 1.0)
+  // Chinese: 4 chars/sec, English: 2.5 words/sec
+  const baseDuration = (chineseChars / 4) + (englishWords / 2.5);
+
+  // Adjust for speed setting
+  return baseDuration / speed;
+}
+
+/**
+ * Analyze SRT entries for TTS timing issues
+ * Detects entries where the text might be too long for the available time
+ */
+export function analyzeTTSTiming(entries: SRTEntry[], speed: number = 1.0): TimingAnalysis {
+  const analysisEntries = entries.map(entry => {
+    const availableTime = entry.endTime - entry.startTime;
+    const estimatedTime = estimateSpeechDuration(entry.text, speed);
+    const requiredSpeed = estimatedTime / availableTime;
+    const overflow = requiredSpeed > 2.0; // ElevenLabs max speed is 2.0
+
+    return {
+      index: entry.index,
+      text: entry.text,
+      availableTime,
+      estimatedTime,
+      requiredSpeed,
+      overflow,
+    };
+  });
+
+  const overflowEntries = analysisEntries.filter(e => e.overflow);
+  const maxRequiredSpeed = Math.max(...analysisEntries.map(e => e.requiredSpeed), 1.0);
+
+  return {
+    hasIssues: overflowEntries.length > 0,
+    entries: analysisEntries,
+    summary: {
+      totalEntries: entries.length,
+      overflowCount: overflowEntries.length,
+      maxRequiredSpeed,
+    },
+  };
+}

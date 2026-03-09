@@ -11,9 +11,14 @@ interface TTSRequest {
   apiKey: string;
   voiceId: string;
   text: string;
-  // Optional parameters
-  stability?: number;      // ElevenLabs: 0-1, default 0.5
-  similarity_boost?: number; // ElevenLabs: 0-1, default 0.75
+  // ElevenLabs voice settings
+  stability?: number;        // 0-1, default 0.5
+  similarity_boost?: number; // 0-1, default 0.75
+  speed?: number;            // 0.5-2.0, default 1.0
+  style?: number;            // 0-1, default 0 (style exaggeration)
+  use_speaker_boost?: boolean; // default false
+  // Language override
+  language_code?: string;    // e.g., "en", "zh", "ja", "ko"
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -24,7 +29,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body: TTSRequest = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    const { provider, apiKey, voiceId, text, stability = 0.5, similarity_boost = 0.75 } = body;
+    const {
+      provider,
+      apiKey,
+      voiceId,
+      text,
+      stability = 0.5,
+      similarity_boost = 0.75,
+      speed = 1.0,
+      style = 0,
+      use_speaker_boost = false,
+      language_code,
+    } = body;
 
     // Validate required fields
     if (!provider || !apiKey || !voiceId || !text) {
@@ -46,6 +62,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let contentType: string;
 
     if (provider === 'elevenlabs') {
+      // Build ElevenLabs request body
+      const elevenLabsBody: Record<string, unknown> = {
+        text,
+        model_id: 'eleven_multilingual_v2',
+        voice_settings: {
+          stability,
+          similarity_boost,
+          style,
+          use_speaker_boost,
+        },
+      };
+
+      // Add optional parameters
+      if (speed !== 1.0) {
+        // ElevenLabs expects speed in the generation config
+        elevenLabsBody.generation_config = {
+          speed,
+        };
+      }
+      if (language_code) {
+        elevenLabsBody.language_code = language_code;
+      }
+
       // Call ElevenLabs API
       const response = await fetch(`${ELEVENLABS_API_URL}/${voiceId}`, {
         method: 'POST',
@@ -54,14 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'Content-Type': 'application/json',
           'Accept': 'audio/mpeg',
         },
-        body: JSON.stringify({
-          text,
-          model_id: 'eleven_multilingual_v2',
-          voice_settings: {
-            stability,
-            similarity_boost,
-          },
-        }),
+        body: JSON.stringify(elevenLabsBody),
       });
 
       if (!response.ok) {
