@@ -19,6 +19,10 @@ interface TTSRequest {
   use_speaker_boost?: boolean; // default false
   // Language override
   language_code?: string;    // e.g., "en", "zh", "ja", "ko"
+  // Fish Audio specific settings
+  temperature?: number;      // 0-1, default 0.7 (expressiveness)
+  top_p?: number;            // 0-1, default 0.7 (diversity/stability)
+  volume?: number;           // dB, default 0
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -109,6 +113,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       contentType = 'audio/mpeg';
 
     } else if (provider === 'fish_audio') {
+      // Build Fish Audio request body
+      const fishAudioBody: Record<string, unknown> = {
+        text,
+        reference_id: voiceId,
+        format: 'mp3',
+        latency: 'normal',
+      };
+
+      // Add optional parameters
+      if (body.temperature !== undefined) {
+        fishAudioBody.temperature = body.temperature;
+      }
+      if (body.top_p !== undefined) {
+        fishAudioBody.top_p = body.top_p;
+      }
+      // Prosody settings (speed, volume)
+      if (body.speed !== undefined || body.volume !== undefined) {
+        fishAudioBody.prosody = {
+          ...(body.speed !== undefined && { speed: body.speed }),
+          ...(body.volume !== undefined && { volume: body.volume }),
+        };
+      }
+
       // Call Fish Audio API
       const response = await fetch(FISH_AUDIO_API_URL, {
         method: 'POST',
@@ -116,13 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          text,
-          reference_id: voiceId,
-          format: 'mp3',
-          // Fish Audio specific parameters
-          latency: 'normal',
-        }),
+        body: JSON.stringify(fishAudioBody),
       });
 
       if (!response.ok) {

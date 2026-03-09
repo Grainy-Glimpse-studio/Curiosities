@@ -15,6 +15,13 @@ export interface ElevenLabsVoiceSettings {
   use_speaker_boost?: boolean; // default false
 }
 
+export interface FishAudioVoiceSettings {
+  speed?: number;           // 0.5-2.0, default 1.0
+  temperature?: number;     // 0-1, default 0.7 (expressiveness)
+  top_p?: number;           // 0-1, default 0.7 (diversity, lower = more stable)
+  volume?: number;          // dB, default 0
+}
+
 export interface TTSConfig {
   provider: 'elevenlabs' | 'fish_audio';
   apiKey: string;
@@ -22,6 +29,8 @@ export interface TTSConfig {
   voiceLabel?: string;
   // ElevenLabs specific settings
   voiceSettings?: ElevenLabsVoiceSettings;
+  // Fish Audio specific settings
+  fishAudioSettings?: FishAudioVoiceSettings;
   languageCode?: string;    // e.g., "en", "zh", "ja"
 }
 
@@ -62,6 +71,15 @@ async function generateSingleTTS(
     if (similarity_boost !== undefined) requestBody.similarity_boost = similarity_boost;
     if (style !== undefined) requestBody.style = style;
     if (use_speaker_boost !== undefined) requestBody.use_speaker_boost = use_speaker_boost;
+  }
+
+  // Add Fish Audio-specific settings
+  if (config.provider === 'fish_audio' && config.fishAudioSettings) {
+    const { speed, temperature, top_p, volume } = config.fishAudioSettings;
+    if (speed !== undefined) requestBody.speed = speed;
+    if (temperature !== undefined) requestBody.temperature = temperature;
+    if (top_p !== undefined) requestBody.top_p = top_p;
+    if (volume !== undefined) requestBody.volume = volume;
   }
 
   // Add language code if specified

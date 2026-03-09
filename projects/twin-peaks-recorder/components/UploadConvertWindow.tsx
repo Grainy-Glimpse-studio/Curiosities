@@ -5,7 +5,7 @@ import { X, Minus, Maximize2, Minimize2, Upload, FileAudio, FileVideo, Copy, Dow
 import { Memo } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { TTSVoice } from '../services/auth';
-import { generateTTSFromSRT, TTSProgress, TTSResult, ElevenLabsVoiceSettings } from '../services/ttsService';
+import { generateTTSFromSRT, TTSProgress, TTSResult, ElevenLabsVoiceSettings, FishAudioVoiceSettings } from '../services/ttsService';
 import { parseSRT, validateSRT, getTotalDuration, analyzeTTSTiming, TimingAnalysis } from '../utils/srtParser';
 import { useNavigate } from 'react-router-dom';
 import SRTEditor from './SRTEditor';
@@ -80,6 +80,10 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
   const [ttsSimilarity, setTtsSimilarity] = useState(0.75);
   const [ttsStyle, setTtsStyle] = useState(0);
   const [ttsSpeakerBoost, setTtsSpeakerBoost] = useState(false);
+
+  // Fish Audio voice settings
+  const [fishTemperature, setFishTemperature] = useState(0.7);
+  const [fishTopP, setFishTopP] = useState(0.7);
 
   // Language options
   const LANGUAGE_OPTIONS = [
@@ -564,11 +568,19 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
         use_speaker_boost: ttsSpeakerBoost,
       } : undefined;
 
+      // Build voice settings for Fish Audio
+      const fishAudioSettings: FishAudioVoiceSettings | undefined = selectedProvider === 'fish_audio' ? {
+        speed: ttsSpeed,
+        temperature: fishTemperature,
+        top_p: fishTopP,
+      } : undefined;
+
       const result = await generateTTSFromSRT(srtContent, {
         provider: selectedProvider,
         apiKey,
         voiceId: selectedVoiceId,
         voiceSettings,
+        fishAudioSettings,
         languageCode: selectedLanguage !== 'auto' ? selectedLanguage : undefined,
       }, setTtsProgress);
 
@@ -815,11 +827,19 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
         use_speaker_boost: ttsSpeakerBoost,
       } : undefined;
 
+      // Build voice settings for Fish Audio
+      const fishAudioSettings: FishAudioVoiceSettings | undefined = selectedProvider === 'fish_audio' ? {
+        speed: ttsSpeed,
+        temperature: fishTemperature,
+        top_p: fishTopP,
+      } : undefined;
+
       const result = await generateTTSFromSRT(srtContent, {
         provider: selectedProvider,
         apiKey,
         voiceId: selectedVoiceId,
         voiceSettings,
+        fishAudioSettings,
         languageCode: selectedLanguage !== 'auto' ? selectedLanguage : undefined,
       }, (progress) => {
         setVoiceConvertProgress(progress.percentage);
@@ -1345,6 +1365,73 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                         </div>
                       )}
 
+                      {/* Fish Audio Voice Settings - Only show for Fish Audio */}
+                      {selectedProvider === 'fish_audio' && (
+                        <div className="border-t border-white/10 pt-3">
+                          <div className="text-white/50 text-xs uppercase tracking-wider mb-3">Voice Settings</div>
+
+                          {/* Speed Slider */}
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Speed</span>
+                              <span className="text-white/80">{ttsSpeed.toFixed(1)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.5"
+                              max="2.0"
+                              step="0.1"
+                              value={ttsSpeed}
+                              onChange={(e) => {
+                                setTtsSpeed(parseFloat(e.target.value));
+                                setTimingAnalysis(null);
+                              }}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
+                          </div>
+
+                          {/* Temperature Slider (Expressiveness) */}
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Expressiveness</span>
+                              <span className="text-white/80">{fishTemperature.toFixed(2)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={fishTemperature}
+                              onChange={(e) => setFishTemperature(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
+                          </div>
+
+                          {/* Top P Slider (Stability - inverted) */}
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Stability</span>
+                              <span className="text-white/80">{(1 - fishTopP).toFixed(2)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={1 - fishTopP}
+                              onChange={(e) => setFishTopP(1 - parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
+                          </div>
+                        </div>
+                      )}
+
                       {/* Manage Voices Link */}
                       <button
                         onClick={() => {
@@ -1745,6 +1832,67 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
                               {ttsSpeakerBoost && <Check size={10} className="text-white" />}
                             </button>
                             <span className="text-white/60 text-xs">Speaker Boost</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Fish Audio Voice Settings */}
+                      {selectedProvider === 'fish_audio' && (
+                        <div className="border-t border-white/10 pt-3">
+                          <div className="text-white/50 text-xs uppercase tracking-wider mb-3">Voice Settings</div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Speed</span>
+                              <span className="text-white/80">{ttsSpeed.toFixed(1)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.5"
+                              max="2.0"
+                              step="0.1"
+                              value={ttsSpeed}
+                              onChange={(e) => setTtsSpeed(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Expressiveness</span>
+                              <span className="text-white/80">{fishTemperature.toFixed(2)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={fishTemperature}
+                              onChange={(e) => setFishTemperature(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-white/60">Stability</span>
+                              <span className="text-white/80">{(1 - fishTopP).toFixed(2)}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.05"
+                              value={1 - fishTopP}
+                              onChange={(e) => setFishTopP(1 - parseFloat(e.target.value))}
+                              className="w-full h-1 bg-white/20 rounded-full appearance-none cursor-pointer
+                                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3
+                                [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                            />
                           </div>
                         </div>
                       )}
