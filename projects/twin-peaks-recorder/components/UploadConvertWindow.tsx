@@ -8,6 +8,7 @@ import { TTSVoice } from '../services/auth';
 import { generateTTSFromSRT, TTSProgress, TTSResult, ElevenLabsVoiceSettings } from '../services/ttsService';
 import { parseSRT, validateSRT, getTotalDuration, analyzeTTSTiming, TimingAnalysis } from '../utils/srtParser';
 import { useNavigate } from 'react-router-dom';
+import SRTEditor from './SRTEditor';
 
 interface UploadConvertWindowProps {
   isOpen: boolean;
@@ -70,6 +71,7 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
   const [isPlayingPreview, setIsPlayingPreview] = useState(false);
   const [showTTSExportMenu, setShowTTSExportMenu] = useState(false);
   const [timingAnalysis, setTimingAnalysis] = useState<TimingAnalysis | null>(null);
+  const [isSRTEditorOpen, setIsSRTEditorOpen] = useState(false);
 
   // ElevenLabs voice settings
   const [selectedLanguage, setSelectedLanguage] = useState<string>('auto');
@@ -513,13 +515,20 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
     }
   };
 
-  // Check timing before TTS generation (free, no API call)
+  // Check timing - opens SRT editor
   const checkTiming = () => {
     if (!srtContent) return;
+    setIsSRTEditorOpen(true);
+  };
 
-    const entries = parseSRT(srtContent);
-    const analysis = analyzeTTSTiming(entries, ttsSpeed);
-    setTimingAnalysis(analysis);
+  // Handle SRT content update from editor
+  const handleSRTEditorSave = (newContent: string) => {
+    setSrtContent(newContent);
+    // Re-parse to update entry count and duration
+    const entries = parseSRT(newContent);
+    setSrtEntryCount(entries.length);
+    setSrtDuration(getTotalDuration(entries));
+    setTimingAnalysis(null);
   };
 
   // Clear timing analysis
@@ -2008,7 +2017,19 @@ const UploadConvertWindow: React.FC<UploadConvertWindowProps> = ({
   );
 
   if (typeof document !== 'undefined') {
-    return createPortal(content, document.body);
+    return (
+      <>
+        {createPortal(content, document.body)}
+        <SRTEditor
+          isOpen={isSRTEditorOpen}
+          onClose={() => setIsSRTEditorOpen(false)}
+          srtContent={srtContent}
+          onSave={handleSRTEditorSave}
+          fileName={srtFile?.name}
+          speed={ttsSpeed}
+        />
+      </>
+    );
   }
   return null;
 };
