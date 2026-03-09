@@ -8,6 +8,7 @@ import RecycleBin from '../components/RecycleBin';
 import FloatingWords from '../components/FloatingWords';
 import FocusMode from '../components/FocusMode';
 import FloatingTranscript from '../components/FloatingTranscript';
+import UploadConvertWindow from '../components/UploadConvertWindow';
 import ShootingStar from '../components/ShootingStar';
 import ApiSettings, { loadSpeechMode } from '../components/ApiSettings';
 import BugReport from '../components/BugReport';
@@ -46,6 +47,19 @@ Second stop, the Regional Bureau Office, to pick up some files. Although I have 
   duration: 102, // 实际音频时长 101.7 秒
   segmentDurations: [102],
   audioOffset: 8, // 开头静音约 8 秒
+};
+
+// Upload/Convert tape - 转换工具卡带
+const UPLOAD_MEMO: Memo = {
+  id: 'upload-convert',
+  audioUrls: [],
+  transcription: '',
+  tags: ['Tools'],
+  createdAt: new Date('2026-01-01T00:00:00').getTime(), // 固定时间，排在最后
+  isPermanent: true,
+  isUploadTape: true, // 特殊标记：这是上传工具卡带
+  duration: 0,
+  title: 'Convert',
 };
 
 // Storage keys for localStorage
@@ -108,13 +122,14 @@ const loadMemosFromStorage = (): Memo[] => {
   try {
     const stored = localStorage.getItem(MEMOS_STORAGE_KEY);
     if (!stored) {
-      console.log('[Storage] No stored memos, returning DEFAULT_MEMO');
-      return [DEFAULT_MEMO];
+      console.log('[Storage] No stored memos, returning default memos');
+      return [UPLOAD_MEMO, DEFAULT_MEMO];
     }
 
     const serialized: SerializedMemo[] = JSON.parse(stored);
     const memos = serialized
-      .filter(item => item.id !== 'twin-peaks-pilot') // Remove any stored DEFAULT_MEMO (we'll add fresh one)
+      // Remove any stored permanent memos (we'll add fresh ones)
+      .filter(item => item.id !== 'twin-peaks-pilot' && item.id !== 'upload-convert')
       .map(item => {
         // 新格式：多段音频
         if (item.audioBase64Array && item.audioBase64Array.length > 0) {
@@ -136,14 +151,15 @@ const loadMemosFromStorage = (): Memo[] => {
         return migrateMemo(item) as Memo;
       });
 
-    // Always add DEFAULT_MEMO at the end (it will appear last due to old date)
+    // Always add permanent memos at the end (they will appear last due to old dates)
+    memos.push(UPLOAD_MEMO);
     memos.push(DEFAULT_MEMO);
 
-    console.log(`[Storage] Loaded ${memos.length} memos (including DEFAULT_MEMO)`);
+    console.log(`[Storage] Loaded ${memos.length} memos (including permanent memos)`);
     return memos;
   } catch (e) {
     console.error('Failed to load memos from localStorage:', e);
-    return [DEFAULT_MEMO];
+    return [UPLOAD_MEMO, DEFAULT_MEMO];
   }
 };
 
@@ -273,6 +289,7 @@ const HomePage: React.FC = () => {
   const [, setCapturedWords] = useState<string[]>([]);
   const [speechLang, setSpeechLang] = useState<'auto' | 'zh' | 'en'>('en'); // 默认英文，Auto 消耗双倍配额
   const [openTranscripts, setOpenTranscripts] = useState<Memo[]>([]);
+  const [isUploadWindowOpen, setIsUploadWindowOpen] = useState(false); // Upload/Convert 窗口
   const [starVisible, setStarVisible] = useState(false);
   const [showApiSettings, setShowApiSettings] = useState(false);
   const [showBugReport, setShowBugReport] = useState(false);
@@ -1336,6 +1353,17 @@ const HomePage: React.FC = () => {
         onClose={() => setShowBugReport(false)}
       />
 
+      {/* Upload/Convert Window */}
+      <UploadConvertWindow
+        isOpen={isUploadWindowOpen}
+        onClose={() => setIsUploadWindowOpen(false)}
+        onCreateMemo={(newMemo) => {
+          setMemos(prev => [newMemo, ...prev]);
+        }}
+        titleFont={titleFont}
+        contentFont={contentFont}
+      />
+
       {/* Top Left Controls */}
       {!isDrawerOpen && (
         <div className="fixed top-6 left-6 z-50 flex items-center gap-6">
@@ -1619,6 +1647,12 @@ const HomePage: React.FC = () => {
         onTitleFontChange={setTitleFont}
         onContentFontChange={setContentFont}
         onOpenTranscript={(memo) => {
+          // 上传工具卡带 - 打开转换窗口
+          if (memo.isUploadTape) {
+            setIsUploadWindowOpen(true);
+            return;
+          }
+          // 普通卡带 - 打开浮动窗口
           setOpenTranscripts(prev => {
             if (prev.some(m => m.id === memo.id)) return prev;
             return [...prev, memo];
