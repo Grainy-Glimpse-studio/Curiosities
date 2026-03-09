@@ -470,6 +470,11 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const [isProcessingShortcut, setIsProcessingShortcut] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // AI Voice (TTS) 状态
+  const [ttsApi, setTtsApi] = useState<'elevenlabs' | 'fish_audio'>('elevenlabs');
+  const [ttsVoice, setTtsVoice] = useState<string>('');
+  const [isGeneratingTTS, setIsGeneratingTTS] = useState(false);
+
   // TOC 目录状态
   const [tocItems, setTocItems] = useState<TOCItem[]>([]);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -1999,75 +2004,142 @@ Sent from Diane`
                     </button>
                   </div>
 
-                  {/* Export 两列布局 */}
+                  {/* Export 三列布局 */}
                   <div className="flex-1 flex flex-row overflow-y-auto thin-scrollbar">
                     {/* 左列：文本输出 */}
-                    <div className="flex-1 p-4 pb-6 border-r border-white/20">
+                    <div className="w-[140px] shrink-0 p-4 pb-6 border-r border-white/20">
                       <div className="text-white/50 text-xs uppercase tracking-wider mb-3">Text</div>
                       <div className="space-y-1">
                         <button
                           onClick={() => { exportAsMarkdown(); setShowExportPanel(false); }}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm"
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-xs"
                         >
-                          <FileCode size={16} />
+                          <FileCode size={14} />
                           Markdown
                         </button>
                         <button
                           onClick={() => { exportAsPDF(); setShowExportPanel(false); }}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm"
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-xs"
                         >
-                          <FileText size={16} />
+                          <FileText size={14} />
                           PDF
                         </button>
                         <button
                           onClick={() => { exportAsWord(); setShowExportPanel(false); }}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm"
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-xs"
                         >
-                          <File size={16} />
+                          <File size={14} />
                           Word
                         </button>
                         <button
                           onClick={() => { exportAsSRT(); setShowExportPanel(false); }}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm"
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-xs"
                         >
-                          <Subtitles size={16} />
-                          SRT Subtitles
+                          <Subtitles size={14} />
+                          SRT
                         </button>
                       </div>
                     </div>
 
-                    {/* 右列：音频输出 */}
-                    <div className="flex-1 p-4 pb-6">
+                    {/* 中列：音频输出 */}
+                    <div className="w-[140px] shrink-0 p-4 pb-6 border-r border-white/20">
                       <div className="text-white/50 text-xs uppercase tracking-wider mb-3">Audio</div>
                       <div className="space-y-1">
                         <button
                           onClick={() => { downloadAudio(); setShowExportPanel(false); }}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm"
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-xs"
                         >
-                          <Music size={16} />
-                          WebM (Original)
+                          <Music size={14} />
+                          WebM
                         </button>
                         <button
                           onClick={exportAsWav}
                           disabled={isExporting === 'wav'}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm disabled:opacity-50"
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-xs disabled:opacity-50"
                         >
-                          {isExporting === 'wav' ? <Loader2 size={16} className="animate-spin" /> : <FileAudio size={16} />}
+                          {isExporting === 'wav' ? <Loader2 size={14} className="animate-spin" /> : <FileAudio size={14} />}
                           WAV
                         </button>
                         <button
                           onClick={exportAsBwf}
                           disabled={isExporting === 'bwf'}
-                          className="w-full flex items-center gap-3 px-3 py-2 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-sm disabled:opacity-50"
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-white/80 hover:text-white hover:bg-white/10 transition-colors text-xs disabled:opacity-50"
                           title="Broadcast Wave Format with timecode"
                         >
-                          {isExporting === 'bwf' ? <Loader2 size={16} className="animate-spin" /> : <Radio size={16} />}
-                          BWF (Timecode)
+                          {isExporting === 'bwf' ? <Loader2 size={14} className="animate-spin" /> : <Radio size={14} />}
+                          BWF
                         </button>
-                        <div className="border-t border-white/10 my-2" />
-                        <div className="text-white/30 text-xs px-3 py-1">
-                          AI Voice (Coming Soon)
+                      </div>
+                    </div>
+
+                    {/* 右列：AI Voice */}
+                    <div className="flex-1 p-4 pb-6">
+                      <div className="text-white/50 text-xs uppercase tracking-wider mb-3">AI Voice</div>
+                      <div className="space-y-3">
+                        {/* API 选择 */}
+                        <div>
+                          <div className="text-white/40 text-[10px] uppercase mb-1.5">API</div>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => setTtsApi('elevenlabs')}
+                              className={`flex-1 px-2 py-1.5 rounded text-xs transition-colors ${
+                                ttsApi === 'elevenlabs'
+                                  ? 'bg-white/20 text-white'
+                                  : 'bg-white/5 text-white/50 hover:bg-white/10'
+                              }`}
+                            >
+                              ElevenLabs
+                            </button>
+                            <button
+                              onClick={() => setTtsApi('fish_audio')}
+                              className={`flex-1 px-2 py-1.5 rounded text-xs transition-colors ${
+                                ttsApi === 'fish_audio'
+                                  ? 'bg-white/20 text-white'
+                                  : 'bg-white/5 text-white/50 hover:bg-white/10'
+                              }`}
+                            >
+                              Fish Audio
+                            </button>
+                          </div>
                         </div>
+
+                        {/* Voice 选择 */}
+                        <div>
+                          <div className="text-white/40 text-[10px] uppercase mb-1.5">Voice</div>
+                          <select
+                            value={ttsVoice}
+                            onChange={(e) => setTtsVoice(e.target.value)}
+                            className="w-full px-2 py-1.5 bg-white/10 border border-white/20 rounded text-white text-xs focus:outline-none focus:border-white/40"
+                          >
+                            <option value="" className="bg-zinc-800">Select voice...</option>
+                            <option value="demo" className="bg-zinc-800">Configure in Settings</option>
+                          </select>
+                          <div className="text-white/30 text-[10px] mt-1">
+                            Manage voices in Account Settings
+                          </div>
+                        </div>
+
+                        {/* Generate 按钮 */}
+                        <button
+                          onClick={() => {
+                            // TODO: Implement TTS generation
+                            alert('Please configure TTS in Account Settings first.');
+                          }}
+                          disabled={!ttsVoice || isGeneratingTTS}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white/20 hover:bg-white/30 disabled:bg-white/10 disabled:text-white/30 text-white rounded text-xs font-medium transition-colors"
+                        >
+                          {isGeneratingTTS ? (
+                            <>
+                              <Loader2 size={14} className="animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Mic size={14} />
+                              Generate Voice
+                            </>
+                          )}
+                        </button>
                       </div>
                     </div>
                   </div>
