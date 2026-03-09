@@ -24,9 +24,14 @@ interface FloatingTranscriptProps {
   onSyncToCloud?: (memo: Memo) => Promise<void>;
   isSynced?: boolean;
   isLoggedIn?: boolean;
-  // 全局播放状态同步
+  // 统一播放控制（三个遥控器共享同一个播放器）
   globalPlayingMemoId?: string | null;
-  onPlayStateChange?: (memoId: string | null, isPlaying: boolean) => void;
+  isGlobalPlaying?: boolean; // 全局播放状态
+  globalPlaybackTime?: number; // 全局播放时间（秒）
+  globalPlaybackProgress?: number; // 全局播放进度 (0-1)
+  onTogglePlay?: (memo: Memo) => void; // 切换播放/暂停
+  onStopPlay?: () => void; // 停止播放
+  onSeek?: (time: number) => void; // 跳转到指定时间
 }
 
 // SRT 时间格式转换：秒 -> HH:MM:SS,mmm
@@ -142,6 +147,21 @@ interface KaraokeTextProps {
 }
 
 const KaraokeText: React.FC<KaraokeTextProps> = ({ text, currentTime, fontFamily, wordTimestamps, audioDuration, audioOffset = 0 }) => {
+  // 调试：输出关键信息（每秒最多一次）
+  const lastDebugTime = React.useRef(0);
+  if (currentTime - lastDebugTime.current > 1) {
+    lastDebugTime.current = currentTime;
+    console.log('[KaraokeText Debug]', {
+      currentTime: currentTime.toFixed(2),
+      audioDuration,
+      timestampsCount: wordTimestamps?.length || 0,
+      firstTimestamp: wordTimestamps?.[0],
+      lastTimestamp: wordTimestamps?.[wordTimestamps.length - 1],
+      textLength: text.length,
+      hasGaps: wordTimestamps?.some((ts, i) => i > 0 && ts.start - wordTimestamps[i-1].end > 2),
+    });
+  }
+
   // 计算词的发光强度（0-1），基于当前时间在词时间范围内的位置
   const getGlowIntensity = (timestamp: { start: number; end: number } | undefined): number => {
     if (!timestamp) return 1; // 没有时间戳的词默认全亮
@@ -371,17 +391,20 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   onSyncToCloud,
   isSynced = false,
   isLoggedIn = false,
+  // 统一播放控制
   globalPlayingMemoId,
-  onPlayStateChange,
+  isGlobalPlaying = false,
+  globalPlaybackTime = 0,
+  globalPlaybackProgress = 0,
+  onTogglePlay,
+  onStopPlay,
+  onSeek,
 }) => {
   const [position, setPosition] = useState({ x: 100, y: 100 });
   const [size, setSize] = useState({ width: 720, height: 580 });
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const [prevState, setPrevState] = useState({ position: { x: 100, y: 100 }, size: { width: 720, height: 580 } });
-  const [isPlayingInModal, setIsPlayingInModal] = useState(false);
-  const [playbackProgress, setPlaybackProgress] = useState(0);
-  const [currentPlaybackTime, setCurrentPlaybackTime] = useState(0); // 当前播放时间（秒）
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showJoinMenu, setShowJoinMenu] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -392,12 +415,13 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
   const [flowEnabled, setFlowEnabled] = useState(true); // 播放时文字发光效果
   const [isExporting, setIsExporting] = useState<string | null>(null); // 正在导出的格式
 
-  // 多段音频播放状态
-  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
-  const segmentStartTimesRef = useRef<number[]>([]); // 每段的起始时间
-  const totalDurationRef = useRef<number>(0); // 总时长
+  // 播放状态：当前 memo 是否正在播放
+  const isThisMemoPlaying = globalPlayingMemoId === memo?.id && isGlobalPlaying;
+  const currentPlaybackTime = isThisMemoPlaying ? globalPlaybackTime : 0;
+  const playbackProgress = isThisMemoPlaying ? globalPlaybackProgress : 0;
+
   const progressBarRef = useRef<HTMLDivElement>(null); // 进度条 ref
-  const isDraggingRef = useRef(false); // 是否正在拖动进度条
+  const isDraggingRef = useRef(false); // 拖动进度条时不更新显示
 
   // AI 侧边栏状态
   const [showAISidebar, setShowAISidebar] = useState(false);
@@ -420,7 +444,6 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
 
   const windowRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLSpanElement>(null);
-  const modalAudioRef = useRef<HTMLAudioElement | null>(null);
   const editorRef = useRef<MarkdownEditorRef>(null);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const resizeStartPos = useRef({ x: 0, y: 0 });
@@ -442,45 +465,13 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     }
   }, [isOpen, initialOffset, memo]);
 
-  // 初始化音频时长信息
-  useEffect(() => {
-    if (memo) {
-      const durations = memo.segmentDurations || [memo.duration];
-      const startTimes: number[] = [];
-      let cumulative = 0;
-      for (const d of durations) {
-        startTimes.push(cumulative);
-        cumulative += d;
-      }
-      segmentStartTimesRef.current = startTimes;
-      totalDurationRef.current = cumulative;
-    }
-  }, [memo]);
-
   // 更新目录（当编辑器内容变化时）
   useEffect(() => {
-    if (editorRef.current?.editor && !isPlayingInModal) {
+    if (editorRef.current?.editor && !isThisMemoPlaying) {
       const items = extractTOCFromEditor(editorRef.current.editor);
       setTocItems(items);
     }
-  }, [isPlayingInModal, hasUnsavedChanges]); // 编辑后更新
-
-  // 通知 parent 播放状态变化
-  useEffect(() => {
-    if (onPlayStateChange && memo) {
-      onPlayStateChange(isPlayingInModal ? memo.id : null, isPlayingInModal);
-    }
-  }, [isPlayingInModal, memo, onPlayStateChange]);
-
-  // 如果其他 memo 开始播放，停止当前播放
-  useEffect(() => {
-    if (globalPlayingMemoId && memo && globalPlayingMemoId !== memo.id && isPlayingInModal) {
-      modalAudioRef.current?.pause();
-      setIsPlayingInModal(false);
-      setPlaybackProgress(0);
-      setCurrentPlaybackTime(0);
-    }
-  }, [globalPlayingMemoId, memo, isPlayingInModal]);
+  }, [isThisMemoPlaying, hasUnsavedChanges]); // 编辑后更新
 
   // 滚动到指定标题
   const scrollToHeading = (headingIndex: number) => {
@@ -519,135 +510,14 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     }
   };
 
-  // 播放控制 - 支持多段音频
-  const playInModal = () => {
+  // 播放控制 - 使用统一的全局播放器（三个遥控器控制同一个播放器）
+  const handleTogglePlay = () => {
     if (!memo) return;
-
-    const urls = memo.audioUrls || (memo.audioUrl ? [memo.audioUrl] : []);
-    const durations = memo.segmentDurations || [memo.duration];
-    if (urls.length === 0) return;
-
-    console.log('[Playback Debug] ===== PLAY START =====');
-    console.log('[Playback Debug] audioUrls count:', urls.length);
-    console.log('[Playback Debug] segmentDurations:', durations);
-    console.log('[Playback Debug] wordTimestamps count:', memo.wordTimestamps?.length);
-    console.log('[Playback Debug] wordTimestamps sample:', memo.wordTimestamps?.slice(0, 5));
-
-    // 计算每段的起始时间
-    const startTimes: number[] = [];
-    let cumulative = 0;
-    for (const d of durations) {
-      startTimes.push(cumulative);
-      cumulative += d;
-    }
-    console.log('[Playback Debug] startTimes:', startTimes);
-    console.log('[Playback Debug] totalDuration:', cumulative);
-
-    segmentStartTimesRef.current = startTimes;
-    totalDurationRef.current = cumulative;
-
-    // 如果正在播放，暂停
-    if (isPlayingInModal) {
-      modalAudioRef.current?.pause();
-      setIsPlayingInModal(false);
-      return;
-    }
-
-    // 开始播放
-    playFromSegment(0, 0, urls, durations, startTimes, cumulative);
+    onTogglePlay?.(memo);
   };
 
-  // 从指定段和位置开始播放
-  const playFromSegment = (
-    segmentIndex: number,
-    startOffset: number,
-    urls: string[],
-    durations: number[],
-    startTimes: number[],
-    totalDuration: number
-  ) => {
-    const playSegment = (index: number, offset: number = 0) => {
-      if (index >= urls.length) {
-        // 所有段播放完毕
-        setIsPlayingInModal(false);
-        setPlaybackProgress(0);
-        setCurrentPlaybackTime(0);
-        setCurrentSegmentIndex(0);
-        return;
-      }
-
-      setCurrentSegmentIndex(index);
-      const audio = new Audio(urls[index]);
-      modalAudioRef.current = audio;
-
-      audio.addEventListener('loadedmetadata', () => {
-        if (offset > 0) {
-          audio.currentTime = offset;
-        }
-      });
-
-      audio.addEventListener('timeupdate', () => {
-        if (audio && !isDraggingRef.current) {
-          // 计算全局播放时间和进度
-          const globalTime = startTimes[index] + audio.currentTime;
-          setCurrentPlaybackTime(globalTime);
-          setPlaybackProgress(globalTime / totalDuration);
-        }
-      });
-
-      audio.addEventListener('ended', () => {
-        // 播放下一段
-        playSegment(index + 1, 0);
-      });
-
-      audio.addEventListener('error', () => {
-        console.error('Audio playback error at segment', index);
-        setIsPlayingInModal(false);
-      });
-
-      audio.play().catch(() => {
-        setIsPlayingInModal(false);
-      });
-    };
-
-    setIsPlayingInModal(true);
-    playSegment(segmentIndex, startOffset);
-  };
-
-  // 跳转到指定时间（秒）
-  const seekToTime = (targetTime: number) => {
-    if (!memo) return;
-
-    const urls = memo.audioUrls || (memo.audioUrl ? [memo.audioUrl] : []);
-    const durations = memo.segmentDurations || [memo.duration];
-    if (urls.length === 0) return;
-
-    const startTimes = segmentStartTimesRef.current;
-    const totalDuration = totalDurationRef.current;
-
-    // 限制在有效范围内
-    targetTime = Math.max(0, Math.min(targetTime, totalDuration));
-
-    // 找到目标时间所在的段
-    let targetSegment = 0;
-    let offsetInSegment = targetTime;
-    for (let i = 0; i < startTimes.length; i++) {
-      if (i === startTimes.length - 1 || targetTime < startTimes[i + 1]) {
-        targetSegment = i;
-        offsetInSegment = targetTime - startTimes[i];
-        break;
-      }
-    }
-
-    // 更新进度显示
-    setCurrentPlaybackTime(targetTime);
-    setPlaybackProgress(targetTime / totalDuration);
-
-    // 如果正在播放，跳转到新位置
-    if (isPlayingInModal) {
-      modalAudioRef.current?.pause();
-      playFromSegment(targetSegment, offsetInSegment, urls, durations, startTimes, totalDuration);
-    }
+  const handleStop = () => {
+    onStopPlay?.();
   };
 
   // 进度条点击/拖动处理
@@ -657,9 +527,9 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     const rect = progressBarRef.current.getBoundingClientRect();
     const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
     const progress = x / rect.width;
-    const targetTime = progress * totalDurationRef.current;
+    const targetTime = progress * memo.duration;
 
-    seekToTime(targetTime);
+    onSeek?.(targetTime);
   };
 
   const handleProgressBarMouseDown = (e: React.MouseEvent) => {
@@ -680,21 +550,8 @@ const FloatingTranscript: React.FC<FloatingTranscriptProps> = ({
     window.addEventListener('mouseup', handleMouseUp);
   };
 
-  const stopModalPlayback = () => {
-    if (modalAudioRef.current) {
-      modalAudioRef.current.pause();
-      modalAudioRef.current.currentTime = 0;
-      modalAudioRef.current = null;
-      setIsPlayingInModal(false);
-      setPlaybackProgress(0);
-      setCurrentPlaybackTime(0);
-      setCurrentSegmentIndex(0);
-    }
-  };
-
-  // 关闭时清理
+  // 关闭窗口（不停止播放，音频继续播放）
   const handleClose = () => {
-    stopModalPlayback();
     onClose();
   };
 
@@ -1367,18 +1224,18 @@ Sent from Diane`
                   {/* 右侧：播放控制 */}
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={playInModal}
-                      className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${isPlayingInModal ? 'text-white bg-white/20' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
-                      title={isPlayingInModal ? 'Pause' : 'Play'}
+                      onClick={handleTogglePlay}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${isThisMemoPlaying ? 'text-white bg-white/20' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+                      title={isThisMemoPlaying ? 'Pause' : 'Play'}
                     >
-                      {isPlayingInModal ? <Pause size={14} /> : <Play size={14} />}
-                      <span>{isPlayingInModal ? 'Pause' : 'Play'}</span>
+                      {isThisMemoPlaying ? <Pause size={14} /> : <Play size={14} />}
+                      <span>{isThisMemoPlaying ? 'Pause' : 'Play'}</span>
                     </button>
                     <button
-                      onClick={stopModalPlayback}
-                      disabled={!isPlayingInModal && playbackProgress === 0}
+                      onClick={handleStop}
+                      disabled={!isThisMemoPlaying && playbackProgress === 0}
                       className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
-                        isPlayingInModal || playbackProgress > 0 ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-white/30'
+                        isThisMemoPlaying || playbackProgress > 0 ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-white/30'
                       }`}
                       title="Stop"
                     >
@@ -1399,7 +1256,7 @@ Sent from Diane`
                 </div>
 
                 {/* 工具栏 - 格式化按钮 */}
-                {!isPlayingInModal && editorRef.current?.editor && (
+                {!isThisMemoPlaying && editorRef.current?.editor && (
                 <div className="px-6 py-2 border-b border-white/20 flex flex-wrap items-center gap-1 shrink-0">
                     {/* TOC 切换按钮 */}
                     <button
@@ -1572,7 +1429,7 @@ Sent from Diane`
                 )}
 
                 {/* 播放进度条 - 只在播放时显示 */}
-                {memo && (memo.audioUrls?.length || memo.audioUrl) && isPlayingInModal && (
+                {memo && (memo.audioUrls?.length || memo.audioUrl) && isThisMemoPlaying && (
                   <div className="px-6 py-2 shrink-0">
                     <div
                       ref={progressBarRef}
@@ -1595,7 +1452,7 @@ Sent from Diane`
                         }}
                       />
                       {/* 发光效果 */}
-                      {isPlayingInModal && (
+                      {isThisMemoPlaying && (
                         <div
                           className="absolute top-0 h-full bg-gradient-to-r from-transparent via-white/50 to-transparent"
                           style={{
@@ -1695,7 +1552,7 @@ Sent from Diane`
                     }}
                     transition={{ duration: 1.5, ease: 'easeInOut' }}
                   >
-                    {isPlayingInModal && flowEnabled ? (
+                    {isThisMemoPlaying && flowEnabled ? (
                       <KaraokeText
                         text={memo.transcription}
                         currentTime={currentPlaybackTime}

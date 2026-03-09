@@ -283,8 +283,15 @@ const HomePage: React.FC = () => {
   const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
   const trashInitializedRef = useRef(false);
 
-  // 全局播放状态（用于同步 FloatingTranscript 和主页播放器）
+  // 全局播放状态（三个遥控器共享同一个播放器）
   const [globalPlayingMemoId, setGlobalPlayingMemoId] = useState<string | null>(null);
+  const [isGlobalPlaying, setIsGlobalPlaying] = useState(false);
+  const [globalPlaybackTime, setGlobalPlaybackTime] = useState(0);
+  const [globalPlaybackProgress, setGlobalPlaybackProgress] = useState(0);
+  // 多段音频播放状态
+  const currentSegmentIndexRef = useRef(0);
+  const segmentStartTimesRef = useRef<number[]>([]);
+  const totalDurationRef = useRef(0);
 
   // Resume 录音状态
   const [resumingMemoId, setResumingMemoId] = useState<string | null>(null);
@@ -843,14 +850,19 @@ const HomePage: React.FC = () => {
 
   const stopRecording = () => {
     if (recorderState === RecorderState.PLAYING) {
+      // 使用统一的停止播放逻辑
       if (audioPlayerRef.current) {
         audioPlayerRef.current.pause();
         audioPlayerRef.current.currentTime = 0;
       }
+      setIsGlobalPlaying(false);
+      setGlobalPlaybackTime(0);
+      setGlobalPlaybackProgress(0);
+      setGlobalPlayingMemoId(null);
       setRecorderState(RecorderState.IDLE);
       setElapsedTime(0);
       elapsedTimeRef.current = 0;
-      setGlobalPlayingMemoId(null); // 清除全局播放状态
+      currentSegmentIndexRef.current = 0;
       return;
     }
 
@@ -891,36 +903,183 @@ const HomePage: React.FC = () => {
     stopRecording();
   };
 
-  // --- Playback Logic ---
-  const playMemo = async (memo: Memo) => {
+  // --- Playback Logic (统一播放器，支持多段音频) ---
+
+  // 从指定段和位置开始播放
+  const playFromSegment = useCallback((
+    memo: Memo,
+    segmentIndex: number,
+    startOffset: number = 0
+  ) => {
+    const player = audioPlayerRef.current;
+    if (!player) return;
+
+    const urls = memo.audioUrls || (memo.audioUrl ? [memo.audioUrl] : []);
+    const durations = memo.segmentDurations || [memo.duration];
+
+    if (segmentIndex >= urls.length) {
+      // 所有段播放完毕
+      setIsGlobalPlaying(false);
+      setGlobalPlaybackTime(0);
+      setGlobalPlaybackProgress(0);
+      setGlobalPlayingMemoId(null);
+      setRecorderState(RecorderState.IDLE);
+      currentSegmentIndexRef.current = 0;
+      return;
+    }
+
+    currentSegmentIndexRef.current = segmentIndex;
+    player.src = urls[segmentIndex];
+    player.load();
+
+    const handleLoadedMetadata = () => {
+      if (startOffset > 0) {
+        player.currentTime = startOffset;
+      }
+      player.play().catch(() => {
+        setIsGlobalPlaying(false);
+        setRecorderState(RecorderState.IDLE);
+      });
+      player.removeEventListener('loadedmetadata', handleLoadedMetadata);
+    };
+
+    const handleTimeUpdate = () => {
+      const startTimes = segmentStartTimesRef.current;
+      const totalDuration = totalDurationRef.current;
+      const globalTime = startTimes[currentSegmentIndexRef.current] + player.currentTime;
+      setGlobalPlaybackTime(globalTime);
+      setGlobalPlaybackProgress(totalDuration > 0 ? globalTime / totalDuration : 0);
+      setElapsedTime(globalTime);
+    };
+
+    const handleEnded = () => {
+      // 播放下一段
+      player.removeEventListener('timeupdate', handleTimeUpdate);
+      player.removeEventListener('ended', handleEnded);
+      playFromSegment(memo, segmentIndex + 1, 0);
+    };
+
+    // 清除旧的事件监听器
+    player.onloadedmetadata = null;
+    player.ontimeupdate = null;
+    player.onended = null;
+
+    player.addEventListener('loadedmetadata', handleLoadedMetadata);
+    player.addEventListener('timeupdate', handleTimeUpdate);
+    player.addEventListener('ended', handleEnded);
+  }, []);
+
+  // 开始播放 memo（从头开始）
+  const playMemo = useCallback(async (memo: Memo) => {
     if (recorderState === RecorderState.RECORDING || recorderState === RecorderState.PROCESSING) return;
     if (!audioPlayerRef.current) return;
 
-    const player = audioPlayerRef.current;
     const urls = memo.audioUrls || (memo.audioUrl ? [memo.audioUrl] : []);
+    const durations = memo.segmentDurations || [memo.duration];
 
     if (urls.length === 0) return;
 
-    try {
-      player.pause();
-      setIsDrawerOpen(false);
-      setCurrentMemoId(memo.id);
-      setGlobalPlayingMemoId(memo.id); // 设置全局播放状态
-      setRecorderState(RecorderState.PLAYING);
-
-      // 只播放第一段（主页面播放器简单实现）
-      // 完整的多段播放在 FloatingTranscript 中实现
-      player.src = urls[0];
-      player.load();
-      player.currentTime = 0;
-
-      await player.play();
-    } catch (error) {
-      console.error("Playback failed:", error);
-      setRecorderState(RecorderState.IDLE);
-      alert("Playback failed. Format may not be supported on this device.");
+    // 计算每段的起始时间
+    const startTimes: number[] = [];
+    let cumulative = 0;
+    for (const d of durations) {
+      startTimes.push(cumulative);
+      cumulative += d;
     }
-  };
+    segmentStartTimesRef.current = startTimes;
+    totalDurationRef.current = cumulative;
+
+    // 停止当前播放
+    audioPlayerRef.current.pause();
+
+    setIsDrawerOpen(false);
+    setCurrentMemoId(memo.id);
+    setGlobalPlayingMemoId(memo.id);
+    setIsGlobalPlaying(true);
+    setRecorderState(RecorderState.PLAYING);
+
+    // 从第一段开始播放
+    playFromSegment(memo, 0, 0);
+  }, [recorderState, playFromSegment]);
+
+  // 切换播放/暂停（三个遥控器都调用这个）
+  const handleTogglePlay = useCallback((memo: Memo) => {
+    const player = audioPlayerRef.current;
+    if (!player) return;
+
+    // 如果是同一个 memo
+    if (globalPlayingMemoId === memo.id) {
+      if (isGlobalPlaying) {
+        // 暂停
+        player.pause();
+        setIsGlobalPlaying(false);
+      } else {
+        // 继续播放
+        player.play();
+        setIsGlobalPlaying(true);
+        setRecorderState(RecorderState.PLAYING);
+      }
+    } else {
+      // 播放新的 memo
+      playMemo(memo);
+    }
+  }, [globalPlayingMemoId, isGlobalPlaying, playMemo]);
+
+  // 停止播放
+  const handleStopPlay = useCallback(() => {
+    const player = audioPlayerRef.current;
+    if (player) {
+      player.pause();
+      player.currentTime = 0;
+    }
+    setIsGlobalPlaying(false);
+    setGlobalPlaybackTime(0);
+    setGlobalPlaybackProgress(0);
+    setGlobalPlayingMemoId(null);
+    setRecorderState(RecorderState.IDLE);
+    setElapsedTime(0);
+    currentSegmentIndexRef.current = 0;
+  }, []);
+
+  // 跳转到指定时间
+  const handleSeek = useCallback((targetTime: number) => {
+    const playingMemo = memos.find(m => m.id === globalPlayingMemoId);
+    if (!playingMemo || !audioPlayerRef.current) return;
+
+    const urls = playingMemo.audioUrls || (playingMemo.audioUrl ? [playingMemo.audioUrl] : []);
+    const durations = playingMemo.segmentDurations || [playingMemo.duration];
+    const startTimes = segmentStartTimesRef.current;
+    const totalDuration = totalDurationRef.current;
+
+    // 限制在有效范围内
+    targetTime = Math.max(0, Math.min(targetTime, totalDuration));
+
+    // 找到目标时间所在的段
+    let targetSegment = 0;
+    let offsetInSegment = targetTime;
+    for (let i = 0; i < startTimes.length; i++) {
+      if (i === startTimes.length - 1 || targetTime < startTimes[i + 1]) {
+        targetSegment = i;
+        offsetInSegment = targetTime - startTimes[i];
+        break;
+      }
+    }
+
+    // 更新进度显示
+    setGlobalPlaybackTime(targetTime);
+    setGlobalPlaybackProgress(targetTime / totalDuration);
+
+    // 如果在当前段内，直接跳转
+    if (targetSegment === currentSegmentIndexRef.current) {
+      audioPlayerRef.current.currentTime = offsetInSegment;
+    } else {
+      // 需要切换段
+      if (isGlobalPlaying) {
+        audioPlayerRef.current.pause();
+        playFromSegment(playingMemo, targetSegment, offsetInSegment);
+      }
+    }
+  }, [globalPlayingMemoId, memos, isGlobalPlaying, playFromSegment]);
 
   const playCurrentMemo = () => {
     const idx = getCurrentMemoIndex();
@@ -929,36 +1088,20 @@ const HomePage: React.FC = () => {
     }
   };
 
-  // --- Audio Event Listeners ---
+  // --- Audio Event Listeners (基本错误处理) ---
   useEffect(() => {
     const player = audioPlayerRef.current;
     if (!player) return;
 
-    const updateTime = () => {
-      if (!player.paused) {
-        setElapsedTime(player.currentTime);
-      }
-    };
-
-    const onEnd = () => {
-      setRecorderState(RecorderState.IDLE);
-      setElapsedTime(0);
-      elapsedTimeRef.current = 0;
-      setGlobalPlayingMemoId(null); // 清除全局播放状态
-    };
-
     const onError = (e: any) => {
       console.error("Audio Player Error", e);
+      setIsGlobalPlaying(false);
       setRecorderState(RecorderState.IDLE);
     };
 
-    player.addEventListener('timeupdate', updateTime);
-    player.addEventListener('ended', onEnd);
     player.addEventListener('error', onError);
 
     return () => {
-      player.removeEventListener('timeupdate', updateTime);
-      player.removeEventListener('ended', onEnd);
       player.removeEventListener('error', onError);
     };
   }, []);
@@ -1146,16 +1289,12 @@ const HomePage: React.FC = () => {
           isSynced={syncedMemoIds.has(memo.id)}
           isLoggedIn={!!user}
           globalPlayingMemoId={globalPlayingMemoId}
-          onPlayStateChange={(memoId, isPlaying) => {
-            setGlobalPlayingMemoId(isPlaying ? memoId : null);
-            // 如果浮动窗口开始播放，更新主页状态
-            if (isPlaying && memoId) {
-              setCurrentMemoId(memoId);
-              setRecorderState(RecorderState.PLAYING);
-            } else if (!isPlaying && globalPlayingMemoId === memoId) {
-              setRecorderState(RecorderState.IDLE);
-            }
-          }}
+          isGlobalPlaying={isGlobalPlaying}
+          globalPlaybackTime={globalPlaybackTime}
+          globalPlaybackProgress={globalPlaybackProgress}
+          onTogglePlay={handleTogglePlay}
+          onStopPlay={handleStopPlay}
+          onSeek={handleSeek}
         />
       ))}
 
@@ -1463,6 +1602,8 @@ const HomePage: React.FC = () => {
         onOpenAbout={() => goToAbout('archive')}
         onOpenRecycleBin={() => setIsRecycleBinOpen(true)}
         trashedCount={trashedMemos.length}
+        onStop={handleStopPlay}
+        globalPlayingMemoId={globalPlayingMemoId}
       />
 
       <RecycleBin

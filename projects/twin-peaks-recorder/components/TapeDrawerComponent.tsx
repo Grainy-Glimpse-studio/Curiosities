@@ -14,6 +14,7 @@ interface TapeDrawerProps {
   onClose: () => void;
   memos: Memo[];
   onPlay: (memo: Memo) => void;
+  onStop?: () => void; // 停止播放
   onDelete: (id: string) => void;
   onTogglePermanent: (id: string) => void;
   titleFont: string;
@@ -24,6 +25,7 @@ interface TapeDrawerProps {
   onOpenAbout?: () => void;
   onOpenRecycleBin?: () => void;
   trashedCount?: number;
+  globalPlayingMemoId?: string | null; // 当前正在播放的 memo ID
 }
 
 type SortMethod = 'date_desc' | 'date_asc';
@@ -33,6 +35,7 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
   onClose,
   memos,
   onPlay,
+  onStop,
   onDelete,
   onTogglePermanent,
   titleFont,
@@ -43,6 +46,7 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
   onOpenAbout,
   onOpenRecycleBin,
   trashedCount = 0,
+  globalPlayingMemoId,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -914,12 +918,14 @@ const TapeDrawer: React.FC<TapeDrawerProps> = ({
                    <CassetteTape
                      memo={memo}
                      onPlay={onPlay}
+                     onStop={onStop}
                      onDelete={onDelete}
                      onTogglePermanent={onTogglePermanent}
                      titleFont={titleFont}
                      contentFont={contentFont}
                      onOpenTranscript={onOpenTranscript}
                      shouldAllowClick={shouldAllowClick}
+                     isPlaying={globalPlayingMemoId === memo.id}
                    />
                  </motion.div>
                ))

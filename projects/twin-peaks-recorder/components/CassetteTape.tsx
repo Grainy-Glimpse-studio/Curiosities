@@ -1,17 +1,19 @@
 import React, { useState, useRef } from 'react';
 import { Memo } from '../types';
-import { Play, Pause, Trash2, Download, X, FileText, File, FileCode, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Palette, Sparkles } from 'lucide-react';
+import { Play, Pause, Square, Trash2, Download, X, FileText, File, FileCode, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Palette, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 
 interface CassetteTapeProps {
   memo: Memo;
   onPlay: (memo: Memo) => void;
+  onStop?: () => void; // 停止全局播放
   onDelete: (id: string) => void;
   onTogglePermanent: (id: string) => void;
   titleFont: string;
   contentFont: string;
   shouldAllowClick?: () => boolean;
   onOpenTranscript?: (memo: Memo) => void; // 打开独立浮动窗口
+  isPlaying?: boolean; // 当前是否正在播放这个 memo
 }
 
 // Animation variants for coordinated parent-child animations
@@ -100,7 +102,7 @@ const KaraokeText: React.FC<KaraokeTextProps> = ({ text, progress, fontFamily })
   );
 };
 
-const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onTogglePermanent, titleFont, contentFont, shouldAllowClick, onOpenTranscript }) => {
+const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onStop, onDelete, onTogglePermanent, titleFont, contentFont, shouldAllowClick, onOpenTranscript, isPlaying }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showFontSizeMenu, setShowFontSizeMenu] = useState(false);
@@ -361,13 +363,37 @@ const CassetteTape: React.FC<CassetteTapeProps> = ({ memo, onPlay, onDelete, onT
 
           {/* Controls */}
           <div className="mt-4 flex items-center justify-between px-2 relative z-10">
-            <button
-              onClick={(e) => { e.stopPropagation(); onPlay(memo); }}
-              className="flex items-center gap-3 px-4 py-2 rounded-full bg-zinc-900 text-zinc-300 border border-zinc-800 hover:bg-zinc-800 hover:text-white active:scale-95 transition-all shadow-lg group/play"
-            >
-              <Play size={14} fill="currentColor" className="group-hover/play:text-[#903e4f] transition-colors" />
-              <span className="text-[10px] font-bold tracking-[0.2em] uppercase">Play</span>
-            </button>
+            <div className="flex gap-2">
+              {/* Play/Pause Button */}
+              <button
+                onClick={(e) => { e.stopPropagation(); onPlay(memo); }}
+                className={`flex items-center gap-3 px-4 py-2 rounded-full border transition-all shadow-lg group/play ${
+                  isPlaying
+                    ? 'bg-[#903e4f]/20 text-white border-[#903e4f]/50'
+                    : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:bg-zinc-800 hover:text-white active:scale-95'
+                }`}
+              >
+                {isPlaying ? (
+                  <Pause size={14} fill="currentColor" className="text-[#903e4f]" />
+                ) : (
+                  <Play size={14} fill="currentColor" className="group-hover/play:text-[#903e4f] transition-colors" />
+                )}
+                <span className="text-[10px] font-bold tracking-[0.2em] uppercase">
+                  {isPlaying ? 'Pause' : 'Play'}
+                </span>
+              </button>
+
+              {/* Stop Button - only show when playing */}
+              {isPlaying && onStop && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onStop(); }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-full bg-zinc-900 text-zinc-300 border border-zinc-800 hover:bg-zinc-800 hover:text-[#903e4f] active:scale-95 transition-all shadow-lg"
+                >
+                  <Square size={12} fill="currentColor" />
+                  <span className="text-[10px] font-bold tracking-[0.2em] uppercase">Stop</span>
+                </button>
+              )}
+            </div>
 
             <div className="flex gap-2">
               <button
