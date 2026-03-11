@@ -188,13 +188,45 @@ export function parseQuotesMarkdown(content: string, primaryLang: string): Quote
     const section = sections[i].trim();
     if (!section) continue;
 
-    // Split section into quote blocks (separated by empty lines)
-    const blocks = section.split(/\n\n+/).filter(b => b.trim());
+    // Split section into blocks (separated by empty lines)
+    const rawBlocks = section.split(/\n\n+/).filter(b => b.trim());
+    console.log('📄 Section', i, 'rawBlocks count:', rawBlocks.length);
+    rawBlocks.forEach((b, idx) => console.log(`  block ${idx}:`, b.slice(0, 50)));
 
-    if (blocks.length === 0) continue;
+    if (rawBlocks.length === 0) continue;
 
-    // First block is primary quote
-    const primary = parseQuoteBlock(blocks[0]);
+    // Merge quote blocks with their metadata blocks
+    // A metadata block doesn't start with a quote character
+    const startsWithQuote = (s: string) => {
+      const trimmed = s.trim();
+      return trimmed.startsWith('"') || trimmed.startsWith('"') || trimmed.startsWith('「');
+    };
+
+    const mergedBlocks: string[] = [];
+    for (let j = 0; j < rawBlocks.length; j++) {
+      const block = rawBlocks[j];
+      if (startsWithQuote(block)) {
+        // This is a quote block, check if next block is metadata
+        if (j + 1 < rawBlocks.length && !startsWithQuote(rawBlocks[j + 1])) {
+          // Merge quote with its metadata
+          mergedBlocks.push(block + '\n\n' + rawBlocks[j + 1]);
+          j++; // Skip the metadata block
+        } else {
+          mergedBlocks.push(block);
+        }
+      } else {
+        // Standalone metadata (shouldn't happen, but handle it)
+        mergedBlocks.push(block);
+      }
+    }
+
+    console.log('📦 mergedBlocks count:', mergedBlocks.length);
+    mergedBlocks.forEach((b, idx) => console.log(`  merged ${idx}:`, b.slice(0, 80)));
+
+    if (mergedBlocks.length === 0) continue;
+
+    // First merged block is primary quote
+    const primary = parseQuoteBlock(mergedBlocks[0]);
     if (!primary) continue;
 
     const quote: Quote = {
@@ -205,9 +237,9 @@ export function parseQuotesMarkdown(content: string, primaryLang: string): Quote
       translations: [],
     };
 
-    // Remaining blocks are translations
-    for (let j = 1; j < blocks.length; j++) {
-      const translation = parseQuoteBlock(blocks[j]);
+    // Remaining merged blocks are translations
+    for (let j = 1; j < mergedBlocks.length; j++) {
+      const translation = parseQuoteBlock(mergedBlocks[j]);
       if (translation) {
         // Detect language from text content
         const lang = detectLanguage(translation.text);
@@ -249,14 +281,25 @@ function detectLanguage(text: string): string {
 /**
  * Format metadata for display
  * Returns: "Author / Work / Year / Location" format
+ *
+ * @param meta - The metadata object
+ * @param isTranslation - If true, skip translator field (translation metadata uses original author)
  */
-export function formatMeta(meta: QuoteMeta): string {
+export function formatMeta(meta: QuoteMeta, isTranslation: boolean = false): string {
   const parts: string[] = [];
 
-  if (meta.translator) {
-    parts.push(`${meta.translator} 译`);
-  } else if (meta.author) {
-    parts.push(meta.author);
+  // For translations, skip translator - we'll use original author instead
+  if (!isTranslation) {
+    if (meta.translator) {
+      parts.push(`${meta.translator} 译`);
+    } else if (meta.author) {
+      parts.push(meta.author);
+    }
+  } else {
+    // For translations, only include author if it's not a translator
+    if (meta.author && !meta.translator) {
+      parts.push(meta.author);
+    }
   }
 
   if (meta.work) parts.push(meta.work);
@@ -273,10 +316,17 @@ export function toDisplayQuote(quote: Quote, userLang: 'zh' | 'en'): DisplayQuot
   // Find appropriate translation
   let secondary: Translation | null = null;
 
-  // If primary is already in user's language, find a different translation
+  console.log('🔍 toDisplayQuote:', {
+    primaryLang: quote.primaryLang,
+    userLang,
+    translationsCount: quote.translations.length,
+    translationLangs: quote.translations.map(t => t.lang),
+  });
+
+  // If primary is already in user's language, no translation needed
   if (quote.primaryLang === userLang) {
-    // Primary is user's language, get any other translation
-    secondary = quote.translations[0] || null;
+    // Same language - no translation, Tab will just change font
+    secondary = null;
   } else {
     // Find translation in user's preferred language
     secondary = quote.translations.find(t => t.lang === userLang) || null;
@@ -291,6 +341,8 @@ export function toDisplayQuote(quote: Quote, userLang: 'zh' | 'en'): DisplayQuot
       secondary = quote.translations[0];
     }
   }
+
+  console.log('🔍 Selected secondary:', secondary ? secondary.lang : 'none');
 
   return {
     primary: {
@@ -350,6 +402,7 @@ export function quoteToContentItem(quote: DisplayQuote, id: string | number): Ex
   console.log(`📝 Quote ${id}: lang=${primaryLang}, layout=${verticalLayout}`);
   console.log(`   meta object:`, quote.primary.meta);
   console.log(`   formatted: "${metaStr}"`);
+  console.log(`   has translation:`, !!quote.secondary, quote.secondary?.text?.slice(0, 50));
 
   // Split text into segments for vertical display
   const segments = (verticalLayout !== 'none')
@@ -363,7 +416,23 @@ export function quoteToContentItem(quote: DisplayQuote, id: string | number): Ex
 
   if (quote.secondary) {
     translationText = processText(quote.secondary.text);
-    translationMeta = formatMeta(quote.secondary.meta);
+
+    // Build translation metadata: use original author + translation's work/year/location
+    // Format: "Original Author / Translated Work / Year"
+    const originalAuthor = quote.primary.meta.author;
+    const translationMetaParts: string[] = [];
+
+    if (originalAuthor) {
+      translationMetaParts.push(originalAuthor);
+    }
+
+    // Add work, year, location from translation metadata (skip translator)
+    const secMeta = quote.secondary.meta;
+    if (secMeta.work) translationMetaParts.push(secMeta.work);
+    if (secMeta.year) translationMetaParts.push(secMeta.year);
+    if (secMeta.location) translationMetaParts.push(secMeta.location);
+
+    translationMeta = translationMetaParts.join(' / ');
 
     // If translation is Chinese/Japanese, also split into segments
     if (isPrimarilyChinese(translationText) || isPrimarilyJapanese(translationText)) {
@@ -427,9 +496,16 @@ export async function loadAllQuotes(): Promise<Quote[]> {
 export async function loadQuotesAsContent(): Promise<ExtendedContentItem[]> {
   const quotes = await loadAllQuotes();
   const userLang = getUserLanguage();
+  console.log('🚀 loadQuotesAsContent called, userLang:', userLang, 'quotes:', quotes.length);
 
   return quotes.map((quote, index) => {
     const displayQuote = toDisplayQuote(quote, userLang);
-    return quoteToContentItem(displayQuote, `quote-${index}`);
+    const contentItem = quoteToContentItem(displayQuote, `quote-${index}`);
+    console.log('📦 ContentItem created:', {
+      id: contentItem.id,
+      hasTranslation: !!contentItem._translation,
+      translationPreview: contentItem._translation?.slice(0, 50),
+    });
+    return contentItem;
   });
 }

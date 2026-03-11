@@ -195,12 +195,31 @@ const SingleView: React.FC<SingleViewProps> = ({
   const [detectedLanguage, setDetectedLanguage] = useState<'chinese' | 'english' | null>(null);
   const [inputFont, setInputFont] = useState<FontConfig | null>(null);
 
-  // Generate random font for translation (back side) - memoized per item
+  // Generate random font for back side (translation or same content with different font)
   const translationFont = useMemo(() => {
-    if (!item?._translation) return null;
-    const lang = isChinese(item._translation) ? 'chinese' : 'english';
-    return getRandomFont(lang);
-  }, [item?.id, item?._translation]);
+    // If there's a translation, use its language for font selection
+    if (item?._translation) {
+      const lang = isChinese(item._translation) ? 'chinese' : 'english';
+      return getRandomFont(lang);
+    }
+    // If no translation, still generate a random font for the original content
+    // This allows Tab to change font even when user language = quote language
+    if (item?.content) {
+      const lang = isChinese(item.content) ? 'chinese' : 'english';
+      return getRandomFont(lang);
+    }
+    return null;
+  }, [item?.id, item?._translation, item?.content]);
+
+  // Format font name to CSS font-family (consistent with item._fontFamily format)
+  const formatFontFamily = (fontName: string): string => {
+    return `'${fontName}', sans-serif`;
+  };
+
+  // Pre-computed CSS font-family for translation
+  const translationFontCSS = translationFont
+    ? formatFontFamily(translationFont.name)
+    : undefined;
 
   useEffect(() => {
     if (item?.type === 'input' && textareaRef.current) {
@@ -365,7 +384,10 @@ const SingleView: React.FC<SingleViewProps> = ({
                   // Determine what to show based on flip state
                   const showTranslation = isFlipped && extItem._translation;
                   const displayText = showTranslation ? extItem._translation! : (item.content || '');
-                  const displayMeta = showTranslation ? extItem._translationMeta : item.title;
+                  // Only switch to translation metadata if we actually have a translation
+                  const displayMeta = (showTranslation && extItem._translationMeta)
+                    ? extItem._translationMeta
+                    : item.title;
                   const displaySegments = showTranslation ? extItem._translationSegments : extItem._segments;
 
                   // Check if current display should be vertical (translation might be in different language)
@@ -406,9 +428,42 @@ const SingleView: React.FC<SingleViewProps> = ({
                           meta={displayMeta}
                           layout={extItem._verticalLayout!}
                           fontSize={item._fontSize || fontSize || 24}
+                          fontFamily={item._fontFamily || fontFamily}
                           className="flex justify-center"
                         />
                       </motion.div>
+                    );
+                  }
+
+                  // For vertical CJK original with horizontal translation, use ScrambleText decode
+                  if (hasVerticalLayout && showTranslation) {
+                    return (
+                      <div
+                        key="translation-horizontal"
+                        className="flex flex-col items-center"
+                      >
+                        <ScrambleText
+                          frontText={`"${displayText}"`}
+                          fontFamily={translationFontCSS || item._fontFamily || fontFamily || 'inherit'}
+                          fontSize={translationFont?.size || item._fontSize || fontSize}
+                          fontOpacity={fontOpacity}
+                          decodeOnMount={true}
+                          scrambleDuration={2500}
+                          className="leading-relaxed text-center"
+                          style={{
+                            textShadow: '0 0 20px rgba(0,0,0,0.5)',
+                            minHeight: '1.5em',
+                          }}
+                        />
+                        {displayMeta && (
+                          <div
+                            className="mt-6 text-white/50 text-sm tracking-wider text-center"
+                            style={{ fontFamily: translationFontCSS || item._fontFamily || fontFamily || 'inherit' }}
+                          >
+                            {displayMeta}
+                          </div>
+                        )}
+                      </div>
                     );
                   }
 
@@ -420,7 +475,7 @@ const SingleView: React.FC<SingleViewProps> = ({
                         backText={item._translation ? `"${item._translation}"` : `"${item.content || ''}"`}
                         fontFamily={item._fontFamily || fontFamily || 'inherit'}
                         fontSize={item._fontSize || fontSize}
-                        backFontFamily={translationFont?.name}
+                        backFontFamily={translationFontCSS}
                         backFontSize={translationFont?.size}
                         fontOpacity={fontOpacity}
                         isFlipped={isFlipped}
@@ -437,7 +492,14 @@ const SingleView: React.FC<SingleViewProps> = ({
                       />
                       {/* Metadata display */}
                       {displayMeta && (
-                        <div className="mt-6 text-white/50 text-sm tracking-wider text-center">
+                        <div
+                          className="mt-6 text-white/50 text-sm tracking-wider text-center"
+                          style={{
+                            fontFamily: isFlipped
+                              ? (translationFontCSS || item._fontFamily || fontFamily || 'inherit')
+                              : (item._fontFamily || fontFamily || 'inherit')
+                          }}
+                        >
                           {displayMeta}
                         </div>
                       )}
