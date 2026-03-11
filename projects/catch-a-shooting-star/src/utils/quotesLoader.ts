@@ -467,6 +467,7 @@ export async function loadAllQuotes(): Promise<Quote[]> {
     { path: '/docs/quotes/zh.md', lang: 'zh' },
     { path: '/docs/quotes/fr.md', lang: 'fr' },
     { path: '/docs/quotes/ja.md', lang: 'ja' },
+    { path: '/docs/quotes/es.md', lang: 'es' },
   ];
 
   console.log('📚 Loading quotes from markdown files...');
