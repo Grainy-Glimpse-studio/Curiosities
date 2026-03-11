@@ -38,6 +38,28 @@ export function getFuzzyLocation(): string {
 }
 
 /**
+ * Format guestbook metadata (time and location) for display
+ */
+export function formatGuestbookMeta(
+  createdAt: number,
+  location?: string
+): string {
+  const userLang = navigator.language;
+  const date = new Date(createdAt);
+
+  const dateStr = date.toLocaleDateString(userLang, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  if (location) {
+    return `${dateStr} / ${location}`;
+  }
+  return dateStr;
+}
+
+/**
  * Submit a new message to the guestbook
  */
 export async function submitMessage(

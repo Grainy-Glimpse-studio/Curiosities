@@ -4,6 +4,7 @@ import StarCatcher from './core/StarCatcher';
 import { loadGalleryConfig } from './utils/contentLoader';
 import { loadQuotesAsContent } from './utils/quotesLoader';
 import { useGuestbook } from './features/guestbook/useGuestbook';
+import { fetchRandomMessage, formatGuestbookMeta } from './features/guestbook/guestbookService';
 import type { InteractionMode, StarCatcherConfig, ContentItem, DisplayMode } from './types';
 
 // Lazy load dev pages
@@ -227,16 +228,43 @@ const App: React.FC = () => {
 
     // First try to load quotes from markdown files
     const loadContent = async () => {
+      console.log('🔄 loadContent called - reloading quotes...');
+      let allItems: ContentItem[] = [];
+
       try {
         // Try loading quotes first
         const quotes = await loadQuotesAsContent();
-        if (quotes.length > 0) {
-          setItems(quotes);
-          setIsLoading(false);
-          return;
-        }
+        console.log('✅ Loaded quotes:', quotes.length);
+        allItems = quotes;
       } catch (error) {
-        console.warn('Failed to load quotes, falling back to demo items:', error);
+        console.warn('Failed to load quotes:', error);
+      }
+
+      // Also load guestbook messages from API
+      try {
+        const guestbookItems: ContentItem[] = [];
+        for (let i = 0; i < 5; i++) {
+          const msg = await fetchRandomMessage('/api/messages');
+          if (msg && !guestbookItems.some(m => m.id === `guestbook-${msg.id}`)) {
+            guestbookItems.push({
+              id: `guestbook-${msg.id}`,
+              type: 'text',
+              content: msg.content,
+              title: formatGuestbookMeta(msg.createdAt, msg.location),
+            });
+          }
+        }
+        console.log('✅ Loaded guestbook messages:', guestbookItems.length);
+        allItems = [...allItems, ...guestbookItems];
+      } catch (error) {
+        console.warn('Failed to load guestbook messages:', error);
+      }
+
+      // Use loaded items or fallback
+      if (allItems.length > 0) {
+        setItems(allItems);
+        setIsLoading(false);
+        return;
       }
 
       // Fallback: load from gallery config or use demo items

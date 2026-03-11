@@ -14,6 +14,7 @@ interface ScrambleTextProps {
   isFlipped?: boolean;
   onFlip?: () => void;
   scrambleDuration?: number; // Total duration in ms
+  decodeOnMount?: boolean; // If true, auto-decode from scrambled to frontText on mount
   className?: string;
   style?: React.CSSProperties;
 }
@@ -35,11 +36,29 @@ const ScrambleText: React.FC<ScrambleTextProps> = ({
   glowRadius = 200,
   isFlipped = false,
   scrambleDuration = 2000,
+  decodeOnMount = false,
   className = '',
   style = {},
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [displayText, setDisplayText] = useState(frontText);
+  const hasDecodedRef = useRef(false);
+
+  // Generate initial scrambled text for decodeOnMount mode
+  const generateScrambledText = useCallback((text: string) => {
+    return text.split('').map(char => {
+      if (char === ' ' || char === '"' || char === '"' || char === '"') {
+        return char;
+      }
+      if (/[\u4e00-\u9fff]/.test(char)) {
+        return CHINESE_CHARS[Math.floor(Math.random() * CHINESE_CHARS.length)];
+      }
+      return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
+    }).join('');
+  }, []);
+
+  const [displayText, setDisplayText] = useState(() =>
+    decodeOnMount ? generateScrambledText(frontText) : frontText
+  );
   const [currentFont, setCurrentFont] = useState(fontFamily);
   const [currentFontSize, setCurrentFontSize] = useState(fontSize);
   const isAnimatingRef = useRef(false);
@@ -64,14 +83,15 @@ const ScrambleText: React.FC<ScrambleTextProps> = ({
 
 
   // Update display when texts change (without animation)
+  // Skip if decodeOnMount mode and haven't decoded yet
   useEffect(() => {
-    if (!isAnimatingRef.current) {
+    if (!isAnimatingRef.current && !(decodeOnMount && !hasDecodedRef.current)) {
       const showBack = prevFlippedRef.current && backText;
       setDisplayText(showBack ? backText : frontText);
       setCurrentFont(showBack ? (backFontFamily || fontFamily) : fontFamily);
       setCurrentFontSize(showBack ? (backFontSize || fontSize) : fontSize);
     }
-  }, [frontText, backText, fontFamily, fontSize, backFontFamily, backFontSize]);
+  }, [frontText, backText, fontFamily, fontSize, backFontFamily, backFontSize, decodeOnMount]);
 
   // Cleanup
   useEffect(() => {
@@ -208,6 +228,18 @@ const ScrambleText: React.FC<ScrambleTextProps> = ({
 
     animationRef.current = requestAnimationFrame(animate);
   }, [displayText, scrambleDuration, getScrambleChar]);
+
+  // Auto-decode on mount if decodeOnMount is true
+  useEffect(() => {
+    if (decodeOnMount && !hasDecodedRef.current) {
+      hasDecodedRef.current = true;
+      // Delay to let previous content exit animation complete partially
+      const timer = setTimeout(() => {
+        startScrambleWithEffects(frontText, fontFamily, fontSize);
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [decodeOnMount, frontText, fontFamily, fontSize, startScrambleWithEffects]);
 
   // Handle flip trigger - use the new function
   useEffect(() => {

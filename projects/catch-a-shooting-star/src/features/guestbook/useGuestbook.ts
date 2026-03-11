@@ -1,6 +1,6 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import type { ContentItem } from '../../types';
-import { submitMessage, fetchRandomMessage } from './guestbookService';
+import { submitMessage } from './guestbookService';
 
 // LocalStorage key for daily message tracking
 const STORAGE_KEY = 'guestbook_daily';
@@ -54,24 +54,6 @@ export function useGuestbook(options: UseGuestbookOptions = {}) {
   const [catchCount, setCatchCount] = useState(0);
   const [todayMessageCount, setTodayMessageCount] = useState(getTodayMessageCount);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [cachedMessages, setCachedMessages] = useState<Array<{ id: string; content: string }>>([]);
-
-  // Pre-fetch messages from API on mount
-  useEffect(() => {
-    const fetchMessages = async () => {
-      const messages: Array<{ id: string; content: string }> = [];
-      for (let i = 0; i < 5; i++) {
-        const msg = await fetchRandomMessage(apiUrl);
-        if (msg && !messages.some(m => m.id === msg.id)) {
-          messages.push({ id: msg.id, content: msg.content });
-        }
-      }
-      if (messages.length > 0) {
-        setCachedMessages(messages);
-      }
-    };
-    fetchMessages();
-  }, [apiUrl]);
 
   // Calculate first input appearance
   const nextInputAtRef = useRef(
@@ -102,20 +84,10 @@ export function useGuestbook(options: UseGuestbookOptions = {}) {
       };
     }
 
-    // 30% chance to show a guestbook message (if we have cached messages)
-    if (cachedMessages.length > 0 && Math.random() < 0.3) {
-      const randomIndex = Math.floor(Math.random() * cachedMessages.length);
-      const msg = cachedMessages[randomIndex];
-      return {
-        id: `guestbook-${msg.id}`,
-        type: 'text',
-        content: msg.content,
-      };
-    }
-
     // Return null to use default content from items array
+    // (guestbook messages are now loaded directly into items pool)
     return null;
-  }, [catchCount, canShowInput, placeholder, firstInputRange, nextInputRange, cachedMessages]);
+  }, [catchCount, canShowInput, placeholder, firstInputRange, nextInputRange]);
 
   // Handle input submission
   const onInputSubmit = useCallback(async (content: string) => {

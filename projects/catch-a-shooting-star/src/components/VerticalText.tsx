@@ -52,8 +52,11 @@ const PoetryLayout: React.FC<{
       </div>
       {meta && (
         <div
-          className="mt-8 text-white/50 text-sm tracking-wider"
-          style={{ fontFamily: fontFamily || CHINESE_FONT }}
+          className="mt-8 text-white/50 tracking-wider"
+          style={{
+            fontFamily: fontFamily || CHINESE_FONT,
+            fontSize: `${Math.round(fontSize * 0.6)}px`,
+          }}
         >
           {meta}
         </div>
@@ -101,8 +104,11 @@ const StaggeredLayout: React.FC<{
       </div>
       {meta && (
         <div
-          className="mt-8 text-white/50 text-sm tracking-wider"
-          style={{ fontFamily: fontFamily || CHINESE_FONT }}
+          className="mt-8 text-white/50 tracking-wider"
+          style={{
+            fontFamily: fontFamily || CHINESE_FONT,
+            fontSize: `${Math.round(fontSize * 0.6)}px`,
+          }}
         >
           {meta}
         </div>

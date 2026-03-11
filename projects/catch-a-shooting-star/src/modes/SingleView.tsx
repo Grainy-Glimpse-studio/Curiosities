@@ -2,9 +2,19 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ContentItem } from '../types';
 import type { ExtendedContentItem } from '../utils/quotesLoader';
-import { isChinese, getRandomFont, type FontConfig } from '../utils/fonts';
+import { isChinese, getRandomFont, getRandomFontForText, type FontConfig } from '../utils/fonts';
 import ScrambleText from '../components/ScrambleText';
 import VerticalText from '../components/VerticalText';
+import type { VerticalLayoutType } from '../utils/quotesLoader';
+
+// Helper to check if an item is a guestbook message
+const isGuestbookMessage = (id: string | number): boolean =>
+  typeof id === 'string' && id.startsWith('guestbook-');
+
+// Random vertical layout for guestbook messages (not poetry, since they're not poems)
+const getRandomGuestbookLayout = (): VerticalLayoutType => {
+  return Math.random() < 0.5 ? 'prose-staggered' : 'prose-mixed';
+};
 
 // Floating animation for individual characters - more noticeable
 const floatKeyframes = `
@@ -211,6 +221,21 @@ const SingleView: React.FC<SingleViewProps> = ({
     return null;
   }, [item?.id, item?._translation, item?.content]);
 
+  // Generate random font and layout for guestbook messages
+  const guestbookConfig = useMemo(() => {
+    if (!item?.id || !isGuestbookMessage(item.id) || !item.content) {
+      return null;
+    }
+    const font = getRandomFontForText(item.content);
+    const isChineseContent = isChinese(item.content);
+    return {
+      font,
+      fontFamily: `'${font.name}', sans-serif`,
+      isChineseContent,
+      verticalLayout: isChineseContent ? getRandomGuestbookLayout() : null,
+    };
+  }, [item?.id, item?.content]);
+
   // Format font name to CSS font-family (consistent with item._fontFamily format)
   const formatFontFamily = (fontName: string): string => {
     return `'${fontName}', sans-serif`;
@@ -377,6 +402,9 @@ const SingleView: React.FC<SingleViewProps> = ({
             {item.type === 'text' && (
               <div className="w-[60vw] max-w-lg p-8">
                 {(() => {
+                  // Check if this is a guestbook message
+                  const isGuestbook = isGuestbookMessage(item.id);
+
                   // Cast to ExtendedContentItem to access vertical layout properties
                   const extItem = item as ExtendedContentItem;
                   const hasVerticalLayout = extItem._verticalLayout && extItem._verticalLayout !== 'none';
@@ -395,20 +423,75 @@ const SingleView: React.FC<SingleViewProps> = ({
                   // For translation, check if it has segments (meaning it's also CJK)
                   const translationIsVertical = showTranslation && extItem._translationSegments;
 
+                  // For guestbook messages, use guestbookConfig for font and layout
+                  const guestbookFontFamily = guestbookConfig?.fontFamily;
+                  const guestbookFontSize = guestbookConfig?.font.size;
+                  const guestbookVerticalLayout = guestbookConfig?.verticalLayout;
+
                   if (blowAway) {
                     return (
                       <p
                         className="leading-relaxed italic text-center"
                         style={{
-                          fontFamily: item._fontFamily || fontFamily || 'inherit',
+                          fontFamily: guestbookFontFamily || item._fontFamily || fontFamily || 'inherit',
                           color: `rgba(255, 255, 255, ${fontOpacity})`,
-                          fontSize: `${item._fontSize || fontSize}px`,
+                          fontSize: `${guestbookFontSize || item._fontSize || fontSize}px`,
                           textShadow: '0 0 20px rgba(0,0,0,0.5)',
                           minHeight: '1.5em',
                         }}
                       >
                         <BlowAwayText text={`"${item.content || ''}"`} onComplete={onBlowAwayComplete} initialOpacity={fontOpacity * 0.7} />
                       </p>
+                    );
+                  }
+
+                  // Guestbook messages with Chinese content: use VerticalText
+                  if (isGuestbook && guestbookVerticalLayout) {
+                    return (
+                      <motion.div
+                        initial={{ opacity: 0, filter: 'blur(10px)' }}
+                        animate={{ opacity: 1, filter: 'blur(0px)' }}
+                        transition={{ duration: 0.8 }}
+                      >
+                        <VerticalText
+                          text={displayText}
+                          meta={displayMeta}
+                          layout={guestbookVerticalLayout}
+                          fontSize={guestbookFontSize || fontSize || 24}
+                          fontFamily={guestbookFontFamily || fontFamily}
+                          className="flex justify-center"
+                        />
+                      </motion.div>
+                    );
+                  }
+
+                  // Guestbook messages with English content: use ScrambleText
+                  if (isGuestbook) {
+                    return (
+                      <div className="flex flex-col items-center">
+                        <ScrambleText
+                          frontText={`"${item.content || ''}"`}
+                          fontFamily={guestbookFontFamily || fontFamily || 'inherit'}
+                          fontSize={guestbookFontSize || fontSize}
+                          fontOpacity={fontOpacity}
+                          decodeOnMount={true}
+                          scrambleDuration={1500}
+                          className="leading-relaxed text-center"
+                          style={{
+                            textShadow: '0 0 20px rgba(0,0,0,0.5)',
+                            minHeight: '1.5em',
+                          }}
+                        />
+                        {/* Metadata display */}
+                        {displayMeta && (
+                          <div
+                            className="mt-6 text-white/50 text-sm tracking-wider text-center"
+                            style={{ fontFamily: guestbookFontFamily || fontFamily || 'inherit' }}
+                          >
+                            {displayMeta}
+                          </div>
+                        )}
+                      </div>
                     );
                   }
 

@@ -179,7 +179,7 @@ const StarCatcher = forwardRef<StarCatcherRef, StarCatcherProps>(({
     const baseItem = items[currentIndex % items.length];
     setCurrentIndex(prev => prev + 1);
 
-    // Assign random font and translation for text items
+    // Assign random font for text items, preserve existing translation (no fallback - respect quotesLoader's decision)
     let nextItem = { ...baseItem };
     if (baseItem.type === 'text' && baseItem.content) {
       const fontConfig = getRandomFontForText(baseItem.content);
@@ -187,7 +187,8 @@ const StarCatcher = forwardRef<StarCatcherRef, StarCatcherProps>(({
         ...baseItem,
         _fontFamily: `'${fontConfig.name}', sans-serif`,
         _fontSize: fontConfig.size,
-        _translation: DEMO_TRANSLATIONS[baseItem.content],
+        // Preserve original translation from quotesLoader - if null/undefined, no translation needed
+        _translation: baseItem._translation,
       };
     }
 
