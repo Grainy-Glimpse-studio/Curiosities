@@ -126,11 +126,41 @@ const BugReport: React.FC<BugReportProps> = ({ isOpen, onClose }) => {
     }
   }, []);
 
+  // 上传截图到 Cloudinary
+  const uploadToCloudinary = async (file: File): Promise<string | null> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'diane_recorder_bugreport');
+    formData.append('cloud_name', 'ddb3kponi');
+
+    try {
+      const response = await fetch(
+        'https://api.cloudinary.com/v1_1/ddb3kponi/image/upload',
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+      const data = await response.json();
+      return data.secure_url || null;
+    } catch (error) {
+      console.error('Cloudinary upload failed:', error);
+      return null;
+    }
+  };
+
   // 提交报告
   const handleSubmit = async () => {
     setIsSubmitting(true);
 
     try {
+      // 如果有截图，先上传到 Cloudinary
+      let screenshotUrl = '';
+      if (screenshotFile) {
+        const uploadedUrl = await uploadToCloudinary(screenshotFile);
+        screenshotUrl = uploadedUrl || '';
+      }
+
       // 收集环境信息
       const envInfo = {
         browser: navigator.userAgent,
@@ -142,13 +172,13 @@ const BugReport: React.FC<BugReportProps> = ({ isOpen, onClose }) => {
       // 使用 EmailJS 发送
       await emailjs.send(
         'service_dianerecorder',
-        'template_bugreport', // 需要在 EmailJS 创建这个模板
+        'template_bugreport',
         {
           category: CATEGORIES.find(c => c.id === category)?.label || category,
           description: description || '(No description)',
           severity: SEVERITY.find(s => s.id === severity)?.label || severity,
           severity_desc: SEVERITY.find(s => s.id === severity)?.desc || '',
-          screenshot: screenshot ? 'Yes (see attachment)' : 'No',
+          screenshot_url: screenshotUrl || 'No screenshot',
           browser: envInfo.browser,
           url: envInfo.url,
           timestamp: envInfo.timestamp,
