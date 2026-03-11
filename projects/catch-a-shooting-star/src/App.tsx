@@ -2,11 +2,13 @@ import { useState, useMemo, useRef, useEffect, lazy, Suspense } from 'react';
 import ModeSelector from './components/ModeSelector';
 import StarCatcher from './core/StarCatcher';
 import { loadGalleryConfig } from './utils/contentLoader';
+import { loadQuotesAsContent } from './utils/quotesLoader';
 import { useGuestbook } from './features/guestbook/useGuestbook';
 import type { InteractionMode, StarCatcherConfig, ContentItem, DisplayMode } from './types';
 
-// Lazy load font preview page
+// Lazy load dev pages
 const FontPreview = lazy(() => import('./pages/FontPreview'));
+const VerticalTextPlayground = lazy(() => import('./pages/VerticalTextPlayground'));
 
 // Font type definition
 interface FontDef {
@@ -115,11 +117,12 @@ const DEV_MODE = false;
 
 const App: React.FC = () => {
   // Check for special pages (dev tools)
-  // Access via: /fonts OR ?dev=fonts
+  // Access via: /fonts OR ?dev=fonts OR /vertical OR ?dev=vertical
   const [currentPage, _setCurrentPage] = useState(() => {
     const path = window.location.pathname;
     const params = new URLSearchParams(window.location.search);
     if (path.includes('/fonts') || params.get('dev') === 'fonts') return 'fonts';
+    if (path.includes('/vertical') || params.get('dev') === 'vertical') return 'vertical';
     return 'main';
   });
 
@@ -201,34 +204,56 @@ const App: React.FC = () => {
   }, [selectedUIFont]);
 
   
-  // Get items based on text mode
+  // Get items based on text mode (for dev mode filtering)
+  // Check if loaded items are from quotes (they have _verticalLayout property)
+  const hasQuotesLoaded = _items.length > 0 && '_verticalLayout' in (_items[0] as any);
   const displayItems = useMemo(() => {
+    // If we have loaded quotes (items with vertical layout), use them directly
+    if (hasQuotesLoaded) {
+      return _items;
+    }
+    // Dev mode filtering for demo items
     switch (textMode) {
       case 'chinese': return CHINESE_ITEMS;
       case 'english': return ENGLISH_ITEMS;
       default: return DEMO_ITEMS;
     }
-  }, [textMode]);
+  }, [textMode, _items, hasQuotesLoaded]);
 
-  // Load content
+  // Load content from quotes or gallery config
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const configUrl = urlParams.get('config') || GALLERY_CONFIG_URL;
 
-    if (!configUrl) {
-      setItems(DEMO_ITEMS);
-      setIsLoading(false);
-      return;
-    }
+    // First try to load quotes from markdown files
+    const loadContent = async () => {
+      try {
+        // Try loading quotes first
+        const quotes = await loadQuotesAsContent();
+        if (quotes.length > 0) {
+          setItems(quotes);
+          setIsLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.warn('Failed to load quotes, falling back to demo items:', error);
+      }
 
-    loadGalleryConfig(configUrl).then((config) => {
-      setItems(config.items);
-      setGalleryTitle(config.title);
-      if (config.settings?.mode) {
-        setDisplayMode(config.settings.mode);
+      // Fallback: load from gallery config or use demo items
+      if (configUrl) {
+        const config = await loadGalleryConfig(configUrl);
+        setItems(config.items);
+        setGalleryTitle(config.title);
+        if (config.settings?.mode) {
+          setDisplayMode(config.settings.mode);
+        }
+      } else {
+        setItems(DEMO_ITEMS);
       }
       setIsLoading(false);
-    });
+    };
+
+    loadContent();
   }, []);
 
   useEffect(() => {
@@ -501,6 +526,15 @@ const App: React.FC = () => {
     return (
       <Suspense fallback={<div className="fixed inset-0 bg-black" />}>
         <FontPreview />
+      </Suspense>
+    );
+  }
+
+  // Vertical text playground
+  if (currentPage === 'vertical') {
+    return (
+      <Suspense fallback={<div className="fixed inset-0 bg-black" />}>
+        <VerticalTextPlayground />
       </Suspense>
     );
   }

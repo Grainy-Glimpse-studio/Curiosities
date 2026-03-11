@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ContentItem } from '../types';
+import type { ExtendedContentItem } from '../utils/quotesLoader';
 import { isChinese, getRandomFont, type FontConfig } from '../utils/fonts';
 import ScrambleText from '../components/ScrambleText';
+import VerticalText from '../components/VerticalText';
 
 // Floating animation for individual characters - more noticeable
 const floatKeyframes = `
@@ -355,41 +357,93 @@ const SingleView: React.FC<SingleViewProps> = ({
             {/* Text content - floating directly on starfield, no card */}
             {item.type === 'text' && (
               <div className="w-[60vw] max-w-lg p-8">
-                {blowAway ? (
-                  <p
-                    className="leading-relaxed italic text-center"
-                    style={{
-                      fontFamily: item._fontFamily || fontFamily || 'inherit',
-                      color: `rgba(255, 255, 255, ${fontOpacity})`,
-                      fontSize: `${item._fontSize || fontSize}px`,
-                      textShadow: '0 0 20px rgba(0,0,0,0.5)',
-                      minHeight: '1.5em',
-                    }}
-                  >
-                    <BlowAwayText text={`"${item.content || ''}"`} onComplete={onBlowAwayComplete} initialOpacity={fontOpacity * 0.7} />
-                  </p>
-                ) : (
-                  <ScrambleText
-                    frontText={`"${item.content || ''}"`}
-                    backText={item._translation ? `"${item._translation}"` : `"${item.content || ''}"`}
-                    fontFamily={item._fontFamily || fontFamily || 'inherit'}
-                    fontSize={item._fontSize || fontSize}
-                    backFontFamily={translationFont?.name}
-                    backFontSize={translationFont?.size}
-                    fontOpacity={fontOpacity}
-                    isFlipped={isFlipped}
-                    onFlip={onFlip}
-                    glowEnabled={!!palmPosition}
-                    glowPosition={palmPosition}
-                    glowRadius={200}
-                    scrambleDuration={1500}
-                    className="leading-relaxed text-center"
-                    style={{
-                      textShadow: '0 0 20px rgba(0,0,0,0.5)',
-                      minHeight: '1.5em',
-                    }}
-                  />
-                )}
+                {(() => {
+                  // Cast to ExtendedContentItem to access vertical layout properties
+                  const extItem = item as ExtendedContentItem;
+                  const hasVerticalLayout = extItem._verticalLayout && extItem._verticalLayout !== 'none';
+
+                  // Determine what to show based on flip state
+                  const showTranslation = isFlipped && extItem._translation;
+                  const displayText = showTranslation ? extItem._translation! : (item.content || '');
+                  const displayMeta = showTranslation ? extItem._translationMeta : item.title;
+                  const displaySegments = showTranslation ? extItem._translationSegments : extItem._segments;
+
+                  // Check if current display should be vertical (translation might be in different language)
+                  const shouldShowVertical = hasVerticalLayout && !showTranslation;
+                  // For translation, check if it has segments (meaning it's also CJK)
+                  const translationIsVertical = showTranslation && extItem._translationSegments;
+
+                  if (blowAway) {
+                    return (
+                      <p
+                        className="leading-relaxed italic text-center"
+                        style={{
+                          fontFamily: item._fontFamily || fontFamily || 'inherit',
+                          color: `rgba(255, 255, 255, ${fontOpacity})`,
+                          fontSize: `${item._fontSize || fontSize}px`,
+                          textShadow: '0 0 20px rgba(0,0,0,0.5)',
+                          minHeight: '1.5em',
+                        }}
+                      >
+                        <BlowAwayText text={`"${item.content || ''}"`} onComplete={onBlowAwayComplete} initialOpacity={fontOpacity * 0.7} />
+                      </p>
+                    );
+                  }
+
+                  // Use VerticalText for CJK content with vertical layout
+                  if (shouldShowVertical || translationIsVertical) {
+                    return (
+                      <motion.div
+                        key={isFlipped ? 'back' : 'front'}
+                        initial={{ opacity: 0, filter: 'blur(10px)' }}
+                        animate={{ opacity: 1, filter: 'blur(0px)' }}
+                        exit={{ opacity: 0, filter: 'blur(10px)' }}
+                        transition={{ duration: 0.8 }}
+                      >
+                        <VerticalText
+                          text={displayText}
+                          segments={displaySegments}
+                          meta={displayMeta}
+                          layout={extItem._verticalLayout!}
+                          fontSize={item._fontSize || fontSize || 24}
+                          className="flex justify-center"
+                        />
+                      </motion.div>
+                    );
+                  }
+
+                  // Use ScrambleText for horizontal text (English, etc.)
+                  return (
+                    <div className="flex flex-col items-center">
+                      <ScrambleText
+                        frontText={`"${item.content || ''}"`}
+                        backText={item._translation ? `"${item._translation}"` : `"${item.content || ''}"`}
+                        fontFamily={item._fontFamily || fontFamily || 'inherit'}
+                        fontSize={item._fontSize || fontSize}
+                        backFontFamily={translationFont?.name}
+                        backFontSize={translationFont?.size}
+                        fontOpacity={fontOpacity}
+                        isFlipped={isFlipped}
+                        onFlip={onFlip}
+                        glowEnabled={!!palmPosition}
+                        glowPosition={palmPosition}
+                        glowRadius={200}
+                        scrambleDuration={1500}
+                        className="leading-relaxed text-center"
+                        style={{
+                          textShadow: '0 0 20px rgba(0,0,0,0.5)',
+                          minHeight: '1.5em',
+                        }}
+                      />
+                      {/* Metadata display */}
+                      {displayMeta && (
+                        <div className="mt-6 text-white/50 text-sm tracking-wider text-center">
+                          {displayMeta}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 {/* Reply button - use visibility to prevent layout shift */}
                 {canReply && onReply && (
                   <motion.button

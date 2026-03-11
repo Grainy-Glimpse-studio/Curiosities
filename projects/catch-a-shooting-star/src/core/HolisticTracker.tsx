@@ -85,12 +85,8 @@ const HolisticTracker: React.FC<HolisticTrackerProps> = ({
     blowEnabledRef.current = blowEnabled;
   }, [onGrabChange, onPalmMove, onSwipeGesture, onBlowStart, onBlowEnd, onBlow, blowDuration, blowEnabled]);
 
-  // Palm flip detection - track palm orientation (facing camera vs away)
-  const palmFlipStateRef = useRef<{
-    lastOrientation: 'front' | 'back' | null;  // palm facing camera = front
-    lastTrigger: number;
-    stableCount: number;  // frames with same orientation (for debounce)
-  }>({ lastOrientation: null, lastTrigger: 0, stableCount: 0 });
+  // Translation flip is now triggered by Tab key (same as keyboard mode)
+  // Gesture-based flip detection archived in CLAUDE.md for future reference
 
   // Blow detection state
   const isBlowingRef = useRef(false);
@@ -143,7 +139,7 @@ const HolisticTracker: React.FC<HolisticTrackerProps> = ({
           // ============ HAND TRACKING ============
           let anyHandGrabbing = false;
           const grabPositions: { x: number; y: number }[] = [];
-          let palmFlipProcessed = false;  // Only process flip for first detected hand
+          let palmPositionProcessed = false;  // Only track palm position for first detected hand
 
           // Process both hands
           const hands = [
@@ -213,9 +209,9 @@ const HolisticTracker: React.FC<HolisticTrackerProps> = ({
               ctx.stroke();
             }
 
-            // Track palm for flip gesture (first detected hand only)
-            if (!palmFlipProcessed) {
-              palmFlipProcessed = true;  // Mark as processed
+            // Track palm position for glow effect (first detected hand only)
+            if (!palmPositionProcessed) {
+              palmPositionProcessed = true;
               const palmScreenX = (1 - palm.x) * window.innerWidth;
               const palmScreenY = palm.y * window.innerHeight;
 
@@ -229,60 +225,6 @@ const HolisticTracker: React.FC<HolisticTrackerProps> = ({
                 ctx.arc(palm.x * canvas.width, palm.y * canvas.height, 35, 0, 2 * Math.PI);
                 ctx.stroke();
               }
-
-              // Palm flip detection - ONLY when palm is open (fingers extended)
-              // Use cross product of palm vectors to determine orientation
-              if (isPalmOpen) {
-                const wrist = landmarks[0];
-                const indexMCP = landmarks[5];  // index finger knuckle
-                const pinkyMCP = landmarks[17]; // pinky knuckle
-
-                // Vector from wrist to index knuckle
-                const v1 = { x: indexMCP.x - wrist.x, y: indexMCP.y - wrist.y, z: indexMCP.z - wrist.z };
-                // Vector from wrist to pinky knuckle
-                const v2 = { x: pinkyMCP.x - wrist.x, y: pinkyMCP.y - wrist.y, z: pinkyMCP.z - wrist.z };
-
-                // Cross product z-component tells us palm orientation
-                const crossZ = v1.x * v2.y - v1.y * v2.x;
-
-                const flipState = palmFlipStateRef.current;
-                const now = Date.now();
-                const COOLDOWN = 1000;  // ms between flips
-                const STABLE_FRAMES = 5;  // need 5 stable frames
-                const THRESHOLD = 0.012;  // higher threshold to reduce sensitivity
-
-                // Determine current orientation
-                const currentOrientation: 'front' | 'back' | null =
-                  crossZ > THRESHOLD ? 'front' :
-                  crossZ < -THRESHOLD ? 'back' :
-                  null;
-
-                // Debug: show orientation value occasionally
-                if (Math.random() < 0.05) {
-                  console.log(`👋 crossZ: ${crossZ.toFixed(4)}, orient: ${currentOrientation}, stable: ${flipState.stableCount}`);
-                }
-
-                if (currentOrientation && now - flipState.lastTrigger >= COOLDOWN) {
-                  if (currentOrientation === flipState.lastOrientation) {
-                    flipState.stableCount++;
-                  } else if (flipState.lastOrientation !== null && flipState.stableCount >= STABLE_FRAMES) {
-                    // Flip detected!
-                    const direction = currentOrientation === 'back' ? 'up' : 'down';
-                    console.log('🔄 Palm flip:', flipState.lastOrientation, '→', currentOrientation);
-                    onSwipeGestureRef.current?.(direction);
-                    flipState.lastTrigger = now;
-                    flipState.stableCount = 0;
-                  }
-
-                  if (currentOrientation !== flipState.lastOrientation) {
-                    flipState.lastOrientation = currentOrientation;
-                    flipState.stableCount = 1;
-                  }
-                }
-              } else {
-                // Reset stable count when palm is not open
-                palmFlipStateRef.current.stableCount = 0;
-              }
             }
           });
 
@@ -295,6 +237,9 @@ const HolisticTracker: React.FC<HolisticTrackerProps> = ({
 
           onGrabChangeRef.current(anyHandGrabbing, grabPositions);
 
+          // Translation flip is now triggered by Tab key (same as keyboard mode)
+          // Gesture-based flip detection archived in CLAUDE.md
+
           // ============ FACE TRACKING ============
           const hasFace = results.faceLandmarks && results.faceLandmarks.length > 0;
           setFaceDetected(hasFace);
@@ -302,16 +247,8 @@ const HolisticTracker: React.FC<HolisticTrackerProps> = ({
           if (hasFace && blowEnabledRef.current) {
             const landmarks = results.faceLandmarks;
 
-            // Draw face (subtle)
-            ctx.fillStyle = 'rgba(100, 200, 255, 0.3)';
-            for (let i = 0; i < landmarks.length; i += 5) {
-              const lm = landmarks[i];
-              const x = lm.x * canvas.width;
-              const y = lm.y * canvas.height;
-              ctx.beginPath();
-              ctx.arc(x, y, 1.5, 0, 2 * Math.PI);
-              ctx.fill();
-            }
+            // Face visualization disabled - keep detection only
+            // (removed face landmark drawing per user request)
 
             // Lip landmarks for blow detection
             const upperLip = landmarks[13];

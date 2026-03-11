@@ -96,16 +96,64 @@ public/
 ## 当前 TODO
 
 ### 高优先级
-- [ ] Palm flip 手势优化（响应感不够强）
 - [ ] Keyboard: "press space" → "press space to catch"
 - [ ] Keyboard: 空格后内容 blow away + 自动超时 blow away
 - [ ] Gesture: 添加提示语 "catch with your hand"
-- [ ] Text 格式：地点/时间戳显示
 
 ### 中优先级
 - [ ] DeepL API 接入（翻译功能）
 - [ ] 修复每日留言限制
 - [ ] 文字浮动动画（charFloat）
+
+---
+
+## 开发日志
+
+### 2026-03-10 更新
+
+#### 新增功能
+1. **竖排文字显示** - 中文/日文名言竖排显示
+   - `VerticalText.tsx` - 竖排文字组件
+   - 支持三种布局：poetry（诗词）、prose-staggered（散文错落）、prose-mixed（混合）
+   - 简体自动转繁体（`chineseConverter.ts`）
+
+2. **名言加载系统** - 从 Markdown 文件加载名言
+   - `quotesLoader.ts` - 解析 Markdown，支持主语言+翻译
+   - 文件位置：`public/docs/quotes/{en,zh,fr,ja}.md`
+   - 格式：双引号包裹文字 + "作者 / 作品 / 年份 / 地点"
+
+3. **脸部识别优化** - 隐藏脸部光点显示
+   - 保留吹气检测功能，但不显示脸部轮廓
+
+#### 翻译翻转手势（已废弃，改用 Tab 键）
+
+以下手势方案测试后效果不佳，存档备用：
+
+**方案1：手掌翻转（Palm Flip）**
+```javascript
+// 基于叉积的方案（不够准确）
+const crossZ = v1.x * v2.y - v1.y * v2.x;
+const THRESHOLD = 0.012;
+const STABLE_FRAMES = 5;
+const COOLDOWN = 1000;
+
+// 基于 z 深度的方案（稍好但仍不稳定）
+const knuckleZ = (landmarks[5].z + landmarks[9].z + landmarks[13].z + landmarks[17].z) / 4;
+const zDiff = knuckleZ - wrist.z;
+const Z_THRESHOLD = 0.02;
+const STABLE_FRAMES = 3;
+const COOLDOWN = 800;
+```
+
+**方案2：双手握拳（Double Fist）**
+```javascript
+// 问题：容易和抓取流星冲突
+const FIST_COOLDOWN = 1000;
+const FIST_STABLE_FRAMES = 3;
+// 检测：grabbingHandCount >= 2
+```
+
+**结论**：手势翻译不够可靠，暂时使用 Tab 键触发。
 
 ---
 
